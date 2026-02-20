@@ -1,0 +1,25 @@
+{
+  "name": "hwp",
+  "version": "0.1.0",
+  "description": "Read and edit HWP/HWPX Korean document files natively. AI agents can read document structure, extract and edit text, formatting, tables, and images in-place without format conversion.",
+  "author": {
+    "name": "devxoul",
+    "url": "https://github.com/devxoul"
+  },
+  "license": "MIT",
+  "keywords": [
+    "hwp",
+    "hwpx",
+    "korean",
+    "document",
+    "hancom",
+    "ai-agent",
+    "cli",
+    "office"
+  ],
+  "homepage": "https://github.com/devxoul/agent-hwp",
+  "repository": "https://github.com/devxoul/agent-hwp",
+  "skills": [
+    "./skills/hwp"
+  ]
+}

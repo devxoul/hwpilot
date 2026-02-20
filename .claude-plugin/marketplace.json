@@ -1,0 +1,33 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "hwp",
+  "description": "Read and edit HWP/HWPX Korean document files natively",
+  "owner": {
+    "name": "devxoul",
+    "url": "https://github.com/devxoul"
+  },
+  "plugins": [
+    {
+      "name": "hwp",
+      "description": "Native HWP/HWPX document editor CLI for AI agents. Read and write Korean word processor documents programmatically with full support for text, formatting, tables, and images.",
+      "version": "0.1.0",
+      "author": {
+        "name": "devxoul",
+        "url": "https://github.com/devxoul"
+      },
+      "source": "./",
+      "category": "productivity",
+      "homepage": "https://github.com/devxoul/agent-hwp",
+      "keywords": [
+        "hwp",
+        "hwpx",
+        "korean",
+        "document",
+        "hancom",
+        "ai-agent",
+        "cli",
+        "office"
+      ]
+    }
+  ]
+}
