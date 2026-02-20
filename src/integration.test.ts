@@ -339,15 +339,12 @@ describe('integration: error cases produce valid JSON', () => {
     expect(output.error).toBe('Input must be a HWP 5.0 file')
   })
 
-  it('text command on HWP 5.0 → valid JSON error', async () => {
+  it('text command on HWP 5.0 → succeeds (read supported)', async () => {
     const hwpFile = tempPath('text-hwp5')
     await Bun.write(hwpFile, createTestHwpCfb())
     captureOutput()
-    await expect(textCommand(hwpFile, undefined, {})).rejects.toThrow('process.exit')
+    await textCommand(hwpFile, undefined, {})
     restoreOutput()
-
-    const output = JSON.parse(errors[0])
-    expect(output.error).toContain('HWP 5.0')
   })
 
   it('image on HWP 5.0 → valid JSON error', async () => {
@@ -496,7 +493,6 @@ describe('integration: all outputs are valid JSON', () => {
       () => readCommand(unsupportedFile, undefined, {}),
       () => editTextCommand(hwpFile, 's0.p0', 'text', {}),
       () => editFormatCommand(hwpFile, 's0.p0', { bold: true }),
-      () => textCommand(hwpFile, undefined, {}),
       () => convertCommand(hwpxFile, 'out.hwpx', {}),
       () => imageListCommand(hwpFile, {}),
     ]

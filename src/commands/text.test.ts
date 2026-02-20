@@ -1,9 +1,11 @@
 import { afterEach, beforeAll, describe, expect, it, mock } from 'bun:test'
-import { createTestHwpCfb, createTestHwpx } from '@/test-helpers'
+import { createTestHwpBinary, createTestHwpx } from '@/test-helpers'
 import { textCommand } from './text'
 
 const TEST_FILE = '/tmp/test-text.hwpx'
 const TEST_TABLE_FILE = '/tmp/test-text-table.hwpx'
+const TEST_HWP_FILE = '/tmp/test-text.hwp'
+const TEST_HWP_TABLE_FILE = '/tmp/test-text-table.hwp'
 
 let logs: string[]
 const origLog = console.log
@@ -26,6 +28,22 @@ beforeAll(async () => {
     ],
   })
   await Bun.write(TEST_TABLE_FILE, tableBuffer)
+
+  const hwpBuffer = await createTestHwpBinary({ paragraphs: ['Hello', 'World'] })
+  await Bun.write(TEST_HWP_FILE, hwpBuffer)
+
+  const hwpTableBuffer = await createTestHwpBinary({
+    paragraphs: ['Intro'],
+    tables: [
+      {
+        rows: [
+          ['A1', 'B1'],
+          ['A2', 'B2'],
+        ],
+      },
+    ],
+  })
+  await Bun.write(TEST_HWP_TABLE_FILE, hwpTableBuffer)
 })
 
 function captureOutput() {
@@ -118,15 +136,43 @@ describe('textCommand', () => {
     expect(output.text).toBe('Hello\nWorld')
   })
 
-  it('errors for HWP 5.0 files', async () => {
-    const hwpFile = '/tmp/test-text-hwp5.hwp'
-    await Bun.write(hwpFile, createTestHwpCfb())
+  it('extracts all text from HWP document', async () => {
     captureOutput()
-    await expect(textCommand(hwpFile, undefined, {})).rejects.toThrow('process.exit')
+    await textCommand(TEST_HWP_FILE, undefined, {})
     restoreOutput()
 
     const output = JSON.parse(logs[0])
-    expect(output.error).toBe('HWP 5.0 read not yet supported')
+    expect(output.text).toBe('Hello\nWorld')
+  })
+
+  it('extracts text from specific paragraph in HWP', async () => {
+    captureOutput()
+    await textCommand(TEST_HWP_FILE, 's0.p1', {})
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.ref).toBe('s0.p1')
+    expect(output.text).toBe('World')
+  })
+
+  it('extracts text from HWP table cell', async () => {
+    captureOutput()
+    await textCommand(TEST_HWP_TABLE_FILE, 's0.t0.r0.c0', {})
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.ref).toBe('s0.t0.r0.c0')
+    expect(output.text).toBe('A1')
+  })
+
+  it('includes table text in full HWP extraction', async () => {
+    captureOutput()
+    await textCommand(TEST_HWP_TABLE_FILE, undefined, {})
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.text).toContain('Intro')
+    expect(output.text).toContain('A1')
   })
 
   it('errors for nonexistent file', async () => {

@@ -1,3 +1,4 @@
+import { loadHwp } from '@/formats/hwp/reader'
 import { loadHwpx } from '@/formats/hwpx/loader'
 import { parseSections } from '@/formats/hwpx/section-parser'
 import { handleError } from '@/shared/error-handler'
@@ -9,13 +10,7 @@ import type { Paragraph, Section, Table, TableCell } from '@/types'
 export async function textCommand(file: string, ref: string | undefined, options: { pretty?: boolean }): Promise<void> {
   try {
     const format = await detectFormat(file)
-
-    if (format === 'hwp') {
-      throw new Error('HWP 5.0 read not yet supported')
-    }
-
-    const archive = await loadHwpx(file)
-    const sections = await parseSections(archive)
+    const sections = format === 'hwp' ? (await loadHwp(file)).sections : await loadHwpxSections(file)
 
     if (ref) {
       const text = extractRefText(ref, sections)
@@ -28,6 +23,11 @@ export async function textCommand(file: string, ref: string | undefined, options
   } catch (e) {
     handleError(e)
   }
+}
+
+async function loadHwpxSections(file: string): Promise<Section[]> {
+  const archive = await loadHwpx(file)
+  return parseSections(archive)
 }
 
 function paragraphText(p: Paragraph): string {

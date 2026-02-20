@@ -1,3 +1,4 @@
+import { loadHwp } from '@/formats/hwp/reader'
 import { loadHwpx } from '@/formats/hwpx/loader'
 import { parseSections } from '@/formats/hwpx/section-parser'
 import { editHwpx } from '@/formats/hwpx/writer'
@@ -5,14 +6,11 @@ import { handleError } from '@/shared/error-handler'
 import { detectFormat } from '@/shared/format-detector'
 import { formatOutput } from '@/shared/output'
 import { parseRef, validateRef } from '@/shared/refs'
+import type { Section } from '@/types'
 
 export async function tableReadCommand(file: string, ref: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const format = await detectFormat(file)
-
-    if (format === 'hwp') {
-      throw new Error('HWP 5.0 read not yet supported')
-    }
 
     if (!validateRef(ref)) {
       throw new Error(`Invalid reference: ${ref}`)
@@ -23,8 +21,7 @@ export async function tableReadCommand(file: string, ref: string, options: { pre
       throw new Error(`Not a table reference: ${ref}`)
     }
 
-    const archive = await loadHwpx(file)
-    const sections = await parseSections(archive)
+    const sections = format === 'hwp' ? (await loadHwp(file)).sections : await loadHwpxSections(file)
     const section = sections[parsed.section]
 
     if (!section) {
@@ -56,13 +53,7 @@ export async function tableReadCommand(file: string, ref: string, options: { pre
 export async function tableListCommand(file: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const format = await detectFormat(file)
-
-    if (format === 'hwp') {
-      throw new Error('HWP 5.0 read not yet supported')
-    }
-
-    const archive = await loadHwpx(file)
-    const sections = await parseSections(archive)
+    const sections = format === 'hwp' ? (await loadHwp(file)).sections : await loadHwpxSections(file)
 
     const tables: { ref: string; rows: number; cols: number }[] = []
 
@@ -110,4 +101,9 @@ export async function tableEditCommand(
   } catch (e) {
     handleError(e)
   }
+}
+
+async function loadHwpxSections(file: string): Promise<Section[]> {
+  const archive = await loadHwpx(file)
+  return parseSections(archive)
 }
