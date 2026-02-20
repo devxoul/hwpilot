@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it, mock } from 'bun:test'
-import { createTestHwpx } from '@/test-helpers'
+import { createTestHwpCfb, createTestHwpx } from '@/test-helpers'
 import { textCommand } from './text'
 
 const TEST_FILE = '/tmp/test-text.hwpx'
@@ -119,8 +119,10 @@ describe('textCommand', () => {
   })
 
   it('errors for HWP 5.0 files', async () => {
+    const hwpFile = '/tmp/test-text-hwp5.hwp'
+    await Bun.write(hwpFile, createTestHwpCfb())
     captureOutput()
-    await expect(textCommand('/tmp/test.hwp', undefined, {})).rejects.toThrow('process.exit')
+    await expect(textCommand(hwpFile, undefined, {})).rejects.toThrow('process.exit')
     restoreOutput()
 
     const output = JSON.parse(logs[0])

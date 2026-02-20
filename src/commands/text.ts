@@ -1,20 +1,17 @@
 import { loadHwpx } from '@/formats/hwpx/loader'
 import { parseSections } from '@/formats/hwpx/section-parser'
 import { handleError } from '@/shared/error-handler'
+import { detectFormat } from '@/shared/format-detector'
 import { formatOutput } from '@/shared/output'
 import { parseRef } from '@/shared/refs'
 import type { Paragraph, Section, Table, TableCell } from '@/types'
 
 export async function textCommand(file: string, ref: string | undefined, options: { pretty?: boolean }): Promise<void> {
   try {
-    const ext = file.split('.').pop()?.toLowerCase()
+    const format = await detectFormat(file)
 
-    if (ext === 'hwp') {
+    if (format === 'hwp') {
       throw new Error('HWP 5.0 read not yet supported')
-    }
-
-    if (ext !== 'hwpx') {
-      throw new Error(`Unsupported file format: .${ext}`)
     }
 
     const archive = await loadHwpx(file)
