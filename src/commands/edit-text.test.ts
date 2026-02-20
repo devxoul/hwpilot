@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
-import { createTestHwpx } from '@/test-helpers'
+import { createTestHwpCfb, createTestHwpx } from '@/test-helpers'
 import { editTextCommand } from './edit-text'
 
 const TEST_FILE = '/tmp/test-edit-text.hwpx'
@@ -76,8 +76,10 @@ describe('editTextCommand', () => {
   })
 
   it('errors for HWP files', async () => {
+    const hwpFile = '/tmp/test-edit-text-hwp5.hwp'
+    await Bun.write(hwpFile, createTestHwpCfb())
     captureOutput()
-    await expect(editTextCommand('/tmp/test.hwp', 's0.p0', 'text', {})).rejects.toThrow('process.exit')
+    await expect(editTextCommand(hwpFile, 's0.p0', 'text', {})).rejects.toThrow('process.exit')
     restoreOutput()
 
     const output = JSON.parse(errors[0])
