@@ -1,4 +1,5 @@
-import { editHwpx, type FormatOptions } from '@/formats/hwpx/writer'
+import { editHwpx } from '@/formats/hwpx/writer'
+import { type FormatOptions } from '@/shared/edit-types'
 import { handleError } from '@/shared/error-handler'
 import { detectFormat } from '@/shared/format-detector'
 import { formatOutput } from '@/shared/output'
