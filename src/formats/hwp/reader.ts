@@ -20,6 +20,16 @@ import { TAG } from './tag-ids'
 
 const HWP_SIGNATURE = 'HWP Document File'
 
+type BinDataEntry = {
+  path: string
+  format: string
+}
+
+type DocInfoParseResult = {
+  header: DocumentHeader
+  binDataById: Map<number, BinDataEntry>
+}
+
 export async function loadHwp(filePath: string): Promise<HwpDocument> {
   const fileBuffer = await readFile(filePath)
   const cfb = CFB.read(fileBuffer, { type: 'buffer' })
@@ -43,7 +53,7 @@ export async function loadHwp(filePath: string): Promise<HwpDocument> {
   const isCompressed = Boolean(flags & 0x1)
   const docInfoEntry = CFB.find(cfb, 'DocInfo')
   const docInfoBuffer = getStreamBuffer(docInfoEntry, isCompressed)
-  const header = parseDocInfo(docInfoBuffer)
+  const { header, binDataById } = parseDocInfo(docInfoBuffer)
 
   const sections: Section[] = []
   let sectionIndex = 0
@@ -55,7 +65,7 @@ export async function loadHwp(filePath: string): Promise<HwpDocument> {
     }
 
     const sectionBuffer = getStreamBuffer(sectionEntry, isCompressed)
-    sections.push(parseSection(sectionBuffer, sectionIndex))
+    sections.push(parseSection(sectionBuffer, sectionIndex, binDataById))
     sectionIndex += 1
   }
 
@@ -75,11 +85,12 @@ function getStreamBuffer(entry: CFB.CFB$Entry | null | undefined, isCompressed: 
   return Buffer.from(inflateRaw(raw))
 }
 
-function parseDocInfo(buffer: Buffer): DocumentHeader {
+function parseDocInfo(buffer: Buffer): DocInfoParseResult {
   const fonts: FontFace[] = []
   const charShapes: CharShape[] = []
   const paraShapes: ParaShape[] = []
   const styles: Style[] = []
+  const binDataById = new Map<number, BinDataEntry>()
 
   let fontId = 0
   let charShapeId = 0
@@ -87,6 +98,14 @@ function parseDocInfo(buffer: Buffer): DocumentHeader {
   let styleId = 0
 
   for (const { header, data } of iterateRecords(buffer)) {
+    if (header.tagId === TAG.BIN_DATA) {
+      const parsed = parseBinDataRecord(data)
+      if (parsed) {
+        binDataById.set(parsed.id, { path: parsed.path, format: parsed.format })
+      }
+      continue
+    }
+
     if (header.tagId === TAG.FACE_NAME) {
       if (data.length < 2) {
         continue
@@ -170,62 +189,301 @@ function parseDocInfo(buffer: Buffer): DocumentHeader {
     }
   }
 
-  return { fonts, charShapes, paraShapes, styles }
+  return {
+    header: { fonts, charShapes, paraShapes, styles },
+    binDataById,
+  }
 }
 
-function parseSection(buffer: Buffer, sectionIndex: number): Section {
+function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<number, BinDataEntry>): Section {
   const paragraphs: Paragraph[] = []
   const tables: Table[] = []
   const images: Image[] = []
 
   let paraIndex = 0
-  let inParagraph = false
-  let currentRuns: Run[] = []
-  let currentCharShapeRef = 0
+  const activeParagraphs = new Map<number, { runs: Run[]; charShapeRef: number; target: 'section' | 'cell' }>()
 
-  for (const { header, data } of iterateRecords(buffer)) {
-    if (header.tagId === TAG.PARA_HEADER) {
-      if (inParagraph) {
-        paragraphs.push({
+  let pendingTableControlLevel: number | null = null
+  let activeTable: {
+    level: number
+    tableIndex: number
+    rowCount: number
+    colCount: number
+    nextCellIndex: number
+  } | null = null
+  let activeCell: {
+    paragraphLevel: number
+    paragraphs: Paragraph[]
+  } | null = null
+
+  let pendingShapeSize: { width: number; height: number } | null = null
+
+  const flushParagraphLevel = (level: number): void => {
+    const paragraph = activeParagraphs.get(level)
+    if (!paragraph) {
+      return
+    }
+
+    const destination = paragraph.target === 'section' ? paragraphs : (activeCell?.paragraphs ?? null)
+    if (destination) {
+      if (paragraph.target === 'section') {
+        destination.push({
           ref: buildRef({ section: sectionIndex, paragraph: paraIndex }),
-          runs: currentRuns,
+          runs: paragraph.runs,
           paraShapeRef: 0,
           styleRef: 0,
         })
         paraIndex += 1
+      } else if (activeTable) {
+        destination.push({
+          ref: buildRef({
+            section: sectionIndex,
+            table: activeTable.tableIndex,
+            row: Math.floor((activeTable.nextCellIndex - 1) / activeTable.colCount),
+            cell: (activeTable.nextCellIndex - 1) % activeTable.colCount,
+            cellParagraph: destination.length,
+          }),
+          runs: paragraph.runs,
+          paraShapeRef: 0,
+          styleRef: 0,
+        })
       }
-
-      currentRuns = []
-      currentCharShapeRef = 0
-      inParagraph = true
-      continue
     }
 
-    if (header.tagId === TAG.PARA_CHAR_SHAPE && inParagraph) {
-      if (data.length >= 6) {
-        currentCharShapeRef = data.readUInt16LE(4)
-      }
-      continue
-    }
+    activeParagraphs.delete(level)
+  }
 
-    if (header.tagId === TAG.PARA_TEXT && inParagraph) {
-      const text = extractParaText(data)
-      if (text) {
-        currentRuns.push({ text, charShapeRef: currentCharShapeRef })
+  const flushParagraphsAbove = (level: number): void => {
+    for (const activeLevel of [...activeParagraphs.keys()].sort((a, b) => b - a)) {
+      if (activeLevel > level) {
+        flushParagraphLevel(activeLevel)
       }
     }
   }
 
-  if (inParagraph) {
-    paragraphs.push({
-      ref: buildRef({ section: sectionIndex, paragraph: paraIndex }),
-      runs: currentRuns,
-      paraShapeRef: 0,
-      styleRef: 0,
-    })
+  const getParagraphForContentRecord = (
+    level: number,
+  ): { runs: Run[]; charShapeRef: number; target: 'section' | 'cell' } | null => {
+    return activeParagraphs.get(level) ?? activeParagraphs.get(level - 1) ?? null
+  }
+
+  for (const { header, data } of iterateRecords(buffer)) {
+    flushParagraphsAbove(header.level)
+
+    if (
+      activeTable &&
+      activeTable.nextCellIndex >= activeTable.rowCount * activeTable.colCount &&
+      header.level <= activeTable.level &&
+      header.tagId !== TAG.LIST_HEADER
+    ) {
+      activeTable = null
+      activeCell = null
+    }
+
+    if (header.tagId === TAG.PARA_HEADER) {
+      flushParagraphLevel(header.level)
+      const target = activeCell && header.level === activeCell.paragraphLevel ? 'cell' : 'section'
+      activeParagraphs.set(header.level, {
+        runs: [],
+        charShapeRef: 0,
+        target,
+      })
+      continue
+    }
+
+    if (header.tagId === TAG.PARA_CHAR_SHAPE) {
+      const paragraph = getParagraphForContentRecord(header.level)
+      if (!paragraph) {
+        continue
+      }
+
+      if (data.length >= 6) {
+        paragraph.charShapeRef = data.readUInt16LE(4)
+      }
+      continue
+    }
+
+    if (header.tagId === TAG.PARA_TEXT) {
+      const paragraph = getParagraphForContentRecord(header.level)
+      if (!paragraph) {
+        continue
+      }
+
+      const text = extractParaText(data)
+      if (text) {
+        paragraph.runs.push({ text, charShapeRef: paragraph.charShapeRef })
+      }
+      continue
+    }
+
+    if (header.tagId === TAG.CTRL_HEADER) {
+      if (data.subarray(0, 4).toString('ascii') === 'tbl ') {
+        pendingTableControlLevel = header.level
+      }
+      continue
+    }
+
+    if (
+      header.tagId === TAG.TABLE &&
+      pendingTableControlLevel !== null &&
+      header.level === pendingTableControlLevel + 1 &&
+      data.length >= 6
+    ) {
+      const rowCount = data.readUInt16LE(2)
+      const colCount = data.readUInt16LE(4)
+      const tableIndex = tables.length
+      const rows = Array.from({ length: rowCount }, () => ({
+        cells: [] as NonNullable<Table['rows'][number]['cells']>,
+      }))
+
+      tables.push({
+        ref: buildRef({ section: sectionIndex, table: tableIndex }),
+        rows,
+      })
+
+      activeTable = {
+        level: header.level,
+        tableIndex,
+        rowCount,
+        colCount,
+        nextCellIndex: 0,
+      }
+      activeCell = null
+      pendingTableControlLevel = null
+      continue
+    }
+
+    if (header.tagId === TAG.LIST_HEADER && activeTable && header.level === activeTable.level) {
+      const cellIndex = activeTable.nextCellIndex
+      activeTable.nextCellIndex += 1
+
+      if (activeTable.colCount > 0) {
+        const rowIndex = Math.floor(cellIndex / activeTable.colCount)
+        const colIndex = cellIndex % activeTable.colCount
+        const cellParagraphs: Paragraph[] = []
+
+        if (rowIndex < activeTable.rowCount) {
+          tables[activeTable.tableIndex].rows[rowIndex].cells.push({
+            ref: buildRef({ section: sectionIndex, table: activeTable.tableIndex, row: rowIndex, cell: colIndex }),
+            paragraphs: cellParagraphs,
+            colSpan: 1,
+            rowSpan: 1,
+          })
+
+          activeCell = {
+            paragraphLevel: header.level + 1,
+            paragraphs: cellParagraphs,
+          }
+        }
+      }
+      continue
+    }
+
+    if (header.tagId === TAG.SHAPE_COMPONENT) {
+      pendingShapeSize = parseShapeSize(data)
+      continue
+    }
+
+    if (header.tagId === TAG.SHAPE_COMPONENT_PICTURE) {
+      const binDataId = parsePictureBinDataId(data, binDataById)
+      if (binDataId !== null) {
+        const entry = binDataById.get(binDataId)
+        const format = entry?.format ?? ''
+        images.push({
+          ref: buildRef({ section: sectionIndex, image: images.length }),
+          binDataPath: entry?.path ?? `BinData/image${binDataId}`,
+          width: pendingShapeSize?.width ?? 0,
+          height: pendingShapeSize?.height ?? 0,
+          format,
+        })
+      }
+      pendingShapeSize = null
+    }
+  }
+
+  for (const level of [...activeParagraphs.keys()].sort((a, b) => b - a)) {
+    flushParagraphLevel(level)
   }
 
   return { paragraphs, tables, images }
+}
+
+function parseBinDataRecord(data: Buffer): { id: number; path: string; format: string } | null {
+  if (data.length < 4) {
+    return null
+  }
+
+  const typeFlags = data.readUInt16LE(0)
+  const storageType = typeFlags & 0x3
+  if (storageType !== 1 && storageType !== 2) {
+    return null
+  }
+
+  const id = data.readUInt16LE(2)
+  if (id === 0) {
+    return null
+  }
+
+  const extension = readUtf16LengthPrefixed(data, 4)
+  const normalized = extension.trim().replace(/^\./, '').toLowerCase()
+  const suffix = normalized ? `.${normalized}` : ''
+
+  return {
+    id,
+    path: `BinData/image${id}${suffix}`,
+    format: normalized,
+  }
+}
+
+function readUtf16LengthPrefixed(data: Buffer, offset: number): string {
+  if (offset + 2 > data.length) {
+    return ''
+  }
+
+  const length = data.readUInt16LE(offset)
+  const textStart = offset + 2
+  const textEnd = textStart + length * 2
+  if (textEnd > data.length) {
+    return ''
+  }
+
+  return data.subarray(textStart, textEnd).toString('utf16le')
+}
+
+function parseShapeSize(data: Buffer): { width: number; height: number } | null {
+  if (data.length < 8) {
+    return null
+  }
+
+  const width = data.readInt32LE(0)
+  const height = data.readInt32LE(4)
+  if (width <= 0 || height <= 0) {
+    return null
+  }
+
+  return { width, height }
+}
+
+function parsePictureBinDataId(data: Buffer, binDataById: Map<number, BinDataEntry>): number | null {
+  if (data.length < 2) {
+    return null
+  }
+
+  const candidates: number[] = []
+  for (let offset = 0; offset + 2 <= data.length; offset += 2) {
+    const id = data.readUInt16LE(offset)
+    if (id > 0) {
+      candidates.push(id)
+    }
+  }
+
+  for (const id of candidates) {
+    if (binDataById.has(id)) {
+      return id
+    }
+  }
+
+  return candidates[0] ?? null
 }
 
 export function extractParaText(data: Buffer): string {
