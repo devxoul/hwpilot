@@ -30,7 +30,9 @@ export async function createCommand(file: string, options: CreateOptions): Promi
     }
 
     const paragraphs = options.title ? [options.title] : ['']
-    const buffer = await createTestHwpx({ paragraphs })
+    const font = options.font
+    const fontSize = options.size ? Number(options.size) * 100 : undefined
+    const buffer = await createTestHwpx({ paragraphs, font, fontSize })
 
     await writeFile(file, buffer)
 

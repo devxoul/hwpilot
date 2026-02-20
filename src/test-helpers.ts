@@ -14,6 +14,8 @@ export type TestHwpxOptions = {
   paragraphs?: string[]
   tables?: TestTable[]
   images?: TestImage[]
+  font?: string
+  fontSize?: number
 }
 
 export async function createTestHwpx(opts: TestHwpxOptions = {}): Promise<Buffer> {
@@ -22,6 +24,8 @@ export async function createTestHwpx(opts: TestHwpxOptions = {}): Promise<Buffer
   const paragraphs = opts.paragraphs ?? ['']
   const tables = opts.tables ?? []
   const images = opts.images ?? []
+  const fontName = opts.font ?? '맑은 고딕'
+  const fontHeight = opts.fontSize ?? 1000
 
   zip.file(
     'version.xml',
@@ -60,10 +64,10 @@ export async function createTestHwpx(opts: TestHwpxOptions = {}): Promise<Buffer
 <hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head">
   <hh:refList>
     <hh:fontfaces>
-      <hh:fontface hh:id="0" hh:face="맑은 고딕"/>
+      <hh:fontface hh:id="0" hh:face="${escapeXml(fontName)}"/>
     </hh:fontfaces>
     <hh:charProperties>
-      <hh:charPr hh:id="0" hh:height="1000" hh:fontRef="0"
+      <hh:charPr hh:id="0" hh:height="${fontHeight}" hh:fontRef="0"
         hh:fontBold="0" hh:fontItalic="0" hh:underline="0" hh:color="0"/>
     </hh:charProperties>
     <hh:paraProperties>
