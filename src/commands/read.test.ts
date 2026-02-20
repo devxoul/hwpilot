@@ -136,8 +136,10 @@ describe('readCommand', () => {
   })
 
   it('errors for unsupported format', async () => {
+    const unsupportedFile = '/tmp/test-read-unsupported.bin'
+    await Bun.write(unsupportedFile, Buffer.from('not a valid hwp or hwpx file'))
     captureOutput()
-    await expect(readCommand('/tmp/test.docx', undefined, {})).rejects.toThrow('process.exit')
+    await expect(readCommand(unsupportedFile, undefined, {})).rejects.toThrow('process.exit')
     restoreOutput()
 
     const output = JSON.parse(logs[0])

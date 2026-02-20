@@ -3,19 +3,15 @@ import { parseHeader } from '@/formats/hwpx/header-parser'
 import { loadHwpx } from '@/formats/hwpx/loader'
 import { parseSections } from '@/formats/hwpx/section-parser'
 import { handleError } from '@/shared/error-handler'
+import { detectFormat } from '@/shared/format-detector'
 import { formatOutput } from '@/shared/output'
 import { parseRef } from '@/shared/refs'
 import type { Section } from '@/types'
 
 export async function readCommand(file: string, ref: string | undefined, options: { pretty?: boolean }): Promise<void> {
   try {
-    const ext = file.split('.').pop()?.toLowerCase()
-
-    if (ext !== 'hwpx' && ext !== 'hwp') {
-      throw new Error(`Unsupported file format: .${ext}`)
-    }
-
-    const doc = ext === 'hwp' ? await loadHwp(file) : await loadHwpxDocument(file)
+    const format = await detectFormat(file)
+    const doc = format === 'hwp' ? await loadHwp(file) : await loadHwpxDocument(file)
 
     if (ref) {
       const result = resolveRef(ref, doc.sections)
