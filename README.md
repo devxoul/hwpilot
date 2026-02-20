@@ -75,6 +75,11 @@ bun test src/
 
 Contributions welcome! Please read [CONTRIBUTING.md](./CONTRIBUTING.md) first.
 
+## Acknowledgments
+
+- [Hancom OWPML spec (KS X 6101)](http://www.hancom.co.kr) — HWPX format specification
+- [hwp.js](https://github.com/hahnlee/hwp.js) — Open source HWP parser that served as a reference for understanding the HWP 5.0 binary format
+
 ## License
 
 MIT
