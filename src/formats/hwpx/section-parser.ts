@@ -78,7 +78,9 @@ function parseRun(run: XmlNode): Run {
 }
 
 function parseTable(table: XmlNode, sectionIndex: number, tableIndex: number): Table {
-  const rows = asArray<XmlNode>(table['hp:tr']).map((row, rowIndex) => parseTableRow(row, sectionIndex, tableIndex, rowIndex))
+  const rows = asArray<XmlNode>(table['hp:tr']).map((row, rowIndex) =>
+    parseTableRow(row, sectionIndex, tableIndex, rowIndex),
+  )
 
   return {
     ref: buildRef({ section: sectionIndex, table: tableIndex }),
@@ -87,7 +89,9 @@ function parseTable(table: XmlNode, sectionIndex: number, tableIndex: number): T
 }
 
 function parseTableRow(row: XmlNode, sectionIndex: number, tableIndex: number, rowIndex: number): TableRow {
-  const cells = asArray<XmlNode>(row['hp:tc']).map((cell, cellIndex) => parseTableCell(cell, sectionIndex, tableIndex, rowIndex, cellIndex))
+  const cells = asArray<XmlNode>(row['hp:tc']).map((cell, cellIndex) =>
+    parseTableCell(cell, sectionIndex, tableIndex, rowIndex, cellIndex),
+  )
 
   return { cells }
 }

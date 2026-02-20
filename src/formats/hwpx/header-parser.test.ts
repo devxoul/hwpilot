@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'bun:test'
+import { describe, expect, it } from 'bun:test'
 import { parseHeader } from './header-parser'
 
 const HEADER_XML = `<?xml version="1.0" encoding="UTF-8"?>

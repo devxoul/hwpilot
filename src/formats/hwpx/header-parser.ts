@@ -5,8 +5,7 @@ const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '',
   parseAttributeValue: true,
-  isArray: (_name) =>
-    ['hh:fontface', 'hh:charPr', 'hh:paraPr', 'hh:style'].includes(_name),
+  isArray: (_name) => ['hh:fontface', 'hh:charPr', 'hh:paraPr', 'hh:style'].includes(_name),
 })
 
 type AlignValue = 'left' | 'center' | 'right' | 'justify'

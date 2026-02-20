@@ -1,5 +1,7 @@
 #!/usr/bin/env bun
 import { Command } from 'commander'
+import { readCommand } from '@/commands/read'
+import { textCommand } from '@/commands/text'
 
 const program = new Command()
 
@@ -10,9 +12,8 @@ program
   .command('read <file> [ref]')
   .description('Read document structure or a specific element')
   .option('--pretty', 'Pretty-print JSON output')
-  .action(() => {
-    console.log(JSON.stringify({ error: 'Not implemented' }))
-    process.exit(1)
+  .action(async (file: string, ref: string | undefined, options: { pretty?: boolean }) => {
+    await readCommand(file, ref, options)
   })
 
 // hwp text <file> [ref]
@@ -20,9 +21,8 @@ program
   .command('text <file> [ref]')
   .description('Extract text from document or a specific element')
   .option('--pretty', 'Pretty-print JSON output')
-  .action(() => {
-    console.log(JSON.stringify({ error: 'Not implemented' }))
-    process.exit(1)
+  .action(async (file: string, ref: string | undefined, options: { pretty?: boolean }) => {
+    await textCommand(file, ref, options)
   })
 
 // hwp edit
