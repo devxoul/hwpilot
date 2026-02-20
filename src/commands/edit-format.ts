@@ -1,3 +1,4 @@
+import { editHwp } from '@/formats/hwp/writer'
 import { editHwpx } from '@/formats/hwpx/writer'
 import { type FormatOptions } from '@/shared/edit-types'
 import { handleError } from '@/shared/error-handler'
@@ -19,10 +20,6 @@ export async function editFormatCommand(file: string, ref: string, options: Form
   try {
     const fileFormat = await detectFormat(file)
 
-    if (fileFormat === 'hwp') {
-      throw new Error('HWP 5.0 write not supported')
-    }
-
     if (!validateRef(ref)) {
       throw new Error(`Invalid reference: ${ref}`)
     }
@@ -39,7 +36,11 @@ export async function editFormatCommand(file: string, ref: string, options: Form
       throw new Error('No format options specified')
     }
 
-    await editHwpx(file, [{ type: 'setFormat', ref, format }])
+    if (fileFormat === 'hwp') {
+      await editHwp(file, [{ type: 'setFormat', ref, format }])
+    } else {
+      await editHwpx(file, [{ type: 'setFormat', ref, format }])
+    }
 
     console.log(formatOutput({ ref, format, success: true }, options.pretty))
   } catch (e) {

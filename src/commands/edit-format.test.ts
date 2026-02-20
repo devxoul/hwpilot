@@ -2,10 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
 import { unlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { loadHwp } from '@/formats/hwp/reader'
 import { parseHeader } from '@/formats/hwpx/header-parser'
 import { loadHwpx } from '@/formats/hwpx/loader'
 import { parseSections } from '@/formats/hwpx/section-parser'
-import { createTestHwpx } from '@/test-helpers'
+import { createTestHwpBinary, createTestHwpx } from '@/test-helpers'
 import { editFormatCommand } from './edit-format'
 
 const tmpPath = (name: string) => join(tmpdir(), `${name}-${Date.now()}-${Math.random().toString(36).slice(2)}.hwpx`)
@@ -103,5 +104,35 @@ describe('editFormatCommand', () => {
 
     const output = JSON.parse(errors[0])
     expect(output.error).toContain('Invalid reference')
+  })
+})
+
+describe('editFormatCommand HWP', () => {
+  let hwpFile: string
+
+  beforeEach(async () => {
+    hwpFile = join(tmpdir(), `edit-format-hwp-${Date.now()}-${Math.random().toString(36).slice(2)}.hwp`)
+    const buffer = await createTestHwpBinary({ paragraphs: ['Hello'] })
+    await Bun.write(hwpFile, buffer)
+  })
+
+  afterEach(async () => {
+    try {
+      await unlink(hwpFile)
+    } catch {}
+  })
+
+  it('applies bold format to HWP file', async () => {
+    captureOutput()
+    await editFormatCommand(hwpFile, 's0.p0', { bold: true })
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output).toEqual({ ref: 's0.p0', format: { bold: true }, success: true })
+
+    const doc = await loadHwp(hwpFile)
+    const charShapeRef = doc.sections[0].paragraphs[0].runs[0].charShapeRef
+    const charShape = doc.header.charShapes.find((s) => s.id === charShapeRef)
+    expect(charShape?.bold).toBe(true)
   })
 })

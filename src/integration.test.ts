@@ -10,7 +10,7 @@ import { imageExtractCommand, imageInsertCommand, imageListCommand } from '@/com
 import { readCommand } from '@/commands/read'
 import { tableEditCommand, tableReadCommand } from '@/commands/table'
 import { textCommand } from '@/commands/text'
-import { createTestHwpCfb, createTestHwpx } from '@/test-helpers'
+import { createTestHwpBinary, createTestHwpCfb, createTestHwpx } from '@/test-helpers'
 
 let logs: string[]
 let errors: string[]
@@ -305,15 +305,15 @@ describe('integration: error cases produce valid JSON', () => {
     expect(output.error).toContain('not found')
   })
 
-  it('HWP write unsupported → valid JSON error', async () => {
-    const hwpFile = tempPath('hwp5-write')
-    await Bun.write(hwpFile, createTestHwpCfb())
+  it('HWP edit text → succeeds', async () => {
+    const hwpFile = tempPath('hwp5-write', 'hwp')
+    await Bun.write(hwpFile, await createTestHwpBinary({ paragraphs: ['Hello'] }))
     captureOutput()
-    await expect(editTextCommand(hwpFile, 's0.p0', 'text', {})).rejects.toThrow('process.exit')
+    await editTextCommand(hwpFile, 's0.p0', 'Modified', {})
     restoreOutput()
 
-    const output = JSON.parse(errors[0])
-    expect(output.error).toContain('HWP 5.0 write not supported')
+    const output = JSON.parse(logs[0])
+    expect(output).toEqual({ ref: 's0.p0', text: 'Modified', success: true })
   })
 
   it('create existing file → valid JSON error', async () => {

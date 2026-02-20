@@ -1,3 +1,4 @@
+import { editHwp } from '@/formats/hwp/writer'
 import { editHwpx } from '@/formats/hwpx/writer'
 import { type EditOperation } from '@/shared/edit-types'
 import { handleError } from '@/shared/error-handler'
@@ -14,10 +15,6 @@ export async function editTextCommand(
   try {
     const format = await detectFormat(file)
 
-    if (format === 'hwp') {
-      throw new Error('HWP 5.0 write not supported')
-    }
-
     if (!validateRef(ref)) {
       throw new Error(`Invalid reference: ${ref}`)
     }
@@ -26,7 +23,11 @@ export async function editTextCommand(
     const operation: EditOperation =
       parsed.table !== undefined ? { type: 'setTableCell', ref, text } : { type: 'setText', ref, text }
 
-    await editHwpx(file, [operation])
+    if (format === 'hwp') {
+      await editHwp(file, [operation])
+    } else {
+      await editHwpx(file, [operation])
+    }
 
     console.log(formatOutput({ ref, text, success: true }, options.pretty))
   } catch (e) {

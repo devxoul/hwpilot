@@ -222,3 +222,21 @@ describe('tableListCommand HWP', () => {
     expect(output[0]).toEqual({ ref: 's0.t0', rows: 2, cols: 2 })
   })
 })
+
+describe('tableEditCommand HWP', () => {
+  it('edits a table cell in HWP file and verifies', async () => {
+    captureOutput()
+    await tableEditCommand(TEST_HWP_FILE, 's0.t0.r0.c0', 'Changed', {})
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output).toEqual({ ref: 's0.t0.r0.c0', text: 'Changed', success: true })
+
+    captureOutput()
+    await tableReadCommand(TEST_HWP_FILE, 's0.t0', {})
+    restoreOutput()
+
+    const table = JSON.parse(logs[0])
+    expect(table.rows[0].cells[0].text).toBe('Changed')
+  })
+})

@@ -1,4 +1,5 @@
 import { loadHwp } from '@/formats/hwp/reader'
+import { editHwp } from '@/formats/hwp/writer'
 import { loadHwpx } from '@/formats/hwpx/loader'
 import { parseSections } from '@/formats/hwpx/section-parser'
 import { editHwpx } from '@/formats/hwpx/writer'
@@ -82,10 +83,6 @@ export async function tableEditCommand(
   try {
     const format = await detectFormat(file)
 
-    if (format === 'hwp') {
-      throw new Error('HWP 5.0 write not supported')
-    }
-
     if (!validateRef(ref)) {
       throw new Error(`Invalid reference: ${ref}`)
     }
@@ -95,7 +92,11 @@ export async function tableEditCommand(
       throw new Error(`Not a cell reference: ${ref}`)
     }
 
-    await editHwpx(file, [{ type: 'setTableCell', ref, text }])
+    if (format === 'hwp') {
+      await editHwp(file, [{ type: 'setTableCell', ref, text }])
+    } else {
+      await editHwpx(file, [{ type: 'setTableCell', ref, text }])
+    }
 
     console.log(formatOutput({ ref, text, success: true }, options.pretty))
   } catch (e) {

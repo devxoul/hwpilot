@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
-import { createTestHwpCfb, createTestHwpx } from '@/test-helpers'
+import { loadHwp } from '@/formats/hwp/reader'
+import { createTestHwpBinary, createTestHwpCfb, createTestHwpx } from '@/test-helpers'
 import { editTextCommand } from './edit-text'
 
 const TEST_FILE = '/tmp/test-edit-text.hwpx'
@@ -75,15 +76,40 @@ describe('editTextCommand', () => {
     expect(output.error).toContain('Invalid reference')
   })
 
-  it('errors for HWP files', async () => {
+  it('edits text in HWP file', async () => {
     const hwpFile = '/tmp/test-edit-text-hwp5.hwp'
-    await Bun.write(hwpFile, createTestHwpCfb())
+    const hwpBuffer = await createTestHwpBinary({ paragraphs: ['Hello'] })
+    await Bun.write(hwpFile, hwpBuffer)
+
     captureOutput()
-    await expect(editTextCommand(hwpFile, 's0.p0', 'text', {})).rejects.toThrow('process.exit')
+    await editTextCommand(hwpFile, 's0.p0', 'Modified', {})
     restoreOutput()
 
-    const output = JSON.parse(errors[0])
-    expect(output.error).toBe('HWP 5.0 write not supported')
+    const output = JSON.parse(logs[0])
+    expect(output).toEqual({ ref: 's0.p0', text: 'Modified', success: true })
+
+    const doc = await loadHwp(hwpFile)
+    const text = doc.sections[0].paragraphs[0].runs.map((r) => r.text).join('')
+    expect(text).toBe('Modified')
+  })
+
+  it('edits table cell text in HWP file', async () => {
+    const hwpFile = '/tmp/test-edit-text-hwp5-table.hwp'
+    const hwpBuffer = await createTestHwpBinary({ tables: [{ rows: [['A', 'B']] }] })
+    await Bun.write(hwpFile, hwpBuffer)
+
+    captureOutput()
+    await editTextCommand(hwpFile, 's0.t0.r0.c0', 'Changed', {})
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output).toEqual({ ref: 's0.t0.r0.c0', text: 'Changed', success: true })
+
+    const doc = await loadHwp(hwpFile)
+    const cellText = doc.sections[0].tables[0].rows[0].cells[0].paragraphs
+      .flatMap((p) => p.runs.map((r) => r.text))
+      .join('')
+    expect(cellText).toBe('Changed')
   })
 
   it('outputs pretty JSON when --pretty', async () => {
