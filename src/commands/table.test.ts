@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
 import { createTestHwpx } from '@/test-helpers'
-import { tableEditCommand, tableReadCommand } from './table'
+import { tableEditCommand, tableListCommand, tableReadCommand } from './table'
 
 const TEST_FILE = '/tmp/test-table.hwpx'
 
@@ -113,6 +113,47 @@ describe('tableEditCommand', () => {
 
     const output = JSON.parse(errors[0])
     expect(output.error).toContain('Not a cell reference')
+  })
+})
+
+describe('tableListCommand', () => {
+  beforeEach(async () => {
+    const buffer = await createTestHwpx({
+      paragraphs: ['Intro'],
+      tables: [
+        {
+          rows: [
+            ['A', 'B'],
+            ['C', 'D'],
+          ],
+        },
+        { rows: [['X', 'Y', 'Z']] },
+      ],
+    })
+    await Bun.write(TEST_FILE, buffer)
+  })
+
+  it('lists all tables with refs, rows, and cols', async () => {
+    captureOutput()
+    await tableListCommand(TEST_FILE, {})
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output).toHaveLength(2)
+    expect(output[0]).toEqual({ ref: 's0.t0', rows: 2, cols: 2 })
+    expect(output[1]).toEqual({ ref: 's0.t1', rows: 1, cols: 3 })
+  })
+
+  it('returns empty array for document without tables', async () => {
+    const buffer = await createTestHwpx({ paragraphs: ['No tables here'] })
+    await Bun.write(TEST_FILE, buffer)
+
+    captureOutput()
+    await tableListCommand(TEST_FILE, {})
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output).toEqual([])
   })
 })
 

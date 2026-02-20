@@ -53,6 +53,35 @@ export async function tableReadCommand(file: string, ref: string, options: { pre
   }
 }
 
+export async function tableListCommand(file: string, options: { pretty?: boolean }): Promise<void> {
+  try {
+    const format = await detectFormat(file)
+
+    if (format === 'hwp') {
+      throw new Error('HWP 5.0 read not yet supported')
+    }
+
+    const archive = await loadHwpx(file)
+    const sections = await parseSections(archive)
+
+    const tables: { ref: string; rows: number; cols: number }[] = []
+
+    for (const [si, section] of sections.entries()) {
+      for (const [ti, table] of section.tables.entries()) {
+        tables.push({
+          ref: `s${si}.t${ti}`,
+          rows: table.rows.length,
+          cols: table.rows[0]?.cells.length ?? 0,
+        })
+      }
+    }
+
+    console.log(formatOutput(tables, options.pretty))
+  } catch (e) {
+    handleError(e)
+  }
+}
+
 export async function tableEditCommand(
   file: string,
   ref: string,
