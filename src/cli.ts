@@ -2,6 +2,7 @@
 import { Command } from 'commander'
 import { editFormatCommand } from '@/commands/edit-format'
 import { editTextCommand } from '@/commands/edit-text'
+import { imageExtractCommand, imageInsertCommand, imageListCommand, imageReplaceCommand } from '@/commands/image'
 import { readCommand } from '@/commands/read'
 import { tableEditCommand, tableReadCommand } from '@/commands/table'
 import { textCommand } from '@/commands/text'
@@ -105,29 +106,26 @@ imageCmd
   .command('list <file>')
   .description('List all images in the document')
   .option('--pretty', 'Pretty-print JSON output')
-  .action(() => {
-    console.log(JSON.stringify({ error: 'Not implemented' }))
-    process.exit(1)
+  .action(async (file: string, options: { pretty?: boolean }) => {
+    await imageListCommand(file, options)
   })
 
 // hwp image extract <file> <ref> <output>
 imageCmd
   .command('extract <file> <ref> <output>')
   .description('Extract an image to a file')
-  .action(() => {
-    console.log(JSON.stringify({ error: 'Not implemented' }))
-    process.exit(1)
+  .option('--pretty', 'Pretty-print JSON output')
+  .action(async (file: string, ref: string, output: string, options: { pretty?: boolean }) => {
+    await imageExtractCommand(file, ref, output, options)
   })
 
 // hwp image insert <file> <path>
 imageCmd
   .command('insert <file> <path>')
   .description('Insert an image into the document')
-  .option('--after <ref>', 'Insert after element at ref')
   .option('--pretty', 'Pretty-print JSON output')
-  .action(() => {
-    console.log(JSON.stringify({ error: 'Not implemented' }))
-    process.exit(1)
+  .action(async (file: string, path: string, options: { pretty?: boolean }) => {
+    await imageInsertCommand(file, path, options)
   })
 
 // hwp image replace <file> <ref> <path>
@@ -135,9 +133,8 @@ imageCmd
   .command('replace <file> <ref> <path>')
   .description('Replace an existing image')
   .option('--pretty', 'Pretty-print JSON output')
-  .action(() => {
-    console.log(JSON.stringify({ error: 'Not implemented' }))
-    process.exit(1)
+  .action(async (file: string, ref: string, path: string, options: { pretty?: boolean }) => {
+    await imageReplaceCommand(file, ref, path, options)
   })
 
 // hwp create <file>

@@ -113,7 +113,7 @@ export async function createTestHwpx(opts: TestHwpxOptions = {}): Promise<Buffer
     const binPath = `BinData/${img.name}.${img.format}`
     zip.file(binPath, img.data)
     sectionContent += `
-    <hp:pic xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" hp:id="${img.name}">
+    <hp:pic xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" hp:id="${img.name}" hp:binDataPath="${binPath}" hp:format="${img.format}" hp:width="200" hp:height="150">
       <hp:imgRect><hc:pt0 xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core"/></hp:imgRect>
     </hp:pic>`
   })
