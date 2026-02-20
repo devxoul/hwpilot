@@ -36,11 +36,11 @@ export async function loadHwp(filePath: string): Promise<HwpDocument> {
   }
 
   const flags = headerContent.readUInt32LE(36)
-  if (flags & 0x1) {
+  if (flags & 0x2) {
     throw new Error('Password-protected files not supported')
   }
 
-  const isCompressed = Boolean(flags & 0x2)
+  const isCompressed = Boolean(flags & 0x1)
   const docInfoEntry = CFB.find(cfb, 'DocInfo')
   const docInfoBuffer = getStreamBuffer(docInfoEntry, isCompressed)
   const header = parseDocInfo(docInfoBuffer)
@@ -49,7 +49,7 @@ export async function loadHwp(filePath: string): Promise<HwpDocument> {
   let sectionIndex = 0
 
   while (true) {
-    const sectionEntry = CFB.find(cfb, `BodyText/Section${sectionIndex}`)
+    const sectionEntry = CFB.find(cfb, `/BodyText/Section${sectionIndex}`)
     if (!sectionEntry?.content) {
       break
     }
