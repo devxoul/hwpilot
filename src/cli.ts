@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { Command } from 'commander'
+import { editFormatCommand } from '@/commands/edit-format'
 import { editTextCommand } from '@/commands/edit-text'
 import { readCommand } from '@/commands/read'
 import { textCommand } from '@/commands/text'
@@ -52,9 +53,16 @@ editCmd
   .option('--size <pt>', 'Set font size in points')
   .option('--color <hex>', 'Set text color (hex, e.g. #FF0000)')
   .option('--pretty', 'Pretty-print JSON output')
-  .action(() => {
-    console.log(JSON.stringify({ error: 'Not implemented' }))
-    process.exit(1)
+  .action(async (file: string, ref: string, options: Record<string, unknown>) => {
+    await editFormatCommand(file, ref, {
+      bold: options.bold as boolean | undefined,
+      italic: options.italic as boolean | undefined,
+      underline: options.underline as boolean | undefined,
+      font: options.font as string | undefined,
+      size: options.size ? Number(options.size) : undefined,
+      color: options.color as string | undefined,
+      pretty: options.pretty as boolean | undefined,
+    })
   })
 
 // hwp table
