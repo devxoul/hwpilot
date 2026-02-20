@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import JSZip from 'jszip'
-import { createTestHwpx } from './test-helpers'
+import { loadHwp } from './formats/hwp/reader'
+import { createTestHwpBinary, createTestHwpx } from './test-helpers'
 
 describe('createTestHwpx', () => {
   it('returns a Buffer', async () => {
@@ -74,5 +75,65 @@ describe('createTestHwpx', () => {
     const sectionXml = await zip.file('Contents/section0.xml')!.async('string')
     expect(sectionXml).toContain('&lt;hello&gt;')
     expect(sectionXml).toContain('&amp;')
+  })
+})
+
+describe('createTestHwpBinary', () => {
+  it('creates an HWP fixture with multiple paragraphs loadable by loadHwp()', async () => {
+    const filePath = `/tmp/test-hwp-binary-paragraphs-${Date.now()}.hwp`
+    const buffer = await createTestHwpBinary({ paragraphs: ['안녕하세요', 'Hello'] })
+    await Bun.write(filePath, buffer)
+
+    try {
+      const doc = await loadHwp(filePath)
+      const runs = doc.sections[0]?.paragraphs.flatMap((paragraph) => paragraph.runs.map((run) => run.text)) ?? []
+      expect(runs).toEqual(['안녕하세요', 'Hello'])
+    } finally {
+      await Bun.file(filePath).delete()
+    }
+  })
+
+  it('creates a compressed HWP fixture loadable by loadHwp()', async () => {
+    const filePath = `/tmp/test-hwp-binary-compressed-${Date.now()}.hwp`
+    const buffer = await createTestHwpBinary({ compressed: true, paragraphs: ['Test'] })
+    await Bun.write(filePath, buffer)
+
+    try {
+      const doc = await loadHwp(filePath)
+      expect(doc.sections[0]?.paragraphs[0]?.runs[0]?.text).toBe('Test')
+    } finally {
+      await Bun.file(filePath).delete()
+    }
+  })
+
+  it('creates an HWP fixture with table cells loadable by loadHwp()', async () => {
+    const filePath = `/tmp/test-hwp-binary-table-${Date.now()}.hwp`
+    const buffer = await createTestHwpBinary({
+      tables: [
+        {
+          rows: [
+            ['A', 'B'],
+            ['C', 'D'],
+          ],
+        },
+      ],
+    })
+    await Bun.write(filePath, buffer)
+
+    try {
+      const doc = await loadHwp(filePath)
+      const table = doc.sections[0]?.tables[0]
+
+      expect(doc.sections[0]?.tables).toHaveLength(1)
+      expect(table?.rows).toHaveLength(2)
+      expect(table?.rows[0]?.cells).toHaveLength(2)
+      expect(table?.rows[1]?.cells).toHaveLength(2)
+      expect(table?.rows[0]?.cells[0]?.paragraphs[0]?.runs[0]?.text).toBe('A')
+      expect(table?.rows[0]?.cells[1]?.paragraphs[0]?.runs[0]?.text).toBe('B')
+      expect(table?.rows[1]?.cells[0]?.paragraphs[0]?.runs[0]?.text).toBe('C')
+      expect(table?.rows[1]?.cells[1]?.paragraphs[0]?.runs[0]?.text).toBe('D')
+    } finally {
+      await Bun.file(filePath).delete()
+    }
   })
 })

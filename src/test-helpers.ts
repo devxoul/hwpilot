@@ -1,4 +1,8 @@
+import CFB from 'cfb'
 import JSZip from 'jszip'
+import { buildRecord } from '@/formats/hwp/record-serializer'
+import { compressStream } from '@/formats/hwp/stream-util'
+import { TAG } from '@/formats/hwp/tag-ids'
 
 export type TestTable = {
   rows: string[][]
@@ -16,6 +20,12 @@ export type TestHwpxOptions = {
   images?: TestImage[]
   font?: string
   fontSize?: number
+}
+
+export type TestHwpOptions = {
+  paragraphs?: string[]
+  tables?: TestTable[]
+  compressed?: boolean
 }
 
 export async function createTestHwpx(opts: TestHwpxOptions = {}): Promise<Buffer> {
@@ -135,8 +145,24 @@ export async function createTestHwpx(opts: TestHwpxOptions = {}): Promise<Buffer
   return zip.generateAsync({ type: 'nodebuffer' })
 }
 
+export async function createTestHwpBinary(opts: TestHwpOptions = {}): Promise<Buffer> {
+  const paragraphs = opts.paragraphs ?? []
+  const tables = opts.tables ?? []
+  const compressed = opts.compressed ?? false
+
+  const docInfo = buildDocInfoStream()
+  const section0 = buildSection0Stream(paragraphs, tables)
+
+  const cfb = CFB.utils.cfb_new()
+  CFB.utils.cfb_add(cfb, 'FileHeader', createHwpFileHeader(compressed))
+  CFB.utils.cfb_add(cfb, '\u0005HwpSummaryInformation', Buffer.alloc(0))
+  CFB.utils.cfb_add(cfb, 'DocInfo', compressed ? compressStream(docInfo) : docInfo)
+  CFB.utils.cfb_add(cfb, 'BodyText/Section0', compressed ? compressStream(section0) : section0)
+
+  return Buffer.from(CFB.write(cfb, { type: 'buffer' }))
+}
+
 export function createTestHwpCfb(): Buffer {
-  const CFB = require('cfb')
   const cfb = CFB.utils.cfb_new()
   const fileHeader = Buffer.alloc(256)
   fileHeader.write('HWP Document File', 0, 'ascii')
@@ -153,4 +179,104 @@ function escapeXml(text: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;')
+}
+
+function buildDocInfoStream(): Buffer {
+  const idMappings = Buffer.alloc(4 * 4)
+  idMappings.writeUInt32LE(1, 0)
+  idMappings.writeUInt32LE(1, 4)
+  idMappings.writeUInt32LE(1, 8)
+  idMappings.writeUInt32LE(1, 12)
+
+  const faceName = encodeLengthPrefixedUtf16('맑은 고딕')
+
+  const charShape = Buffer.alloc(30)
+  charShape.writeUInt16LE(0, 0)
+  charShape.writeUInt16LE(0, 2)
+  charShape.writeUInt32LE(1000, 18)
+  charShape.writeUInt32LE(0, 22)
+  charShape.writeUInt32LE(0, 26)
+
+  const paraShape = Buffer.alloc(4)
+  paraShape.writeUInt32LE(0, 0)
+
+  const styleName = encodeLengthPrefixedUtf16('Normal')
+  const style = Buffer.alloc(styleName.length + 6)
+  styleName.copy(style, 0)
+  style.writeUInt16LE(0, styleName.length + 2)
+  style.writeUInt16LE(0, styleName.length + 4)
+
+  return Buffer.concat([
+    buildRecord(TAG.ID_MAPPINGS, 0, idMappings),
+    buildRecord(TAG.FACE_NAME, 0, faceName),
+    buildRecord(TAG.CHAR_SHAPE, 0, charShape),
+    buildRecord(TAG.PARA_SHAPE, 0, paraShape),
+    buildRecord(TAG.STYLE, 0, style),
+  ])
+}
+
+function buildSection0Stream(paragraphs: string[], tables: TestTable[]): Buffer {
+  const records: Buffer[] = []
+
+  for (const paragraph of paragraphs) {
+    records.push(buildParagraphRecords(paragraph))
+  }
+
+  for (const table of tables) {
+    records.push(buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)))
+    records.push(buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x000b])))
+    records.push(buildRecord(TAG.CTRL_HEADER, 1, Buffer.from('tbl ', 'ascii')))
+    records.push(buildRecord(TAG.TABLE, 2, buildTableData(table.rows.length, table.rows[0]?.length ?? 0)))
+
+    for (const row of table.rows) {
+      for (const cellText of row) {
+        records.push(buildRecord(TAG.LIST_HEADER, 2, Buffer.alloc(0)))
+        records.push(buildRecord(TAG.PARA_HEADER, 3, Buffer.alloc(0)))
+        records.push(buildRecord(TAG.PARA_TEXT, 3, Buffer.from(cellText, 'utf16le')))
+      }
+    }
+  }
+
+  return Buffer.concat(records)
+}
+
+function buildParagraphRecords(text: string): Buffer {
+  const paraCharShape = Buffer.alloc(6)
+  paraCharShape.writeUInt16LE(0, 4)
+
+  return Buffer.concat([
+    buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)),
+    buildRecord(TAG.PARA_CHAR_SHAPE, 1, paraCharShape),
+    buildRecord(TAG.PARA_TEXT, 1, Buffer.from(text, 'utf16le')),
+  ])
+}
+
+function buildTableData(rowCount: number, colCount: number): Buffer {
+  const table = Buffer.alloc(6)
+  table.writeUInt16LE(rowCount, 2)
+  table.writeUInt16LE(colCount, 4)
+  return table
+}
+
+function createHwpFileHeader(compressed: boolean): Buffer {
+  const fileHeader = Buffer.alloc(256)
+  fileHeader.write('HWP Document File', 0, 'ascii')
+  fileHeader.writeUInt32LE(0x05040000, 32)
+  fileHeader.writeUInt32LE(compressed ? 0x1 : 0, 36)
+  return fileHeader
+}
+
+function encodeLengthPrefixedUtf16(text: string): Buffer {
+  const value = Buffer.from(text, 'utf16le')
+  const length = Buffer.alloc(2)
+  length.writeUInt16LE(text.length, 0)
+  return Buffer.concat([length, value])
+}
+
+function encodeUint16(values: number[]): Buffer {
+  const output = Buffer.alloc(values.length * 2)
+  for (const [index, value] of values.entries()) {
+    output.writeUInt16LE(value, index * 2)
+  }
+  return output
 }
