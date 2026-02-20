@@ -18,14 +18,14 @@ bun add -g hwp
 # Read a document
 hwp read document.hwpx
 
-# Write to a document
-hwp write document.hwpx --content "Hello, World!"
-
 # Extract text
-hwp extract document.hwpx --output text.txt
+hwp text document.hwpx
 
-# Convert format
-hwp convert document.hwp --to hwpx --output document.hwpx
+# Edit text in-place
+hwp edit text document.hwpx s0.p0 "Hello, World!"
+
+# Convert HWP to HWPX
+hwp convert document.hwp document.hwpx
 ```
 
 ## Features
@@ -43,12 +43,19 @@ hwp convert document.hwp --to hwpx --output document.hwpx
 
 | Command | Description |
 |---------|-------------|
-| `hwp read <file>` | Read and display document content |
-| `hwp write <file>` | Write content to document |
-| `hwp extract <file>` | Extract text from document |
-| `hwp convert <file>` | Convert between HWP and HWPX formats |
-| `hwp info <file>` | Display document metadata |
-| `hwp validate <file>` | Validate document structure |
+| `hwp read <file> [ref]` | Read document structure |
+| `hwp text <file> [ref]` | Extract text |
+| `hwp edit text <file> <ref> <text>` | Edit text in-place |
+| `hwp edit format <file> <ref> [options]` | Edit character formatting |
+| `hwp table read <file> <ref>` | Read table structure |
+| `hwp table edit <file> <ref> <text>` | Edit table cell |
+| `hwp table list <file>` | List all tables |
+| `hwp image list <file>` | List embedded images |
+| `hwp image extract <file> <ref> <output>` | Extract image |
+| `hwp image insert <file> <image-path>` | Insert image |
+| `hwp image replace <file> <ref> <image-path>` | Replace image |
+| `hwp create <file> [--title <text>] [--font <name>] [--size <pt>]` | Create new document |
+| `hwp convert <input.hwp> <output.hwpx>` | Convert HWP to HWPX |
 
 ## Development
 

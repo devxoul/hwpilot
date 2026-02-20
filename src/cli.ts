@@ -6,9 +6,8 @@ import { editFormatCommand } from '@/commands/edit-format'
 import { editTextCommand } from '@/commands/edit-text'
 import { imageExtractCommand, imageInsertCommand, imageListCommand, imageReplaceCommand } from '@/commands/image'
 import { readCommand } from '@/commands/read'
-import { tableEditCommand, tableReadCommand } from '@/commands/table'
+import { tableEditCommand, tableListCommand, tableReadCommand } from '@/commands/table'
 import { textCommand } from '@/commands/text'
-import { handleError } from '@/shared/error-handler'
 
 const program = new Command()
 
@@ -96,8 +95,8 @@ tableCmd
   .command('list <file>')
   .description('List all tables in the document')
   .option('--pretty', 'Pretty-print JSON output')
-  .action(() => {
-    handleError(new Error('Not implemented'))
+  .action(async (file: string, options: { pretty?: boolean }) => {
+    await tableListCommand(file, options)
   })
 
 // hwp image
