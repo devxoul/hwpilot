@@ -21,7 +21,7 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write --unsafe .",
     "format": "biome format --write .",
-    "prepublishOnly": "bun run build && bun scripts/prepublish.ts",
+    "prepublishOnly": "bun run build && bun run typecheck && bun test src/ && bun scripts/prepublish.ts",
     "postpublish": "git checkout package.json"
   },
   "dependencies": {
