@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { Command } from 'commander'
+import { convertCommand } from '@/commands/convert'
 import { createCommand } from '@/commands/create'
 import { editFormatCommand } from '@/commands/edit-format'
 import { editTextCommand } from '@/commands/edit-text'
@@ -155,9 +156,8 @@ program
   .command('convert <input> <output>')
   .description('Convert HWP 5.0 file to HWPX format')
   .option('--pretty', 'Pretty-print JSON output')
-  .action(() => {
-    console.log(JSON.stringify({ error: 'Not implemented' }))
-    process.exit(1)
+  .action(async (input: string, output: string, options: { pretty?: boolean }) => {
+    await convertCommand(input, output, options)
   })
 
 program.parse(process.argv)
