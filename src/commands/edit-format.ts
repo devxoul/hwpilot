@@ -1,5 +1,6 @@
 import { editHwpx, type FormatOptions } from '@/formats/hwpx/writer'
 import { handleError } from '@/shared/error-handler'
+import { detectFormat } from '@/shared/format-detector'
 import { formatOutput } from '@/shared/output'
 import { validateRef } from '@/shared/refs'
 
@@ -15,14 +16,10 @@ type FormatCommandOptions = {
 
 export async function editFormatCommand(file: string, ref: string, options: FormatCommandOptions): Promise<void> {
   try {
-    const ext = file.split('.').pop()?.toLowerCase()
+    const fileFormat = await detectFormat(file)
 
-    if (ext === 'hwp') {
+    if (fileFormat === 'hwp') {
       throw new Error('HWP 5.0 write not supported')
-    }
-
-    if (ext !== 'hwpx') {
-      throw new Error(`Unsupported file format: .${ext}`)
     }
 
     if (!validateRef(ref)) {

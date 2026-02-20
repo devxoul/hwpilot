@@ -4,6 +4,7 @@ import { loadHwp } from '@/formats/hwp/reader'
 import { NAMESPACES } from '@/formats/hwpx/namespaces'
 import { PATHS, sectionPath } from '@/formats/hwpx/paths'
 import { handleError } from '@/shared/error-handler'
+import { detectFormat } from '@/shared/format-detector'
 import { formatOutput } from '@/shared/output'
 import type { CharShape, DocumentHeader, HwpDocument, ParaShape, Section } from '@/types'
 
@@ -13,8 +14,10 @@ type ConvertOptions = {
 
 export async function convertCommand(input: string, output: string, options: ConvertOptions): Promise<void> {
   try {
-    if (!hasExtension(input, 'hwp')) {
-      throw new Error('Input must be a .hwp file')
+    const inputFormat = await detectFormat(input)
+
+    if (inputFormat !== 'hwp') {
+      throw new Error('Input must be a HWP 5.0 file')
     }
 
     if (!hasExtension(output, 'hwpx')) {

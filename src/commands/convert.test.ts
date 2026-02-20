@@ -3,6 +3,7 @@ import { unlink, writeFile } from 'node:fs/promises'
 import JSZip from 'jszip'
 import { loadHwpx } from '@/formats/hwpx/loader'
 import { parseSections } from '@/formats/hwpx/section-parser'
+import { createTestHwpCfb, createTestHwpx } from '@/test-helpers'
 import type { HwpDocument } from '@/types'
 import { convertCommand, generateHwpx } from './convert'
 
@@ -46,18 +47,22 @@ afterEach(async () => {
 })
 
 describe('convertCommand', () => {
-  it('errors for non-.hwp input extension', async () => {
+  it('errors for non-HWP input', async () => {
+    const hwpxFile = tempPath('convert-input', 'hwpx')
+    await Bun.write(hwpxFile, await createTestHwpx({ paragraphs: ['test'] }))
     captureOutput()
-    await expect(convertCommand('test.hwpx', 'out.hwpx', {})).rejects.toThrow('process.exit')
+    await expect(convertCommand(hwpxFile, 'out.hwpx', {})).rejects.toThrow('process.exit')
     restoreOutput()
 
     const output = JSON.parse(errors[0])
-    expect(output.error).toBe('Input must be a .hwp file')
+    expect(output.error).toBe('Input must be a HWP 5.0 file')
   })
 
   it('errors for non-.hwpx output extension', async () => {
+    const hwpFile = tempPath('convert-hwp', 'hwp')
+    await Bun.write(hwpFile, createTestHwpCfb())
     captureOutput()
-    await expect(convertCommand('test.hwp', 'out.hwp', {})).rejects.toThrow('process.exit')
+    await expect(convertCommand(hwpFile, 'out.hwp', {})).rejects.toThrow('process.exit')
     restoreOutput()
 
     const output = JSON.parse(errors[0])

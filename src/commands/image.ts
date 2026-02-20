@@ -3,6 +3,7 @@ import { extname } from 'node:path'
 import { loadHwpx } from '@/formats/hwpx/loader'
 import { parseSections } from '@/formats/hwpx/section-parser'
 import { handleError } from '@/shared/error-handler'
+import { detectFormat } from '@/shared/format-detector'
 import { formatOutput } from '@/shared/output'
 import type { ParsedRef } from '@/shared/refs'
 import { parseRef, validateRef } from '@/shared/refs'
@@ -10,7 +11,7 @@ import type { Image, Section } from '@/types'
 
 export async function imageListCommand(file: string, options: { pretty?: boolean }): Promise<void> {
   try {
-    validateExtension(file)
+    await validateHwpxFormat(file)
     const archive = await loadHwpx(file)
     const sections = await parseSections(archive)
     const images = sections.flatMap((section) => section.images)
@@ -27,7 +28,7 @@ export async function imageExtractCommand(
   options: { pretty?: boolean },
 ): Promise<void> {
   try {
-    validateExtension(file)
+    await validateHwpxFormat(file)
     const parsed = validateImageRef(ref)
     const archive = await loadHwpx(file)
     const sections = await parseSections(archive)
@@ -46,9 +47,9 @@ export async function imageInsertCommand(
   options: { pretty?: boolean },
 ): Promise<void> {
   try {
-    validateExtension(file)
+    await validateHwpxFormat(file)
     const imageBuffer = await readFile(imagePath)
-    const format = detectFormat(imagePath)
+    const format = detectImageFormat(imagePath)
     const archive = await loadHwpx(file)
     const zip = archive.getZip()
     const existingCount = archive.listBinData().length
@@ -69,7 +70,7 @@ export async function imageReplaceCommand(
   options: { pretty?: boolean },
 ): Promise<void> {
   try {
-    validateExtension(file)
+    await validateHwpxFormat(file)
     const parsed = validateImageRef(ref)
     const archive = await loadHwpx(file)
     const sections = await parseSections(archive)
@@ -85,10 +86,10 @@ export async function imageReplaceCommand(
   }
 }
 
-function validateExtension(file: string): void {
-  const ext = file.split('.').pop()?.toLowerCase()
-  if (ext !== 'hwpx') {
-    throw new Error(`Unsupported file format: .${ext}`)
+async function validateHwpxFormat(file: string): Promise<void> {
+  const format = await detectFormat(file)
+  if (format !== 'hwpx') {
+    throw new Error('HWP 5.0 write not supported')
   }
 }
 
@@ -115,7 +116,7 @@ function getImage(sections: Section[], parsed: ParsedRef, ref: string): Image {
   return image
 }
 
-function detectFormat(imagePath: string): string {
+function detectImageFormat(imagePath: string): string {
   const ext = extname(imagePath).toLowerCase().slice(1)
   if (ext === 'jpeg') return 'jpg'
   if (['png', 'jpg', 'gif'].includes(ext)) return ext
