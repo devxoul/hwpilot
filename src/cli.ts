@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { Command } from 'commander'
+import { createCommand } from '@/commands/create'
 import { editFormatCommand } from '@/commands/edit-format'
 import { editTextCommand } from '@/commands/edit-text'
 import { imageExtractCommand, imageInsertCommand, imageListCommand, imageReplaceCommand } from '@/commands/image'
@@ -145,9 +146,8 @@ program
   .option('--font <name>', 'Set default font name', '맑은 고딕')
   .option('--size <pt>', 'Set default font size', '10')
   .option('--pretty', 'Pretty-print JSON output')
-  .action(() => {
-    console.log(JSON.stringify({ error: 'Not implemented' }))
-    process.exit(1)
+  .action(async (file: string, options: { title?: string; font?: string; size?: string; pretty?: boolean }) => {
+    await createCommand(file, options)
   })
 
 // hwp convert <input> <output>
