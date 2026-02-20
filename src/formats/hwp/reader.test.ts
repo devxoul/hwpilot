@@ -25,7 +25,7 @@ describe('loadHwp', () => {
   it('throws for encrypted files', async () => {
     const filePath = '/tmp/test-encrypted.hwp'
     TMP_FILES.push(filePath)
-    const buffer = createHwpCfbBuffer(0x1, 'HWP Document File')
+    const buffer = createHwpCfbBuffer(0x2, 'HWP Document File')
     await Bun.write(filePath, buffer)
 
     await expect(loadHwp(filePath)).rejects.toThrow('Password-protected files not supported')

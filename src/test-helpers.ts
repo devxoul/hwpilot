@@ -131,6 +131,17 @@ export async function createTestHwpx(opts: TestHwpxOptions = {}): Promise<Buffer
   return zip.generateAsync({ type: 'nodebuffer' })
 }
 
+export function createTestHwpCfb(): Buffer {
+  const CFB = require('cfb')
+  const cfb = CFB.utils.cfb_new()
+  const fileHeader = Buffer.alloc(256)
+  fileHeader.write('HWP Document File', 0, 'ascii')
+  fileHeader.writeUInt32LE(0, 36) // flags: no compression, no encryption
+  CFB.utils.cfb_add(cfb, 'FileHeader', fileHeader)
+  CFB.utils.cfb_add(cfb, 'DocInfo', Buffer.alloc(0))
+  return Buffer.from(CFB.write(cfb, { type: 'buffer' }))
+}
+
 function escapeXml(text: string): string {
   return text
     .replace(/&/g, '&amp;')

@@ -10,7 +10,7 @@ import { imageExtractCommand, imageInsertCommand, imageListCommand } from '@/com
 import { readCommand } from '@/commands/read'
 import { tableEditCommand, tableReadCommand } from '@/commands/table'
 import { textCommand } from '@/commands/text'
-import { createTestHwpx } from '@/test-helpers'
+import { createTestHwpCfb, createTestHwpx } from '@/test-helpers'
 
 let logs: string[]
 let errors: string[]
@@ -269,8 +269,10 @@ describe('integration: error cases produce valid JSON', () => {
   })
 
   it('unsupported format → valid JSON error', async () => {
+    const unsupportedFile = tempPath('unsupported')
+    await Bun.write(unsupportedFile, Buffer.from('not a valid hwp or hwpx file'))
     captureOutput()
-    await expect(readCommand('/tmp/file.docx', undefined, {})).rejects.toThrow('process.exit')
+    await expect(readCommand(unsupportedFile, undefined, {})).rejects.toThrow('process.exit')
     restoreOutput()
 
     const output = JSON.parse(errors[0])
@@ -304,8 +306,10 @@ describe('integration: error cases produce valid JSON', () => {
   })
 
   it('HWP write unsupported → valid JSON error', async () => {
+    const hwpFile = tempPath('hwp5-write')
+    await Bun.write(hwpFile, createTestHwpCfb())
     captureOutput()
-    await expect(editTextCommand('/tmp/test.hwp', 's0.p0', 'text', {})).rejects.toThrow('process.exit')
+    await expect(editTextCommand(hwpFile, 's0.p0', 'text', {})).rejects.toThrow('process.exit')
     restoreOutput()
 
     const output = JSON.parse(errors[0])
@@ -324,31 +328,37 @@ describe('integration: error cases produce valid JSON', () => {
     expect(output.error).toContain('File already exists')
   })
 
-  it('convert wrong extensions → valid JSON error', async () => {
+  it('convert non-HWP input → valid JSON error', async () => {
+    const hwpxFile = tempPath('convert-err')
+    await Bun.write(hwpxFile, await createTestHwpx({ paragraphs: ['test'] }))
     captureOutput()
-    await expect(convertCommand('test.hwpx', 'out.hwpx', {})).rejects.toThrow('process.exit')
+    await expect(convertCommand(hwpxFile, 'out.hwpx', {})).rejects.toThrow('process.exit')
     restoreOutput()
 
     const output = JSON.parse(errors[0])
-    expect(output.error).toBe('Input must be a .hwp file')
+    expect(output.error).toBe('Input must be a HWP 5.0 file')
   })
 
-  it('text command on .hwp → valid JSON error', async () => {
+  it('text command on HWP 5.0 → valid JSON error', async () => {
+    const hwpFile = tempPath('text-hwp5')
+    await Bun.write(hwpFile, createTestHwpCfb())
     captureOutput()
-    await expect(textCommand('/tmp/test.hwp', undefined, {})).rejects.toThrow('process.exit')
+    await expect(textCommand(hwpFile, undefined, {})).rejects.toThrow('process.exit')
     restoreOutput()
 
     const output = JSON.parse(errors[0])
     expect(output.error).toContain('HWP 5.0')
   })
 
-  it('image unsupported format → valid JSON error', async () => {
+  it('image on HWP 5.0 → valid JSON error', async () => {
+    const hwpFile = tempPath('img-hwp5')
+    await Bun.write(hwpFile, createTestHwpCfb())
     captureOutput()
-    await expect(imageListCommand('/tmp/test.hwp', {})).rejects.toThrow('process.exit')
+    await expect(imageListCommand(hwpFile, {})).rejects.toThrow('process.exit')
     restoreOutput()
 
     const output = JSON.parse(errors[0])
-    expect(output.error).toContain('Unsupported file format')
+    expect(output.error).toContain('HWP 5.0')
   })
 
   it('no format options → valid JSON error', async () => {
@@ -474,14 +484,21 @@ describe('integration: all outputs are valid JSON', () => {
   })
 
   it('error outputs are parseable JSON with error field', async () => {
+    const hwpFile = tempPath('json-hwp')
+    await Bun.write(hwpFile, createTestHwpCfb())
+    const unsupportedFile = tempPath('json-unsupported')
+    await Bun.write(unsupportedFile, Buffer.from('not a valid file'))
+    const hwpxFile = tempPath('json-hwpx')
+    await Bun.write(hwpxFile, await createTestHwpx({ paragraphs: ['test'] }))
+
     const errorCommands = [
       () => readCommand('/tmp/nonexistent.hwpx', undefined, {}),
-      () => readCommand('/tmp/file.docx', undefined, {}),
-      () => editTextCommand('/tmp/test.hwp', 's0.p0', 'text', {}),
-      () => editFormatCommand('/tmp/test.hwp', 's0.p0', { bold: true }),
-      () => textCommand('/tmp/test.hwp', undefined, {}),
-      () => convertCommand('test.hwpx', 'out.hwpx', {}),
-      () => imageListCommand('/tmp/test.hwp', {}),
+      () => readCommand(unsupportedFile, undefined, {}),
+      () => editTextCommand(hwpFile, 's0.p0', 'text', {}),
+      () => editFormatCommand(hwpFile, 's0.p0', { bold: true }),
+      () => textCommand(hwpFile, undefined, {}),
+      () => convertCommand(hwpxFile, 'out.hwpx', {}),
+      () => imageListCommand(hwpFile, {}),
     ]
 
     for (const cmd of errorCommands) {
