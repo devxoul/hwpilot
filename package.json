@@ -1,0 +1,39 @@
+{
+  "name": "hwp",
+  "version": "0.1.0",
+  "description": "Native HWP/HWPX document editor CLI for AI agents",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/devxoul/agent-hwp"
+  },
+  "type": "module",
+  "module": "dist/src/cli.js",
+  "main": "dist/src/cli.js",
+  "bin": {
+    "hwp": "./src/cli.ts"
+  },
+  "files": ["dist/", "skills/", ".claude-plugin/"],
+  "scripts": {
+    "build": "tsc && tsc-alias --resolve-full-paths",
+    "postbuild": "bun scripts/postbuild.ts",
+    "test": "bun test src/",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write --unsafe .",
+    "format": "biome format --write .",
+    "prepublishOnly": "bun run build && bun scripts/prepublish.ts",
+    "postpublish": "git checkout package.json"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1",
+    "fast-xml-parser": "^4.3.2",
+    "commander": "^11.1.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.13",
+    "@types/bun": "latest",
+    "@types/node": "^20.10.6",
+    "tsc-alias": "^1.8.16",
+    "typescript": "^5.9.3"
+  }
+}
