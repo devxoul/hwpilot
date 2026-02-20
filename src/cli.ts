@@ -8,6 +8,7 @@ import { imageExtractCommand, imageInsertCommand, imageListCommand, imageReplace
 import { readCommand } from '@/commands/read'
 import { tableEditCommand, tableReadCommand } from '@/commands/table'
 import { textCommand } from '@/commands/text'
+import { handleError } from '@/shared/error-handler'
 
 const program = new Command()
 
@@ -96,8 +97,7 @@ tableCmd
   .description('List all tables in the document')
   .option('--pretty', 'Pretty-print JSON output')
   .action(() => {
-    console.log(JSON.stringify({ error: 'Not implemented' }))
-    process.exit(1)
+    handleError(new Error('Not implemented'))
   })
 
 // hwp image

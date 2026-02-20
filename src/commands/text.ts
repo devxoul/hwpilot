@@ -10,8 +10,7 @@ export async function textCommand(file: string, ref: string | undefined, options
     const ext = file.split('.').pop()?.toLowerCase()
 
     if (ext === 'hwp') {
-      console.log(formatOutput({ error: 'HWP 5.0 read not yet supported' }, options.pretty))
-      process.exit(1)
+      throw new Error('HWP 5.0 read not yet supported')
     }
 
     if (ext !== 'hwpx') {
