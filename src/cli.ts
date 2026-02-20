@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { Command } from 'commander'
+import { editTextCommand } from '@/commands/edit-text'
 import { readCommand } from '@/commands/read'
 import { textCommand } from '@/commands/text'
 
@@ -33,9 +34,8 @@ editCmd
   .command('text <file> <ref> <text>')
   .description('Edit text at a specific reference')
   .option('--pretty', 'Pretty-print JSON output')
-  .action(() => {
-    console.log(JSON.stringify({ error: 'Not implemented' }))
-    process.exit(1)
+  .action(async (file: string, ref: string, text: string, options: { pretty?: boolean }) => {
+    await editTextCommand(file, ref, text, options)
   })
 
 // hwp edit format <file> <ref>
