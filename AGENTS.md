@@ -93,8 +93,11 @@ bun run format       # Format code
 
 ## HWP/HWPX Format Overview
 
-### HWPX (Recommended for R/W)
+**Important**: Format is detected by file content (magic bytes), NOT by file extension. A `.hwp` file may actually contain HWPX format (ZIP+XML) and will be fully editable. Only files with actual HWP 5.0 binary CFB content are read-only. See `src/shared/format-detector.ts`.
+
+### HWPX (Full R/W)
 - **Structure**: ZIP archive containing XML files
+- **Magic bytes**: `50 4B 03 04` (ZIP)
 - **Capabilities**: Full read/write support
 - **Key files**:
   - `content.xml` — document content
@@ -105,6 +108,7 @@ bun run format       # Format code
 
 ### HWP 5.0 (Read-Only)
 - **Structure**: Compound File Binary (CFB) format
+- **Magic bytes**: `D0 CF 11 E0` (CFB)
 - **Capabilities**: Read-only (binary format is complex)
 - **Key sections**:
   - `FileHeader` — document metadata

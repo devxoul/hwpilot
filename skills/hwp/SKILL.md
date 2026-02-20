@@ -331,7 +331,9 @@ hwp edit format report.hwpx s0.p0 --bold --size 18
 
 ## Format Support
 
-| Feature | HWPX | HWP 5.0 |
+**Important**: Format is detected by file content (magic bytes), NOT by file extension. A `.hwp` file may contain HWPX format inside and will be fully editable. Only files with actual HWP 5.0 binary CFB content (`D0 CF 11 E0`) are read-only.
+
+| Feature | HWPX (ZIP magic `50 4B 03 04`) | HWP 5.0 (CFB magic `D0 CF 11 E0`) |
 |---|---|---|
 | Read structure | Yes | Yes |
 | Read text | Yes | Yes |
@@ -342,15 +344,15 @@ hwp edit format report.hwpx s0.p0 --bold --size 18
 | Image operations | Yes | No |
 | Create new | Yes | No |
 
-**HWPX** (ZIP+XML) is the modern format with full read/write support. All editing commands work on HWPX files.
+**HWPX** (ZIP+XML) is the modern format with full read/write support. All editing commands work on HWPX-format files regardless of file extension.
 
-**HWP 5.0** (binary CFB) is the legacy format. Read-only. To edit an HWP file, convert it to HWPX first with `hwp convert`.
+**HWP 5.0** (binary CFB) is the legacy format. Read-only. To edit a true HWP 5.0 file, convert it to HWPX first with `hwp convert`.
 
 ## Limitations
 
 What's NOT supported:
 
-- **HWP 5.0 writing**: Binary format is read-only. Convert to HWPX to edit.
+- **HWP 5.0 writing**: True HWP 5.0 binary (CFB) format is read-only. Convert to HWPX to edit. Note: some `.hwp` files actually contain HWPX format and ARE editable — format is auto-detected by content.
 - **Password/DRM protected files**: Cannot open encrypted documents.
 - **Macros and scripts**: No macro execution or editing.
 - **Equations, charts, OLE objects, video**: These embedded objects can't be read or modified.
@@ -369,10 +371,10 @@ Common errors and fixes:
 
 | Error | Cause | Fix |
 |---|---|---|
-| `Unsupported file format: .docx` | Wrong file type | Use .hwp or .hwpx files only |
+| `Unsupported file format` | File content is not HWP or HWPX | Ensure file has valid HWP/HWPX content (checked by magic bytes, not extension) |
 | `Invalid reference: s0.x1` | Malformed ref | Check ref format (see Reference System above) |
 | `Section N not found` | Ref points beyond document | Use `hwp read` to check available sections |
 | `Paragraph N not found` | Ref points beyond section | Use `hwp read <file> s0` to see paragraph count |
 | `Table N not found` | No such table | Use `hwp read` to list tables |
-| `HWP 5.0 write not supported` | Tried to edit .hwp file | Convert to HWPX first: `hwp convert file.hwp file.hwpx` |
+| `HWP 5.0 write not supported` | File has true HWP 5.0 CFB content | Convert to HWPX first: `hwp convert file.hwp file.hwpx` |
 | `ENOENT: no such file` | File doesn't exist | Check file path |
