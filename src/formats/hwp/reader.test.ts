@@ -79,6 +79,31 @@ describe('loadHwp', () => {
     expect(paragraphTexts).not.toContain('B2')
   })
 
+  it('parses paraShapeRef and styleRef from PARA_HEADER record data', async () => {
+    const filePath = '/tmp/test-hwp-para-shape-ref.hwp'
+    TMP_FILES.push(filePath)
+
+    const paraHeaderData = Buffer.alloc(12)
+    paraHeaderData.writeUInt32LE(5, 0)
+    paraHeaderData.writeUInt32LE(0, 4)
+    paraHeaderData.writeUInt16LE(2, 8)
+    paraHeaderData.writeUInt8(1, 10)
+
+    const sectionRecords = Buffer.concat([
+      buildRecord(TAG.PARA_HEADER, 0, paraHeaderData),
+      buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x0041, 0x0000])),
+    ])
+
+    const buffer = createHwpCfbBufferWithRecords(0, Buffer.alloc(0), sectionRecords)
+    await Bun.write(filePath, buffer)
+
+    const doc = await loadHwp(filePath)
+    const paragraph = doc.sections[0].paragraphs[0]
+
+    expect(paragraph.paraShapeRef).toBe(2)
+    expect(paragraph.styleRef).toBe(1)
+  })
+
   it('parses image records using DocInfo BIN_DATA and shape records', async () => {
     const filePath = '/tmp/test-hwp-image.hwp'
     TMP_FILES.push(filePath)

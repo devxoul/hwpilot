@@ -201,7 +201,10 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
   const images: Image[] = []
 
   let paraIndex = 0
-  const activeParagraphs = new Map<number, { runs: Run[]; charShapeRef: number; target: 'section' | 'cell' }>()
+  const activeParagraphs = new Map<
+    number,
+    { runs: Run[]; charShapeRef: number; paraShapeRef: number; styleRef: number; target: 'section' | 'cell' }
+  >()
 
   let pendingTableControlLevel: number | null = null
   let activeTable: {
@@ -230,8 +233,8 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
         destination.push({
           ref: buildRef({ section: sectionIndex, paragraph: paraIndex }),
           runs: paragraph.runs,
-          paraShapeRef: 0,
-          styleRef: 0,
+          paraShapeRef: paragraph.paraShapeRef,
+          styleRef: paragraph.styleRef,
         })
         paraIndex += 1
       } else if (activeTable) {
@@ -244,8 +247,8 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
             cellParagraph: destination.length,
           }),
           runs: paragraph.runs,
-          paraShapeRef: 0,
-          styleRef: 0,
+          paraShapeRef: paragraph.paraShapeRef,
+          styleRef: paragraph.styleRef,
         })
       }
     }
@@ -263,7 +266,13 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
 
   const getParagraphForContentRecord = (
     level: number,
-  ): { runs: Run[]; charShapeRef: number; target: 'section' | 'cell' } | null => {
+  ): {
+    runs: Run[]
+    charShapeRef: number
+    paraShapeRef: number
+    styleRef: number
+    target: 'section' | 'cell'
+  } | null => {
     return activeParagraphs.get(level) ?? activeParagraphs.get(level - 1) ?? null
   }
 
@@ -283,9 +292,13 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
     if (header.tagId === TAG.PARA_HEADER) {
       flushParagraphLevel(header.level)
       const target = activeCell && header.level === activeCell.paragraphLevel ? 'cell' : 'section'
+      const paraShapeRef = data.length >= 10 ? data.readUInt16LE(8) : 0
+      const styleRef = data.length >= 11 ? data.readUInt8(10) : 0
       activeParagraphs.set(header.level, {
         runs: [],
         charShapeRef: 0,
+        paraShapeRef,
+        styleRef,
         target,
       })
       continue
