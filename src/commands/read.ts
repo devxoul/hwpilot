@@ -1,3 +1,4 @@
+import { loadHwp } from '@/formats/hwp/reader'
 import { parseHeader } from '@/formats/hwpx/header-parser'
 import { loadHwpx } from '@/formats/hwpx/loader'
 import { parseSections } from '@/formats/hwpx/section-parser'
@@ -10,39 +11,44 @@ export async function readCommand(file: string, ref: string | undefined, options
   try {
     const ext = file.split('.').pop()?.toLowerCase()
 
-    if (ext === 'hwp') {
-      console.log(formatOutput({ error: 'HWP 5.0 read not yet supported' }, options.pretty))
-      process.exit(1)
-    }
-
-    if (ext !== 'hwpx') {
+    if (ext !== 'hwpx' && ext !== 'hwp') {
       throw new Error(`Unsupported file format: .${ext}`)
     }
 
-    const archive = await loadHwpx(file)
-    const header = parseHeader(await archive.getHeaderXml())
-    const sections = await parseSections(archive)
+    const doc = ext === 'hwp' ? await loadHwp(file) : await loadHwpxDocument(file)
 
     if (ref) {
-      const result = resolveRef(ref, sections)
+      const result = resolveRef(ref, doc.sections)
       console.log(formatOutput(result, options.pretty))
       return
     }
 
     const output = {
-      format: 'hwpx',
-      sections: sections.map((section, index) => ({
+      format: doc.format,
+      sections: doc.sections.map((section, index) => ({
         index,
         paragraphs: section.paragraphs,
         tables: section.tables,
         images: section.images,
       })),
-      header,
+      header: doc.header,
     }
 
     console.log(formatOutput(output, options.pretty))
   } catch (e) {
     handleError(e)
+  }
+}
+
+async function loadHwpxDocument(file: string) {
+  const archive = await loadHwpx(file)
+  const header = parseHeader(await archive.getHeaderXml())
+  const sections = await parseSections(archive)
+
+  return {
+    format: 'hwpx' as const,
+    sections,
+    header,
   }
 }
 

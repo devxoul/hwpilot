@@ -1,9 +1,11 @@
 import { afterEach, beforeAll, describe, expect, it, mock } from 'bun:test'
+import CFB from 'cfb'
 import { createTestHwpx } from '@/test-helpers'
 import { readCommand } from './read'
 
 const TEST_FILE = '/tmp/test-read.hwpx'
 const TEST_TABLE_FILE = '/tmp/test-read-table.hwpx'
+const TEST_HWP_FILE = '/tmp/test-read.hwp'
 
 let logs: string[]
 const origLog = console.log
@@ -26,6 +28,8 @@ beforeAll(async () => {
     ],
   })
   await Bun.write(TEST_TABLE_FILE, tableBuffer)
+
+  await Bun.write(TEST_HWP_FILE, createMinimalHwp())
 })
 
 function captureOutput() {
@@ -115,13 +119,20 @@ describe('readCommand', () => {
     expect(output.error).toBeDefined()
   })
 
-  it('errors for HWP 5.0 files', async () => {
+  it('reads minimal HWP 5.0 file', async () => {
     captureOutput()
-    await expect(readCommand('/tmp/test.hwp', undefined, {})).rejects.toThrow('process.exit')
+    await readCommand(TEST_HWP_FILE, undefined, {})
     restoreOutput()
 
     const output = JSON.parse(logs[0])
-    expect(output.error).toBe('HWP 5.0 read not yet supported')
+    expect(output.format).toBe('hwp')
+    expect(output.sections).toEqual([])
+    expect(output.header).toEqual({
+      fonts: [],
+      charShapes: [],
+      paraShapes: [],
+      styles: [],
+    })
   })
 
   it('errors for unsupported format', async () => {
@@ -142,3 +153,15 @@ describe('readCommand', () => {
     expect(output.error).toContain('Invalid reference')
   })
 })
+
+function createMinimalHwp(): Buffer {
+  const cfb = CFB.utils.cfb_new()
+  const fileHeader = Buffer.alloc(256)
+  fileHeader.write('HWP Document File', 0, 'ascii')
+  fileHeader.writeUInt32LE(0, 36)
+
+  CFB.utils.cfb_add(cfb, 'FileHeader', fileHeader)
+  CFB.utils.cfb_add(cfb, 'DocInfo', Buffer.alloc(0))
+
+  return Buffer.from(CFB.write(cfb, { type: 'buffer' }))
+}
