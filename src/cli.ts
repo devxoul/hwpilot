@@ -3,6 +3,7 @@ import { Command } from 'commander'
 import { editFormatCommand } from '@/commands/edit-format'
 import { editTextCommand } from '@/commands/edit-text'
 import { readCommand } from '@/commands/read'
+import { tableEditCommand, tableReadCommand } from '@/commands/table'
 import { textCommand } from '@/commands/text'
 
 const program = new Command()
@@ -73,9 +74,8 @@ tableCmd
   .command('read <file> <ref>')
   .description('Read table structure')
   .option('--pretty', 'Pretty-print JSON output')
-  .action(() => {
-    console.log(JSON.stringify({ error: 'Not implemented' }))
-    process.exit(1)
+  .action(async (file: string, ref: string, options: { pretty?: boolean }) => {
+    await tableReadCommand(file, ref, options)
   })
 
 // hwp table edit <file> <ref> <text>
@@ -83,9 +83,8 @@ tableCmd
   .command('edit <file> <ref> <text>')
   .description('Edit text in a table cell')
   .option('--pretty', 'Pretty-print JSON output')
-  .action(() => {
-    console.log(JSON.stringify({ error: 'Not implemented' }))
-    process.exit(1)
+  .action(async (file: string, ref: string, text: string, options: { pretty?: boolean }) => {
+    await tableEditCommand(file, ref, text, options)
   })
 
 // hwp table list <file>
