@@ -65,6 +65,73 @@ export async function crossValidate(hwpPath: string, expectedText: string): Prom
   }
 }
 
+/**
+ * Verify PARA_HEADER nChars matches actual PARA_TEXT length for a given paragraph.
+ * Reads the raw binary section stream and checks structural consistency.
+ */
+export async function verifyParaHeaderNChars(
+  hwpPath: string,
+  paragraphIndex: number,
+): Promise<{ nChars: number; textLength: number; match: boolean }> {
+  const result = await runCli(['read', hwpPath])
+  const doc = parseOutput(result) as { format: string }
+  if (doc.format !== 'hwp') {
+    throw new Error('verifyParaHeaderNChars only supports HWP format')
+  }
+
+  const { readFile: readFileNode } = await import('node:fs/promises')
+  const CFB = (await import('cfb')).default
+  const { inflateRaw } = await import('pako')
+
+  const buf = await readFileNode(hwpPath)
+  const cfb = CFB.read(buf, { type: 'buffer' })
+
+  const fileHeader = CFB.find(cfb, '/FileHeader')
+  if (!fileHeader?.content) throw new Error('FileHeader not found')
+  const flags = Buffer.from(fileHeader.content).readUInt32LE(36)
+  const compressed = Boolean(flags & 0x1)
+
+  const sectionEntry = CFB.find(cfb, '/BodyText/Section0')
+  if (!sectionEntry?.content) throw new Error('Section0 not found')
+  const raw = Buffer.from(sectionEntry.content)
+  const stream = compressed ? Buffer.from(inflateRaw(raw)) : raw
+
+  let paraIndex = -1
+  let nChars = -1
+  let offset = 0
+
+  while (offset < stream.length) {
+    const packed = stream.readUInt32LE(offset)
+    const tagId = packed & 0x3ff
+    const level = (packed >> 10) & 0x3ff
+    let size = (packed >> 20) & 0xfff
+    let headerSize = 4
+    if (size === 0xfff) {
+      size = stream.readUInt32LE(offset + 4)
+      headerSize = 8
+    }
+
+    const TAG_PARA_HEADER = 66
+    const TAG_PARA_TEXT = 67
+
+    if (tagId === TAG_PARA_HEADER && level === 0) {
+      paraIndex++
+      if (paraIndex === paragraphIndex && size >= 4) {
+        nChars = stream.readUInt32LE(offset + headerSize)
+      }
+    }
+
+    if (tagId === TAG_PARA_TEXT && paraIndex === paragraphIndex) {
+      const textLength = size / 2
+      return { nChars, textLength, match: nChars === textLength }
+    }
+
+    offset += headerSize + size
+  }
+
+  throw new Error(`Paragraph ${paragraphIndex} not found in Section0`)
+}
+
 /** Absolute paths to all 7 fixture files */
 export const FIXTURES = {
   employmentContract: 'e2e/fixtures/개정 표준근로계약서(2025년, 배포).hwp',
