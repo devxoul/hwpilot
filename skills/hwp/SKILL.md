@@ -309,14 +309,20 @@ hwp text document.hwpx
 # Returns: { "text": "all document text concatenated with newlines" }
 ```
 
-### 5. Convert legacy HWP, then edit
+### 5. Edit HWP 5.0 binary files directly
 
-HWP 5.0 files are read-only. Convert to HWPX first, then edit freely.
+HWP 5.0 files support text, table cell, and character formatting edits in-place.
+
+```bash
+hwp edit text document.hwp s0.p0 "Updated title"
+hwp edit format document.hwp s0.p0 --bold --size 18
+hwp table edit document.hwp s0.t0.r0.c0 "New cell value"
+```
+
+To convert HWP to HWPX (e.g. for image operations):
 
 ```bash
 hwp convert legacy.hwp editable.hwpx
-hwp edit text editable.hwpx s0.p0 "Updated title"
-hwp edit format editable.hwpx s0.p0 --bold --size 18
 ```
 
 ### 6. Create a new document with content
@@ -331,28 +337,28 @@ hwp edit format report.hwpx s0.p0 --bold --size 18
 
 ## Format Support
 
-**Important**: Format is detected by file content (magic bytes), NOT by file extension. A `.hwp` file may contain HWPX format inside and will be fully editable. Only files with actual HWP 5.0 binary CFB content (`D0 CF 11 E0`) are read-only.
+**Important**: Format is detected by file content (magic bytes), NOT by file extension. A `.hwp` file may contain HWPX format inside. Both HWP 5.0 and HWPX support text, table, and formatting edits.
 
 | Feature | HWPX (ZIP magic `50 4B 03 04`) | HWP 5.0 (CFB magic `D0 CF 11 E0`) |
 |---|---|---|
 | Read structure | Yes | Yes |
 | Read text | Yes | Yes |
-| Edit text | Yes | No |
-| Edit formatting | Yes | No |
+| Edit text | Yes | Yes |
+| Edit formatting | Yes | Yes (bold, italic, underline, fontSize, color) |
 | Table read | Yes | Yes |
-| Table edit | Yes | No |
+| Table edit | Yes | Yes |
 | Image operations | Yes | No |
 | Create new | Yes | No |
 
-**HWPX** (ZIP+XML) is the modern format with full read/write support. All editing commands work on HWPX-format files regardless of file extension.
+**HWPX** (ZIP+XML) is the modern format with full read/write support including images.
 
-**HWP 5.0** (binary CFB) is the legacy format. Read-only. To edit a true HWP 5.0 file, convert it to HWPX first with `hwp convert`.
+**HWP 5.0** (binary CFB) supports read and write for text, table cells, and character formatting. Image operations and creating new files require HWPX — use `hwp convert` to convert.
 
 ## Limitations
 
 What's NOT supported:
 
-- **HWP 5.0 writing**: True HWP 5.0 binary (CFB) format is read-only. Convert to HWPX to edit. Note: some `.hwp` files actually contain HWPX format and ARE editable — format is auto-detected by content.
+- **HWP 5.0 images**: Image operations (list, extract, insert, replace) are not supported for HWP 5.0 binary files. Convert to HWPX first.
 - **Password/DRM protected files**: Cannot open encrypted documents.
 - **Macros and scripts**: No macro execution or editing.
 - **Equations, charts, OLE objects, video**: These embedded objects can't be read or modified.
@@ -376,5 +382,5 @@ Common errors and fixes:
 | `Section N not found` | Ref points beyond document | Use `hwp read` to check available sections |
 | `Paragraph N not found` | Ref points beyond section | Use `hwp read <file> s0` to see paragraph count |
 | `Table N not found` | No such table | Use `hwp read` to list tables |
-| `HWP 5.0 write not supported` | File has true HWP 5.0 CFB content | Convert to HWPX first: `hwp convert file.hwp file.hwpx` |
+| `HWP 5.0 image not supported` | Image ops on HWP 5.0 file | Convert to HWPX first: `hwp convert file.hwp file.hwpx` |
 | `ENOENT: no such file` | File doesn't exist | Check file path |

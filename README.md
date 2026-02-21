@@ -31,7 +31,7 @@ hwp convert document.hwp document.hwpx
 ## Features
 
 - **HWPX Read/Write**: Full support for modern HWPX format (ZIP+XML)
-- **HWP Read-Only**: Read legacy HWP 5.0 binary format
+- **HWP Read/Write**: Read and edit HWP 5.0 binary format (text, tables, formatting)
 - **Reference System**: Navigate documents using hierarchical references (s0.p0, s0.t1.r2.c0)
 - **Table Support**: Read and modify table structures
 - **Image Handling**: Extract and embed images

@@ -41,8 +41,9 @@ src/
 │   │   ├── reader.ts
 │   │   ├── writer.ts
 │   │   └── ...
-│   └── hwp/               # HWP 5.0 format (binary CFB, read-only)
+│   └── hwp/               # HWP 5.0 format (binary CFB)
 │       ├── reader.ts
+│       ├── writer.ts
 │       └── ...
 └── shared/                # Shared utilities
     ├── types.ts
@@ -93,7 +94,7 @@ bun run format       # Format code
 
 ## HWP/HWPX Format Overview
 
-**Important**: Format is detected by file content (magic bytes), NOT by file extension. A `.hwp` file may actually contain HWPX format (ZIP+XML) and will be fully editable. Only files with actual HWP 5.0 binary CFB content are read-only. See `src/shared/format-detector.ts`.
+**Important**: Format is detected by file content (magic bytes), NOT by file extension. A `.hwp` file may actually contain HWPX format (ZIP+XML). See `src/shared/format-detector.ts`.
 
 ### HWPX (Full R/W)
 - **Structure**: ZIP archive containing XML files
@@ -106,15 +107,16 @@ bun run format       # Format code
   - `settings.xml` — document settings
 - **Advantages**: Human-readable, extensible, modern
 
-### HWP 5.0 (Read-Only)
+### HWP 5.0 (R/W)
 - **Structure**: Compound File Binary (CFB) format
 - **Magic bytes**: `D0 CF 11 E0` (CFB)
-- **Capabilities**: Read-only (binary format is complex)
+- **Capabilities**: Read + write (text, table cells, character formatting)
+- **Write approach**: Record-patching (modifies binary records in-place, preserves file structure)
 - **Key sections**:
   - `FileHeader` — document metadata
-  - `BodyText` — document content
-  - `DocInfo` — styles and formatting
-- **Note**: Full write support requires reverse-engineering binary format
+  - `BodyText` — document content (record stream per section)
+  - `DocInfo` — styles and formatting (CharShape, ParaShape, etc.)
+- **Not supported**: Image operations, creating new HWP files from scratch
 
 ## Reference System
 
