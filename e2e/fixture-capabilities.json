@@ -1,0 +1,103 @@
+{
+  "employmentContract": {
+    "key": "employmentContract",
+    "fileName": "개정 표준근로계약서(2025년, 배포).hwp",
+    "format": "hwp",
+    "sectionCount": 1,
+    "paragraphsReported": [330],
+    "editableParagraphs": {
+      "s0": [
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
+        30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49
+      ]
+    },
+    "tableCount": 0,
+    "imageCount": 0,
+    "firstLineText": "표준근로계약서(기간의 정함이 없는 경우)"
+  },
+  "employmentRules": {
+    "key": "employmentRules",
+    "fileName": "개정 표준취업규칙(2025년, 배포).hwp",
+    "format": "hwp",
+    "sectionCount": 4,
+    "paragraphsReported": [23, 2109, 206, 7],
+    "editableParagraphs": {
+      "s0": [0, 1],
+      "s1": [0],
+      "s2": [0, 1, 2, 3, 4, 5],
+      "s3": [0, 1]
+    },
+    "tableCount": 0,
+    "imageCount": 0,
+    "firstLineText": ""
+  },
+  "withholdingTax": {
+    "key": "withholdingTax",
+    "fileName": "근로소득원천징수영수증(개정안 2021.11.29.).hwp",
+    "format": "hwp",
+    "sectionCount": 2,
+    "paragraphsReported": [1349, 325],
+    "editableParagraphs": {
+      "s0": [0, 1, 2, 3, 4],
+      "s1": [0]
+    },
+    "tableCount": 0,
+    "imageCount": 0,
+    "firstLineText": "■ 소득세법 시행규칙 [별지 제24호서식(1)] <개정안 2021. 11.>"
+  },
+  "wageClaim": {
+    "key": "wageClaim",
+    "fileName": "임금 등 청구의 소.hwp",
+    "format": "hwp",
+    "sectionCount": 1,
+    "paragraphsReported": [192],
+    "editableParagraphs": {
+      "s0": [0]
+    },
+    "tableCount": 0,
+    "imageCount": 6,
+    "firstLineText": "[서식 예] 임금 등 청구의 소"
+  },
+  "assaultComplaint": {
+    "key": "assaultComplaint",
+    "fileName": "폭행죄(고소장).hwp",
+    "format": "hwp",
+    "sectionCount": 1,
+    "paragraphsReported": [99],
+    "editableParagraphs": {
+      "s0": [0]
+    },
+    "tableCount": 0,
+    "imageCount": 3,
+    "firstLineText": "[서식 예] 폭행죄"
+  },
+  "standardContracts": {
+    "key": "standardContracts",
+    "fileName": "표준 근로계약서(7종)(19.6월).hwp",
+    "format": "hwp",
+    "sectionCount": 1,
+    "paragraphsReported": [571],
+    "editableParagraphs": {
+      "s0": [
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
+        30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49
+      ]
+    },
+    "tableCount": 0,
+    "imageCount": 0,
+    "firstLineText": "표준근로계약서(기간의 정함이 없는 경우)"
+  },
+  "victimStatement": {
+    "key": "victimStatement",
+    "fileName": "피해자_의견_진술서_양식.hwp",
+    "format": "hwp",
+    "sectionCount": 1,
+    "paragraphsReported": [86],
+    "editableParagraphs": {
+      "s0": [0, 1]
+    },
+    "tableCount": 0,
+    "imageCount": 0,
+    "firstLineText": ""
+  }
+}
