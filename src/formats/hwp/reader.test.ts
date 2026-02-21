@@ -209,14 +209,19 @@ function binDataRecord(binId: number, extension: string): Buffer {
 }
 
 function shapeComponentData(width: number, height: number): Buffer {
-  const data = Buffer.alloc(8)
-  data.writeInt32LE(width, 0)
-  data.writeInt32LE(height, 4)
+  const data = Buffer.alloc(32)
+  data.writeUInt32LE(0x24706963, 0)
+  data.writeUInt32LE(0x24706963, 4)
+  data.writeInt32LE(width, 20)
+  data.writeInt32LE(height, 24)
   return data
 }
 
-function shapePictureData(binId: number): Buffer {
-  const data = Buffer.alloc(2)
-  data.writeUInt16LE(binId, 0)
+function shapePictureData(binId: number, noiseIdAtZero = 0): Buffer {
+  const data = Buffer.alloc(4 * 17 + 5)
+  if (noiseIdAtZero > 0) {
+    data.writeUInt16LE(noiseIdAtZero, 0)
+  }
+  data.writeUInt16LE(binId, 4 * 17 + 3)
   return data
 }

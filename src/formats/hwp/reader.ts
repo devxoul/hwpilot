@@ -469,12 +469,14 @@ function readUtf16LengthPrefixed(data: Buffer, offset: number): string {
 }
 
 function parseShapeSize(data: Buffer): { width: number; height: number } | null {
-  if (data.length < 8) {
+  const widthOffset = 20
+  const heightOffset = 24
+  if (data.length < heightOffset + 4) {
     return null
   }
 
-  const width = data.readInt32LE(0)
-  const height = data.readInt32LE(4)
+  const width = data.readInt32LE(widthOffset)
+  const height = data.readInt32LE(heightOffset)
   if (width <= 0 || height <= 0) {
     return null
   }
@@ -483,25 +485,21 @@ function parseShapeSize(data: Buffer): { width: number; height: number } | null 
 }
 
 function parsePictureBinDataId(data: Buffer, binDataById: Map<number, BinDataEntry>): number | null {
-  if (data.length < 2) {
+  const binDataIdOffset = 4 * 17 + 3
+  if (data.length < binDataIdOffset + 2) {
     return null
   }
 
-  const candidates: number[] = []
-  for (let offset = 0; offset + 2 <= data.length; offset += 2) {
-    const id = data.readUInt16LE(offset)
-    if (id > 0) {
-      candidates.push(id)
-    }
+  const id = data.readUInt16LE(binDataIdOffset)
+  if (id === 0) {
+    return null
   }
 
-  for (const id of candidates) {
-    if (binDataById.has(id)) {
-      return id
-    }
+  if (binDataById.has(id)) {
+    return id
   }
 
-  return candidates[0] ?? null
+  return null
 }
 
 export function extractParaText(data: Buffer): string {

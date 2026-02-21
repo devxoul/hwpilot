@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it } from 'bun:test'
 import { readFile, unlink, writeFile } from 'node:fs/promises'
 import CFB from 'cfb'
-import { loadHwp } from '@/formats/hwp/reader'
-import { iterateRecords } from '@/formats/hwp/record-parser'
-import { decompressStream, getCompressionFlag } from '@/formats/hwp/stream-util'
-import { TAG } from '@/formats/hwp/tag-ids'
-import { editHwp } from '@/formats/hwp/writer'
-import { createTestHwpBinary } from '@/test-helpers'
+import { createTestHwpBinary } from '../../test-helpers'
+import { loadHwp } from './reader'
+import { iterateRecords } from './record-parser'
+import { decompressStream, getCompressionFlag } from './stream-util'
+import { TAG } from './tag-ids'
+import { editHwp } from './writer'
 
 const tempFiles: string[] = []
 
@@ -148,7 +148,7 @@ describe('HWP writer: setFormat round-trip', () => {
 
     const charShapes = await readCharShapesFromFile(file)
     const lastShape = charShapes[charShapes.length - 1]
-    const attrBits = lastShape.readUInt32LE(22)
+    const attrBits = lastShape.readUInt32LE(46)
     expect(attrBits & 0x1).toBe(1)
   })
 
@@ -161,7 +161,7 @@ describe('HWP writer: setFormat round-trip', () => {
 
     const charShapes = await readCharShapesFromFile(file)
     const lastShape = charShapes[charShapes.length - 1]
-    const height = lastShape.readUInt32LE(18)
+    const height = lastShape.readUInt32LE(42)
     expect(height).toBe(2400)
   })
 
@@ -174,8 +174,8 @@ describe('HWP writer: setFormat round-trip', () => {
 
     const charShapes = await readCharShapesFromFile(file)
     const lastShape = charShapes[charShapes.length - 1]
-    const colorInt = lastShape.readUInt32LE(26)
-    expect(colorInt).toBe(0xff0000)
+    const colorInt = lastShape.readUInt32LE(52)
+    expect(colorInt).toBe(0x0000ff)
   })
 
   it('setFormat does not mutate other paragraphs CharShape', async () => {
@@ -191,7 +191,7 @@ describe('HWP writer: setFormat round-trip', () => {
     const charShapesAfter = await readCharShapesFromFile(file)
     expect(charShapesAfter.length).toBe(originalCount + 1)
     const originalShape = charShapesAfter[0]
-    const originalAttr = originalShape.readUInt32LE(22)
+    const originalAttr = originalShape.readUInt32LE(46)
     expect(originalAttr & 0x1).toBe(0)
   })
 })
@@ -279,7 +279,7 @@ async function readCharShapesFromFile(filePath: string): Promise<Buffer[]> {
   const fileHeader = Buffer.from(CFB.find(cfb, 'FileHeader')!.content!)
   const compressed = getCompressionFlag(fileHeader)
   let docInfo = Buffer.from(CFB.find(cfb, 'DocInfo')!.content!)
-  if (compressed) docInfo = decompressStream(docInfo)
+  if (compressed) docInfo = Buffer.from(decompressStream(docInfo))
 
   const charShapes: Buffer[] = []
   for (const { header, data } of iterateRecords(docInfo)) {
