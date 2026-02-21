@@ -91,6 +91,10 @@ describe('Employment Contract (개정 표준근로계약서)', () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
 
+      // given — s0.p2 contains employer/employee template
+      const before_s0p2 = await runCli(['text', FIXTURE, 's0.p2'])
+      expect((parseOutput(before_s0p2) as any).text).toContain('사업주')
+
       const newText =
         '(주)테스트코리아(이하 "사업주"라 함)과(와) 홍길동(이하 "근로자"라 함)은 다음과 같이 근로계약을 체결한다.'
       const editResult = await runCli(['edit', 'text', temp, 's0.p2', newText])
@@ -107,6 +111,10 @@ describe('Employment Contract (개정 표준근로계약서)', () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
 
+      // given — s0.p3 contains start date template
+      const before_s0p3 = await runCli(['text', FIXTURE, 's0.p3'])
+      expect((parseOutput(before_s0p3) as any).text).toContain('근로개시일')
+
       const newText = '1. 근로개시일 : 2025년 3월 1일부터'
       const editResult = await runCli(['edit', 'text', temp, 's0.p3', newText])
       const editOutput = parseOutput(editResult) as any
@@ -121,6 +129,10 @@ describe('Employment Contract (개정 표준근로계약서)', () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
 
+      // given — s0.p4 contains workplace template
+      const before_s0p4 = await runCli(['text', FIXTURE, 's0.p4'])
+      expect((parseOutput(before_s0p4) as any).text).toContain('근 무 장 소')
+
       const newText = '2. 근 무 장 소 : 서울특별시 강남구 테헤란로 123'
       const editResult = await runCli(['edit', 'text', temp, 's0.p4', newText])
       const editOutput = parseOutput(editResult) as any
@@ -134,6 +146,10 @@ describe('Employment Contract (개정 표준근로계약서)', () => {
     it('fills job description in s0.p5', async () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
+
+      // given — s0.p5 contains job description template
+      const before_s0p5 = await runCli(['text', FIXTURE, 's0.p5'])
+      expect((parseOutput(before_s0p5) as any).text).toContain('업무의 내용')
 
       const newText = '3. 업무의 내용 : 소프트웨어 개발 및 AI 서비스 구현'
       const editResult = await runCli(['edit', 'text', temp, 's0.p5', newText])
@@ -150,6 +166,10 @@ describe('Employment Contract (개정 표준근로계약서)', () => {
     it('edited text survives HWP→HWPX conversion round-trip', async () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
+
+      // given — s0.p3 contains start date template
+      const before_s0p3_cv = await runCli(['text', FIXTURE, 's0.p3'])
+      expect((parseOutput(before_s0p3_cv) as any).text).toContain('근로개시일')
 
       const marker = 'CROSSVAL_2025_0301'
       const editResult = await runCli(['edit', 'text', temp, 's0.p3', `1. 근로개시일 : ${marker}`])

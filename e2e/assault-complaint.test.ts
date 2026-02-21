@@ -103,6 +103,10 @@ describe('Assault Complaint (폭행죄 고소장)', () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
 
+      // given — s0.p0 contains the document title
+      const before_s0p0 = await runCli(['text', FIXTURE, 's0.p0'])
+      expect((parseOutput(before_s0p0) as any).text).toContain('폭행죄')
+
       const newText = '[서식 예] 폭행죄 - 수정된 고소장'
       const editResult = await runCli(['edit', 'text', temp, 's0.p0', newText])
       const editOutput = parseOutput(editResult) as any

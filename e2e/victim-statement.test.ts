@@ -95,6 +95,10 @@ describe('Victim Statement Form (피해자 의견 진술서)', () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
 
+      // given — s0.p0 is empty in this fixture
+      const before_s0p0 = await runCli(['text', FIXTURE, 's0.p0'])
+      expect((parseOutput(before_s0p0) as any).text).toBe('')
+
       // s0.p0 is empty/whitespace — edit reports success but text may not persist on re-read
       const marker = 'E2E_VICTIM_P0_MARKER'
       const editResult = await runCli(['edit', 'text', temp, 's0.p0', marker])
@@ -107,6 +111,10 @@ describe('Victim Statement Form (피해자 의견 진술서)', () => {
     it('edits s0.p1 with form content', async () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
+
+      // given — s0.p1 contains the form title
+      const before_s0p1 = await runCli(['text', FIXTURE, 's0.p1'])
+      expect((parseOutput(before_s0p1) as any).text).toContain('피해자 의견 진술서')
 
       const newText = '사건번호: 2025-E2E-TEST-001'
       const editResult = await runCli(['edit', 'text', temp, 's0.p1', newText])
@@ -121,6 +129,10 @@ describe('Victim Statement Form (피해자 의견 진술서)', () => {
     it('edited text in s0.p1 survives HWP→HWPX conversion', async () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
+
+      // given — s0.p1 contains the form title
+      const before_s0p1_cv = await runCli(['text', FIXTURE, 's0.p1'])
+      expect((parseOutput(before_s0p1_cv) as any).text).toContain('피해자 의견 진술서')
 
       const marker = 'CROSSVAL_VICTIM_2025'
       const editResult = await runCli(['edit', 'text', temp, 's0.p1', marker])

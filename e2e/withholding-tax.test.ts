@@ -93,6 +93,10 @@ describe('Withholding Tax Receipt (근로소득원천징수영수증)', () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
 
+      // given — s0.p0 contains the tax form header
+      const before_s0p0 = await runCli(['text', FIXTURE, 's0.p0'])
+      expect((parseOutput(before_s0p0) as any).text).toContain('소득세법')
+
       const newText = '■ 소득세법 시행규칙 [별지 제24호서식(1)] <개정안 2025. 01.>'
       const editResult = await runCli(['edit', 'text', temp, 's0.p0', newText])
       const editOutput = parseOutput(editResult) as any
@@ -104,6 +108,10 @@ describe('Withholding Tax Receipt (근로소득원천징수영수증)', () => {
     it('edits s1.p0 in the second section', async () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
+
+      // given — s1.p0 is empty in this fixture
+      const before_s1p0 = await runCli(['text', FIXTURE, 's1.p0'])
+      expect((parseOutput(before_s1p0) as any).text).toBe('')
 
       const editResult = await runCli(['edit', 'text', temp, 's1.p0', '제2장 세액계산 테스트'])
       const editOutput = parseOutput(editResult) as any
@@ -117,6 +125,10 @@ describe('Withholding Tax Receipt (근로소득원천징수영수증)', () => {
     it('edited text in s0 survives HWP→HWPX conversion', async () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
+
+      // given — s0.p1 contains the page number indicator
+      const before_s0p1 = await runCli(['text', FIXTURE, 's0.p1'])
+      expect((parseOutput(before_s0p1) as any).text).toContain('8쪽')
 
       const marker = 'TAXCV_2025_WITHHOLDING'
       const editResult = await runCli(['edit', 'text', temp, 's0.p1', marker])

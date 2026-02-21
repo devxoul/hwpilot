@@ -102,6 +102,10 @@ describe('Wage Claim Lawsuit (임금 등 청구의 소)', () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
 
+      // given — s0.p0 contains the document title
+      const before_s0p0 = await runCli(['text', FIXTURE, 's0.p0'])
+      expect((parseOutput(before_s0p0) as any).text).toContain('임금 등 청구의 소')
+
       const newText = '[서식 예] 임금 및 퇴직금 청구의 소'
       const editResult = await runCli(['edit', 'text', temp, 's0.p0', newText])
       const editOutput = parseOutput(editResult) as any
@@ -115,6 +119,10 @@ describe('Wage Claim Lawsuit (임금 등 청구의 소)', () => {
     it('edited text survives HWP→HWPX conversion round-trip', async () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
+
+      // given — s0.p0 contains the document title
+      const before_s0p0_cv = await runCli(['text', FIXTURE, 's0.p0'])
+      expect((parseOutput(before_s0p0_cv) as any).text).toContain('임금 등 청구의 소')
 
       const marker = 'WAGE_CROSSVAL_2026'
       const editResult = await runCli(['edit', 'text', temp, 's0.p0', `[서식 예] ${marker}`])

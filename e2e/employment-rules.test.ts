@@ -104,6 +104,10 @@ describe('Employment Rules (개정 표준취업규칙)', () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
 
+      // given — s0.p0 is empty in this fixture
+      const before_s0p0 = await runCli(['text', FIXTURE, 's0.p0'])
+      expect((parseOutput(before_s0p0) as any).text).toBe('')
+
       const marker = 'E2E_S0_EDIT_MARKER'
       const editResult = await runCli(['edit', 'text', temp, 's0.p0', marker])
       const editOutput = parseOutput(editResult) as any
@@ -120,6 +124,10 @@ describe('Employment Rules (개정 표준취업규칙)', () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
 
+      // given — s1.p0 is empty in this fixture
+      const before_s1p0 = await runCli(['text', FIXTURE, 's1.p0'])
+      expect((parseOutput(before_s1p0) as any).text).toBe('')
+
       const marker = 'E2E_S1_EDIT_MARKER'
       const editResult = await runCli(['edit', 'text', temp, 's1.p0', marker])
       const editOutput = parseOutput(editResult) as any
@@ -133,12 +141,20 @@ describe('Employment Rules (개정 표준취업규칙)', () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
 
+      // given — s2.p0 contains section header
+      const before_s2p0 = await runCli(['text', FIXTURE, 's2.p0'])
+      expect((parseOutput(before_s2p0) as any).text).toContain('별지 1')
+
       const marker0 = 'S2P0_EDITED'
       const marker5 = 'S2P5_EDITED'
 
       const edit0 = await runCli(['edit', 'text', temp, 's2.p0', marker0])
       expect((parseOutput(edit0) as any).success).toBe(true)
       expect((parseOutput(edit0) as any).text).toContain(marker0)
+
+      // given — s2.p5 contains workplace field
+      const before_s2p5 = await runCli(['text', FIXTURE, 's2.p5'])
+      expect((parseOutput(before_s2p5) as any).text).toContain('근 무 장 소')
 
       const edit5 = await runCli(['edit', 'text', temp, 's2.p5', marker5])
       expect((parseOutput(edit5) as any).success).toBe(true)
@@ -148,6 +164,10 @@ describe('Employment Rules (개정 표준취업규칙)', () => {
     it('edits s3.p0 in section 3', async () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
+
+      // given — s3.p0 contains appendix header
+      const before_s3p0 = await runCli(['text', FIXTURE, 's3.p0'])
+      expect((parseOutput(before_s3p0) as any).text).toContain('별첨')
 
       const marker = 'E2E_S3_EDIT_MARKER'
       const editResult = await runCli(['edit', 'text', temp, 's3.p0', marker])
@@ -163,6 +183,10 @@ describe('Employment Rules (개정 표준취업규칙)', () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
 
+      // given — s0.p0 is empty in this fixture
+      const before_s0p0_cv = await runCli(['text', FIXTURE, 's0.p0'])
+      expect((parseOutput(before_s0p0_cv) as any).text).toBe('')
+
       const marker = 'CROSSVAL_S0_RULES'
       const editResult = await runCli(['edit', 'text', temp, 's0.p0', marker])
       expect((parseOutput(editResult) as any).success).toBe(true)
@@ -175,6 +199,10 @@ describe('Employment Rules (개정 표준취업규칙)', () => {
     it('s1 edit survives HWP→HWPX conversion (section1.xml)', async () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
+
+      // given — s1.p0 is empty in this fixture
+      const before_s1p0_cv = await runCli(['text', FIXTURE, 's1.p0'])
+      expect((parseOutput(before_s1p0_cv) as any).text).toBe('')
 
       const marker = 'CROSSVAL_S1_RULES'
       const editResult = await runCli(['edit', 'text', temp, 's1.p0', marker])
@@ -199,6 +227,14 @@ describe('Employment Rules (개정 표준취업규칙)', () => {
     it('edits in s0 and s2 both appear in converted HWPX', async () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
+
+      // given — s0.p0 is empty in this fixture
+      const before_s0p0_dual = await runCli(['text', FIXTURE, 's0.p0'])
+      expect((parseOutput(before_s0p0_dual) as any).text).toBe('')
+
+      // given — s2.p0 contains section header
+      const before_s2p0_dual = await runCli(['text', FIXTURE, 's2.p0'])
+      expect((parseOutput(before_s2p0_dual) as any).text).toContain('별지 1')
 
       const markerS0 = 'DUAL_CROSSVAL_S0'
       const markerS2 = 'DUAL_CROSSVAL_S2'

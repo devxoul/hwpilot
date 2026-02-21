@@ -46,6 +46,11 @@ describe('crossValidate', () => {
   it('finds expected text in converted HWPX XML', async () => {
     const temp = await tempCopy(FIXTURES.employmentContract)
     tempFiles.push(temp)
+
+    // given — s0.p0 contains the contract title
+    const before_s0p0 = await runCli(['text', FIXTURES.employmentContract, 's0.p0'])
+    expect((parseOutput(before_s0p0) as any).text).toContain('표준근로계약서')
+
     await runCli(['edit', 'text', temp, 's0.p0', 'CROSSVAL_UNIQUE_MARKER'])
     const found = await crossValidate(temp, 'CROSSVAL_UNIQUE_MARKER')
     expect(found).toBe(true)
