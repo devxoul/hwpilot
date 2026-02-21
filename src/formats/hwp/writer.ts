@@ -370,15 +370,15 @@ function findIdMappingsRecord(stream: Buffer): { data: Buffer; offset: number } 
 }
 
 function applyFormatToCharShape(charShape: Buffer, format: FormatOptions): void {
-  if (format.fontSize !== undefined && charShape.length >= 22) {
-    charShape.writeUInt32LE(Math.round(format.fontSize * 100), 18)
+  if (format.fontSize !== undefined && charShape.length >= 46) {
+    charShape.writeUInt32LE(Math.round(format.fontSize * 100), 42)
   }
 
   if (
     (format.bold !== undefined || format.italic !== undefined || format.underline !== undefined) &&
-    charShape.length >= 26
+    charShape.length >= 50
   ) {
-    let attrBits = charShape.readUInt32LE(22)
+    let attrBits = charShape.readUInt32LE(46)
 
     if (format.bold !== undefined) {
       attrBits = setBit(attrBits, 0, format.bold)
@@ -392,11 +392,11 @@ function applyFormatToCharShape(charShape: Buffer, format: FormatOptions): void 
       attrBits = setBit(attrBits, 2, format.underline)
     }
 
-    charShape.writeUInt32LE(attrBits >>> 0, 22)
+    charShape.writeUInt32LE(attrBits >>> 0, 46)
   }
 
-  if (format.color !== undefined && charShape.length >= 30) {
-    charShape.writeUInt32LE(parseHexColor(format.color), 26)
+  if (format.color !== undefined && charShape.length >= 56) {
+    charShape.writeUInt32LE(parseHexColor(format.color), 52)
   }
 }
 
@@ -412,7 +412,10 @@ function parseHexColor(hexColor: string): number {
   if (!/^[0-9a-fA-F]{6}$/.test(normalized)) {
     throw new Error(`Invalid color value: ${hexColor}`)
   }
-  return Number.parseInt(normalized, 16)
+  const rr = Number.parseInt(normalized.slice(0, 2), 16)
+  const gg = Number.parseInt(normalized.slice(2, 4), 16)
+  const bb = Number.parseInt(normalized.slice(4, 6), 16)
+  return (bb << 16) | (gg << 8) | rr
 }
 
 function getEntryBuffer(cfb: CFB.CFB$Container, path: string): Buffer {

@@ -129,20 +129,20 @@ function parseDocInfo(buffer: Buffer): DocInfoParseResult {
     }
 
     if (header.tagId === TAG.CHAR_SHAPE) {
-      if (data.length < 30) {
+      if (data.length < 56) {
         continue
       }
 
-      const fontRef = data.readUInt16LE(2)
-      const height = data.readUInt32LE(18)
-      const attrBits = data.readUInt32LE(22)
+      const fontRef = data.readUInt16LE(0)
+      const height = data.readUInt32LE(42)
+      const attrBits = data.readUInt32LE(46)
       const bold = Boolean(attrBits & 0x1)
       const italic = Boolean(attrBits & 0x2)
       const underline = Boolean((attrBits >> 2) & 0x3)
-      const colorInt = data.readUInt32LE(26)
-      const r = (colorInt >> 16) & 0xff
+      const colorInt = data.readUInt32LE(52)
+      const r = colorInt & 0xff
       const g = (colorInt >> 8) & 0xff
-      const b = colorInt & 0xff
+      const b = (colorInt >> 16) & 0xff
       const color = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
 
       charShapes.push({

@@ -190,12 +190,12 @@ function buildDocInfoStream(): Buffer {
 
   const faceName = encodeLengthPrefixedUtf16('맑은 고딕')
 
-  const charShape = Buffer.alloc(30)
+  const charShape = Buffer.alloc(74)
   charShape.writeUInt16LE(0, 0)
   charShape.writeUInt16LE(0, 2)
-  charShape.writeUInt32LE(1000, 18)
-  charShape.writeUInt32LE(0, 22)
-  charShape.writeUInt32LE(0, 26)
+  charShape.writeUInt32LE(1000, 42)
+  charShape.writeUInt32LE(0, 46)
+  charShape.writeUInt32LE(0, 52)
 
   const paraShape = Buffer.alloc(4)
   paraShape.writeUInt32LE(0, 0)

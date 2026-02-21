@@ -157,6 +157,22 @@ describe('editHwp', () => {
     expect(doc.header.charShapes[secondRunRef].bold).toBe(true)
   })
 
+  it('setFormat writes font size and color to CHAR_SHAPE offsets 42 and 52', async () => {
+    const filePath = tmpPath('writer-set-format-char-shape-offsets')
+    TMP_FILES.push(filePath)
+    const fixture = await createTestHwpBinary({ paragraphs: ['first'] })
+    await Bun.write(filePath, fixture)
+
+    await editHwp(filePath, [{ type: 'setFormat', ref: 's0.p0', format: { fontSize: 12, color: '#FF0000' } }])
+
+    const docInfo = await getDocInfoBuffer(filePath)
+    const charShapeRecords = collectCharShapeRecordData(docInfo)
+    const updatedCharShape = charShapeRecords[charShapeRecords.length - 1]
+
+    expect(updatedCharShape.readUInt32LE(42)).toBe(1200)
+    expect(updatedCharShape.readUInt32LE(52)).toBe(0x0000ff)
+  })
+
   it('setTableCell updates target cell and keeps other cells unchanged', async () => {
     const filePath = tmpPath('writer-table-cell-first')
     TMP_FILES.push(filePath)
@@ -274,6 +290,18 @@ function collectTopLevelParaTextRecords(stream: Buffer): Buffer[] {
 
     if (header.tagId === TAG.PARA_TEXT && header.level === 1 && paragraphIndex >= 0) {
       records[paragraphIndex] = Buffer.from(stream.subarray(offset, offset + header.headerSize + header.size))
+    }
+  }
+
+  return records
+}
+
+function collectCharShapeRecordData(docInfo: Buffer): Buffer[] {
+  const records: Buffer[] = []
+
+  for (const { header, data } of iterateRecords(docInfo)) {
+    if (header.tagId === TAG.CHAR_SHAPE) {
+      records.push(Buffer.from(data))
     }
   }
 
