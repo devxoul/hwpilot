@@ -94,6 +94,32 @@ describe('editHwp', () => {
     expect(Buffer.compare(beforeParaTextRecords[2], afterParaTextRecords[2])).toBe(0)
   })
 
+  it('setText updates PARA_HEADER nChars to match new text length', async () => {
+    const filePath = tmpPath('writer-nchars')
+    TMP_FILES.push(filePath)
+    const fixture = await createTestHwpBinary({ paragraphs: ['original text'] })
+    await Bun.write(filePath, fixture)
+
+    await editHwp(filePath, [{ type: 'setText', ref: 's0.p0', text: 'new' }])
+
+    const section = await getSectionBuffer(filePath, 0)
+    const { nChars, textLength } = readParaHeaderAndTextLength(section, 0)
+    expect(nChars).toBe(textLength)
+    expect(nChars).toBe(3)
+  })
+
+  it('setTableCell updates PARA_HEADER nChars in target cell', async () => {
+    const filePath = tmpPath('writer-table-nchars')
+    TMP_FILES.push(filePath)
+    const fixture = await createTestHwpBinary({ tables: [{ rows: [['original', 'B']] }] })
+    await Bun.write(filePath, fixture)
+
+    await editHwp(filePath, [{ type: 'setTableCell', ref: 's0.t0.r0.c0', text: 'XY' }])
+
+    const doc = await loadHwp(filePath)
+    expect(doc.sections[0].tables[0].rows[0].cells[0].paragraphs[0].runs[0].text).toBe('XY')
+  })
+
   it('setFormat bold creates new char shape and updates paragraph reference', async () => {
     const filePath = tmpPath('writer-set-format-bold')
     TMP_FILES.push(filePath)
@@ -306,4 +332,25 @@ function collectCharShapeRecordData(docInfo: Buffer): Buffer[] {
   }
 
   return records
+}
+
+function readParaHeaderAndTextLength(stream: Buffer, paragraphIndex: number): { nChars: number; textLength: number } {
+  let currentPara = -1
+  let nChars = -1
+
+  for (const { header, data } of iterateRecords(stream)) {
+    if (header.tagId === TAG.PARA_HEADER && header.level === 0) {
+      currentPara += 1
+      if (currentPara === paragraphIndex && data.length >= 4) {
+        nChars = data.readUInt32LE(0)
+      }
+      continue
+    }
+
+    if (currentPara === paragraphIndex && header.tagId === TAG.PARA_TEXT) {
+      return { nChars, textLength: data.length / 2 }
+    }
+  }
+
+  throw new Error(`Paragraph ${paragraphIndex} not found`)
 }

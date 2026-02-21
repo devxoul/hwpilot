@@ -230,9 +230,12 @@ function buildSection0Stream(paragraphs: string[], tables: TestTable[]): Buffer 
 
     for (const row of table.rows) {
       for (const cellText of row) {
+        const cellTextData = Buffer.from(cellText, 'utf16le')
+        const cellParaHeader = Buffer.alloc(24)
+        cellParaHeader.writeUInt32LE(cellTextData.length / 2, 0)
         records.push(buildRecord(TAG.LIST_HEADER, 2, Buffer.alloc(0)))
-        records.push(buildRecord(TAG.PARA_HEADER, 3, Buffer.alloc(0)))
-        records.push(buildRecord(TAG.PARA_TEXT, 3, Buffer.from(cellText, 'utf16le')))
+        records.push(buildRecord(TAG.PARA_HEADER, 3, cellParaHeader))
+        records.push(buildRecord(TAG.PARA_TEXT, 3, cellTextData))
       }
     }
   }
@@ -241,13 +244,19 @@ function buildSection0Stream(paragraphs: string[], tables: TestTable[]): Buffer 
 }
 
 function buildParagraphRecords(text: string): Buffer {
+  const textData = Buffer.from(text, 'utf16le')
+  const nChars = textData.length / 2
+
+  const paraHeader = Buffer.alloc(24)
+  paraHeader.writeUInt32LE(nChars, 0)
+
   const paraCharShape = Buffer.alloc(6)
   paraCharShape.writeUInt16LE(0, 4)
 
   return Buffer.concat([
-    buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)),
+    buildRecord(TAG.PARA_HEADER, 0, paraHeader),
     buildRecord(TAG.PARA_CHAR_SHAPE, 1, paraCharShape),
-    buildRecord(TAG.PARA_TEXT, 1, Buffer.from(text, 'utf16le')),
+    buildRecord(TAG.PARA_TEXT, 1, textData),
   ])
 }
 

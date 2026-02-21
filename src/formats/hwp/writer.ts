@@ -135,17 +135,25 @@ function groupOperationsBySection(operations: EditOperation[]): Map<number, Sect
 function patchParagraphText(stream: Buffer, operation: SectionTextOperation): Buffer {
   let paragraphIndex = -1
   let waitingForTargetText = false
+  let paraHeaderDataOffset: number | undefined
+  let paraHeaderDataSize = 0
 
   for (const { header, data, offset } of iterateRecords(stream)) {
     if (header.tagId === TAG.PARA_HEADER && header.level === 0) {
       paragraphIndex += 1
       waitingForTargetText = paragraphIndex === operation.paragraph
+      if (waitingForTargetText) {
+        paraHeaderDataOffset = offset + header.headerSize
+        paraHeaderDataSize = header.size
+      }
       continue
     }
 
     if (waitingForTargetText && header.tagId === TAG.PARA_TEXT) {
       const patchedData = buildPatchedParaText(data, operation.text)
-      return replaceRecordData(stream, offset, patchedData)
+      const newStream = replaceRecordData(stream, offset, patchedData)
+      updateParaHeaderNChars(newStream, paraHeaderDataOffset, paraHeaderDataSize, patchedData.length / 2)
+      return newStream
     }
   }
 
@@ -167,6 +175,8 @@ function patchTableCellText(
   let targetCellIndex: number | undefined
   let cellCursor = -1
   let insideTargetCell = false
+  let paraHeaderDataOffset: number | undefined
+  let paraHeaderDataSize = 0
 
   for (const { header, data, offset } of iterateRecords(stream)) {
     if (
@@ -205,12 +215,22 @@ function patchTableCellText(
         throw new Error(`Cell text not found for reference: ${ref}`)
       }
       insideTargetCell = cellCursor === targetCellIndex
+      paraHeaderDataOffset = undefined
+      paraHeaderDataSize = 0
+      continue
+    }
+
+    if (insideTargetCell && header.tagId === TAG.PARA_HEADER) {
+      paraHeaderDataOffset = offset + header.headerSize
+      paraHeaderDataSize = header.size
       continue
     }
 
     if (insideTargetCell && header.tagId === TAG.PARA_TEXT && header.level === tableLevel + 1) {
       const patchedData = buildPatchedParaText(data, text)
-      return replaceRecordData(stream, offset, patchedData)
+      const newStream = replaceRecordData(stream, offset, patchedData)
+      updateParaHeaderNChars(newStream, paraHeaderDataOffset, paraHeaderDataSize, patchedData.length / 2)
+      return newStream
     }
   }
 
@@ -272,6 +292,17 @@ function applySetFormat(
 
   CFB.utils.cfb_add(cfb, docInfoPath, compressed ? compressStream(docInfoStream) : docInfoStream)
   CFB.utils.cfb_add(cfb, sectionPath, compressed ? compressStream(sectionStream) : sectionStream)
+}
+
+function updateParaHeaderNChars(
+  stream: Buffer,
+  paraHeaderDataOffset: number | undefined,
+  paraHeaderDataSize: number,
+  nChars: number,
+): void {
+  if (paraHeaderDataOffset !== undefined && paraHeaderDataSize >= 4) {
+    stream.writeUInt32LE(nChars, paraHeaderDataOffset)
+  }
 }
 
 function buildPatchedParaText(originalData: Buffer, nextText: string): Buffer {
