@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises'
+import { access, writeFile } from 'node:fs/promises'
 import JSZip from 'jszip'
 import { loadHwp } from '@/formats/hwp/reader'
 import { NAMESPACES } from '@/formats/hwpx/namespaces'
@@ -10,6 +10,7 @@ import type { CharShape, DocumentHeader, HwpDocument, ParaShape, Section } from 
 
 type ConvertOptions = {
   pretty?: boolean
+  force?: boolean
 }
 
 export async function convertCommand(input: string, output: string, options: ConvertOptions): Promise<void> {
@@ -22,6 +23,15 @@ export async function convertCommand(input: string, output: string, options: Con
 
     if (!hasExtension(output, 'hwpx')) {
       throw new Error('Output must be a .hwpx file')
+    }
+
+    if (!options.force) {
+      try {
+        await access(output)
+        throw new Error(`File already exists: ${output}`)
+      } catch (e) {
+        if (e instanceof Error && e.message.startsWith('File already exists')) throw e
+      }
     }
 
     const doc = await loadHwp(input)

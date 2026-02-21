@@ -155,7 +155,8 @@ program
   .command('convert <input> <output>')
   .description('Convert HWP 5.0 file to HWPX format')
   .option('--pretty', 'Pretty-print JSON output')
-  .action(async (input: string, output: string, options: { pretty?: boolean }) => {
+  .option('--force', 'Overwrite existing output file')
+  .action(async (input: string, output: string, options: { pretty?: boolean; force?: boolean }) => {
     await convertCommand(input, output, options)
   })
 

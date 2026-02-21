@@ -79,6 +79,52 @@ describe('convertCommand', () => {
     const output = JSON.parse(errors[0])
     expect(output.error).toContain('ENOENT')
   })
+
+  it('errors when output file already exists without --force', async () => {
+    const hwpFile = tempPath('convert-hwp', 'hwp')
+    const outputFile = tempPath('convert-out', 'hwpx')
+
+    await Bun.write(hwpFile, createTestHwpCfb())
+    await Bun.write(outputFile, await createTestHwpx({ paragraphs: ['existing'] }))
+
+    captureOutput()
+    await expect(convertCommand(hwpFile, outputFile, {})).rejects.toThrow('process.exit')
+    restoreOutput()
+
+    const output = JSON.parse(errors[0])
+    expect(output.error).toContain('File already exists')
+  })
+
+  it('overwrites existing output file with --force flag', async () => {
+    const hwpFile = tempPath('convert-hwp', 'hwp')
+    const outputFile = tempPath('convert-out', 'hwpx')
+
+    await Bun.write(hwpFile, createTestHwpCfb())
+    await Bun.write(outputFile, await createTestHwpx({ paragraphs: ['existing'] }))
+
+    captureOutput()
+    await convertCommand(hwpFile, outputFile, { force: true })
+    restoreOutput()
+
+    expect(logs.length).toBeGreaterThan(0)
+    const output = JSON.parse(logs[0])
+    expect(output.success).toBe(true)
+  })
+
+  it('succeeds when output file does not exist', async () => {
+    const hwpFile = tempPath('convert-hwp', 'hwp')
+    const outputFile = tempPath('convert-out', 'hwpx')
+
+    await Bun.write(hwpFile, createTestHwpCfb())
+
+    captureOutput()
+    await convertCommand(hwpFile, outputFile, {})
+    restoreOutput()
+
+    expect(logs.length).toBeGreaterThan(0)
+    const output = JSON.parse(logs[0])
+    expect(output.success).toBe(true)
+  })
 })
 
 describe('generateHwpx', () => {
