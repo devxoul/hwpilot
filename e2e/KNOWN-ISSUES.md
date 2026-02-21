@@ -13,20 +13,23 @@ See individual test files in `e2e/` for test cases that document these behaviors
 **Affected Fixtures**: All 7 HWP 5.0 fixtures
 
 ### Description
-The HWP 5.0 reader fails to detect and extract table structures from documents, despite tabular content being visible in text extraction.
+The HWP 5.0 reader only extracts tables from true HWP TABLE records (`CTRL_HEADER` with `tbl `, followed by `TABLE` and cell `LIST_HEADER` records).
+All 7 current fixtures contain zero `CTRL_HEADER('tbl ')` controls in Section0, so empty table output is expected for this dataset.
+These documents appear to encode tabular-looking layouts using other controls (for example form objects or text boxes), not HWP TABLE records.
 
 ### Expected Behavior
-- `table list` should return an array of detected tables with their metadata
-- `read` command should populate `sections[N].tables` with table structure information
-- Tables should be navigable via reference notation (e.g., `s0.t1.r2.c0`)
+- `table list` returns tables when TABLE controls exist in the source record stream
+- `read` populates `sections[N].tables` only for true TABLE records
+- Non-TABLE controls are not exposed as table refs until separate support is implemented
 
 ### Actual Behavior
-- `table list` returns `[]` for all HWP 5.0 files
-- `sections[N].tables` is empty or missing
-- No table structure information is available despite tabular content being present in the document
+- `table list` returns `[]` for all 7 fixtures because no TABLE controls are present
+- `sections[N].tables` stays empty, matching the underlying binary records
+- Visually tabular content remains inaccessible through table refs in these fixtures
 
 ### Impact on AI Agents
-AI agents cannot navigate or manipulate table structures in HWP documents. This severely limits the ability to read or edit tabular data, which is common in Korean legal and business documents.
+AI agents can only navigate and edit structures backed by actual TABLE records (`sN.tN.rN.cN`).
+In these fixtures, there is no table navigation surface even when rendered content appears tabular.
 
 ---
 

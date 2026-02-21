@@ -79,6 +79,26 @@ describe('loadHwp', () => {
     expect(paragraphTexts).not.toContain('B2')
   })
 
+  it('returns empty table list when no tbl control exists', async () => {
+    const filePath = '/tmp/test-hwp-no-table-controls.hwp'
+    TMP_FILES.push(filePath)
+
+    const sectionRecords = Buffer.concat([
+      paragraphRecord(0, 'Line 1'),
+      buildRecord(TAG.CTRL_HEADER, 1, Buffer.from('gso ', 'ascii')),
+      paragraphRecord(0, 'Line 2'),
+    ])
+
+    const buffer = createHwpCfbBufferWithRecords(0, Buffer.alloc(0), sectionRecords)
+    await Bun.write(filePath, buffer)
+
+    const doc = await loadHwp(filePath)
+    const section = doc.sections[0]
+
+    expect(section.tables).toEqual([])
+    expect(section.paragraphs).toHaveLength(2)
+  })
+
   it('parses paraShapeRef and styleRef from PARA_HEADER record data', async () => {
     const filePath = '/tmp/test-hwp-para-shape-ref.hwp'
     TMP_FILES.push(filePath)
