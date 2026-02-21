@@ -232,7 +232,7 @@ function buildSection0Stream(paragraphs: string[], tables: TestTable[]): Buffer 
       for (const cellText of row) {
         const cellTextData = Buffer.from(cellText, 'utf16le')
         const cellParaHeader = Buffer.alloc(24)
-        cellParaHeader.writeUInt32LE(cellTextData.length / 2, 0)
+        cellParaHeader.writeUInt32LE((0x80000000 | (cellTextData.length / 2)) >>> 0, 0)
         records.push(buildRecord(TAG.LIST_HEADER, 2, Buffer.alloc(0)))
         records.push(buildRecord(TAG.PARA_HEADER, 3, cellParaHeader))
         records.push(buildRecord(TAG.PARA_TEXT, 3, cellTextData))

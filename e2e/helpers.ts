@@ -123,7 +123,8 @@ export async function verifyParaHeaderNChars(
 
     if (tagId === TAG_PARA_TEXT && paraIndex === paragraphIndex) {
       const textLength = size / 2
-      return { nChars, textLength, match: nChars === textLength }
+      const nCharsValue = (nChars & 0x7fffffff) >>> 0
+      return { nChars: nCharsValue, textLength, match: nCharsValue === textLength }
     }
 
     offset += headerSize + size

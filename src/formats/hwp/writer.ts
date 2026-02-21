@@ -301,7 +301,9 @@ function updateParaHeaderNChars(
   nChars: number,
 ): void {
   if (paraHeaderDataOffset !== undefined && paraHeaderDataSize >= 4) {
-    stream.writeUInt32LE(nChars, paraHeaderDataOffset)
+    const original = stream.readUInt32LE(paraHeaderDataOffset)
+    const flags = original & 0x80000000
+    stream.writeUInt32LE((flags | (nChars & 0x7fffffff)) >>> 0, paraHeaderDataOffset)
   }
 }
 

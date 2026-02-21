@@ -120,6 +120,20 @@ describe('editHwp', () => {
     expect(doc.sections[0].tables[0].rows[0].cells[0].paragraphs[0].runs[0].text).toBe('XY')
   })
 
+  it('setTableCell preserves bit 31 flag in PARA_HEADER nChars', async () => {
+    const filePath = tmpPath('writer-table-nchars-bit31')
+    TMP_FILES.push(filePath)
+    const fixture = await createTestHwpBinary({ tables: [{ rows: [['original text', 'B']] }] })
+    await Bun.write(filePath, fixture)
+
+    await editHwp(filePath, [{ type: 'setTableCell', ref: 's0.t0.r0.c0', text: 'XY' }])
+
+    const section = await getSectionBuffer(filePath, 0)
+    const nChars = readTableCellParaHeaderNChars(section, 0)
+    expect((nChars & 0x80000000) >>> 0).toBe(0x80000000)
+    expect((nChars & 0x7fffffff) >>> 0).toBe(2)
+  })
+
   it('setFormat bold creates new char shape and updates paragraph reference', async () => {
     const filePath = tmpPath('writer-set-format-bold')
     TMP_FILES.push(filePath)
@@ -332,6 +346,23 @@ function collectCharShapeRecordData(docInfo: Buffer): Buffer[] {
   }
 
   return records
+}
+
+function readTableCellParaHeaderNChars(stream: Buffer, cellIndex: number): number {
+  let cellCursor = -1
+
+  for (const { header, data } of iterateRecords(stream)) {
+    if (header.tagId === TAG.LIST_HEADER) {
+      cellCursor += 1
+      continue
+    }
+
+    if (cellCursor === cellIndex && header.tagId === TAG.PARA_HEADER && data.length >= 4) {
+      return data.readUInt32LE(0)
+    }
+  }
+
+  throw new Error(`Table cell ${cellIndex} PARA_HEADER not found`)
 }
 
 function readParaHeaderAndTextLength(stream: Buffer, paragraphIndex: number): { nChars: number; textLength: number } {
