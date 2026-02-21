@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
 import { loadHwp } from '@/formats/hwp/reader'
-import { createTestHwpBinary, createTestHwpCfb, createTestHwpx } from '@/test-helpers'
+import { createTestHwpBinary, createTestHwpx } from '@/test-helpers'
 import { editTextCommand } from './edit-text'
 
 const TEST_FILE = '/tmp/test-edit-text.hwpx'
