@@ -92,6 +92,31 @@ bun run lint:fix     # Auto-fix lint issues
 bun run format       # Format code
 ```
 
+## E2E Testing
+
+### Philosophy
+E2E tests are real-world — they use actual Korean legal documents, invoke the CLI as a subprocess (not function imports), and cross-validate through independent code paths. Unit tests test particular features in controlled environments; E2E tests simulate what an AI agent would actually do with real documents.
+
+### Structure
+One test file per fixture document in `e2e/`. Tests match fixtures. When a new failing case is found, add the HWP file as a fixture and create a matching test file.
+
+### Cross-Validation
+Edits are validated by converting HWP→HWPX and inspecting raw XML, ensuring two independent code paths agree. This prevents the "write broken, read broken, pass" anti-pattern.
+
+### Anti-Pattern Warning
+Never validate edits by reading back with the same code path that wrote. Always verify through an independent path (e.g., convert to HWPX and inspect XML directly).
+
+### Running E2E Tests
+```bash
+bun test e2e/
+```
+
+### Adding New Fixtures
+Drop HWP file in `e2e/fixtures/`, run probe to discover editable paragraphs, create matching test file in `e2e/` following existing patterns.
+
+### Known Issues
+See `e2e/KNOWN-ISSUES.md` for interface limitations discovered during testing (table detection, paragraph editability mismatch, charShape corruption, etc.).
+
 ## HWP/HWPX Format Overview
 
 **Important**: Format is detected by file content (magic bytes), NOT by file extension. A `.hwp` file may actually contain HWPX format (ZIP+XML). See `src/shared/format-detector.ts`.
