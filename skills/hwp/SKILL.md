@@ -194,7 +194,7 @@ hwp table edit report.hwpx s0.t0.r1.c2 "3,500"
 hwp image list <file> [--pretty]
 ```
 
-Returns all images in the document with their refs and metadata.
+Returns all images in the document with their refs and metadata. Works on both HWP 5.0 and HWPX files.
 
 ```bash
 hwp image list report.hwpx
@@ -246,10 +246,12 @@ hwp create report.hwpx --title "Monthly Report" --font "바탕" --size 12
 ### `hwp convert` ... Convert HWP to HWPX
 
 ```bash
-hwp convert <input.hwp> <output.hwpx> [--pretty]
+hwp convert <input.hwp> <output.hwpx> [--force] [--pretty]
 ```
 
 Converts a legacy HWP 5.0 file to the editable HWPX format.
+
+Refuses to overwrite an existing output file unless `--force` is specified.
 
 ```bash
 hwp convert old-doc.hwp new-doc.hwpx
@@ -347,7 +349,8 @@ hwp edit format report.hwpx s0.p0 --bold --size 18
 | Edit formatting | Yes | Yes (bold, italic, underline, fontSize, color) |
 | Table read | Yes | Yes |
 | Table edit | Yes | Yes |
-| Image operations | Yes | No |
+| Image list | Yes | Yes |
+| Image insert/replace/extract | Yes | No (convert to HWPX first) |
 | Create new | Yes | No |
 
 **HWPX** (ZIP+XML) is the modern format with full read/write support including images.
@@ -358,7 +361,7 @@ hwp edit format report.hwpx s0.p0 --bold --size 18
 
 What's NOT supported:
 
-- **HWP 5.0 images**: Image operations (list, extract, insert, replace) are not supported for HWP 5.0 binary files. Convert to HWPX first.
+- **HWP 5.0 images**: Image insert, replace, and extract require HWPX format. `image list` works on both formats. Convert with `hwp convert`.
 - **Password/DRM protected files**: Cannot open encrypted documents.
 - **Macros and scripts**: No macro execution or editing.
 - **Equations, charts, OLE objects, video**: These embedded objects can't be read or modified.
@@ -370,8 +373,10 @@ What's NOT supported:
 All errors return JSON with an `error` field:
 
 ```json
-{ "error": "Section 5 not found" }
+{ "error": "Paragraph not found for reference: s0.p999", "context": { "ref": "s0.p999", "file": "doc.hwp" }, "hint": "Valid paragraph refs: s0.p0 through s0.p49" }
 ```
+
+Error responses include optional `context` (ref, file) and `hint` (valid alternatives) fields.
 
 Common errors and fixes:
 
@@ -382,5 +387,6 @@ Common errors and fixes:
 | `Section N not found` | Ref points beyond document | Use `hwp read` to check available sections |
 | `Paragraph N not found` | Ref points beyond section | Use `hwp read <file> s0` to see paragraph count |
 | `Table N not found` | No such table | Use `hwp read` to list tables |
-| `HWP 5.0 image not supported` | Image ops on HWP 5.0 file | Convert to HWPX first: `hwp convert file.hwp file.hwpx` |
+| `Image insert/replace/extract requires HWPX format` | Write image ops on HWP 5.0 file | Convert first: `hwp convert file.hwp file.hwpx` |
+| `File already exists: <path>` | Convert output file already exists | Use `--force` flag or choose a different output path |
 | `ENOENT: no such file` | File doesn't exist | Check file path |
