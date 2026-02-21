@@ -107,17 +107,22 @@ function parseDocInfo(buffer: Buffer): DocInfoParseResult {
     }
 
     if (header.tagId === TAG.FACE_NAME) {
-      if (data.length < 2) {
+      if (data.length < 3) {
         continue
       }
 
-      const nameLen = data.readUInt16LE(0)
-      const nameEnd = 2 + nameLen * 2
+      const nameLen = data.readUInt16LE(1)
+      const nameStart = 3
+      const nameEnd = nameStart + nameLen * 2
       if (nameEnd > data.length) {
         continue
       }
 
-      const name = data.subarray(2, nameEnd).toString('utf16le')
+      const name = data.subarray(nameStart, nameEnd).toString('utf16le')
+      if (!name) {
+        continue
+      }
+
       fonts.push({ id: fontId, name })
       fontId += 1
       continue
