@@ -18,10 +18,10 @@ describe('Assault Complaint (폭행죄 고소장)', () => {
       expect(doc.sections).toHaveLength(1)
     })
 
-    it('has 99 paragraphs in section 0', async () => {
+    it('has 69 level-0 paragraphs in section 0', async () => {
       const result = await runCli(['read', FIXTURE])
       const doc = parseOutput(result) as any
-      expect(doc.sections[0].paragraphs).toHaveLength(99)
+      expect(doc.sections[0].paragraphs).toHaveLength(69)
     })
 
     it('has charShapes and paraShapes in header', async () => {

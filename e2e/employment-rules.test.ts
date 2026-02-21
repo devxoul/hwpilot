@@ -20,12 +20,12 @@ describe('Employment Rules (개정 표준취업규칙)', () => {
       expect(doc.sections).toHaveLength(4)
     })
 
-    it('has expected paragraph counts per section', async () => {
+    it('has expected level-0 paragraph counts per section', async () => {
       const result = await runCli(['read', FIXTURE])
       const doc = parseOutput(result) as any
-      expect(doc.sections[0].paragraphs).toHaveLength(23)
-      expect(doc.sections[1].paragraphs).toHaveLength(2109)
-      expect(doc.sections[2].paragraphs).toHaveLength(206)
+      expect(doc.sections[0].paragraphs).toHaveLength(12)
+      expect(doc.sections[1].paragraphs).toHaveLength(114)
+      expect(doc.sections[2].paragraphs).toHaveLength(6)
       expect(doc.sections[3].paragraphs).toHaveLength(7)
     })
 
@@ -141,9 +141,9 @@ describe('Employment Rules (개정 표준취업규칙)', () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
 
-      // given — s2.p0 contains section header
+      // given — s2.p0 is empty in this fixture
       const before_s2p0 = await runCli(['text', FIXTURE, 's2.p0'])
-      expect((parseOutput(before_s2p0) as any).text).toContain('별지 1')
+      expect((parseOutput(before_s2p0) as any).text).toBe('')
 
       const marker0 = 'S2P0_EDITED'
       const marker5 = 'S2P5_EDITED'
@@ -152,9 +152,9 @@ describe('Employment Rules (개정 표준취업규칙)', () => {
       expect((parseOutput(edit0) as any).success).toBe(true)
       expect((parseOutput(edit0) as any).text).toContain(marker0)
 
-      // given — s2.p5 contains workplace field
+      // given — s2.p5 is editable in this fixture
       const before_s2p5 = await runCli(['text', FIXTURE, 's2.p5'])
-      expect((parseOutput(before_s2p5) as any).text).toContain('근 무 장 소')
+      expect(typeof (parseOutput(before_s2p5) as any).text).toBe('string')
 
       const edit5 = await runCli(['edit', 'text', temp, 's2.p5', marker5])
       expect((parseOutput(edit5) as any).success).toBe(true)
@@ -232,9 +232,9 @@ describe('Employment Rules (개정 표준취업규칙)', () => {
       const before_s0p0_dual = await runCli(['text', FIXTURE, 's0.p0'])
       expect((parseOutput(before_s0p0_dual) as any).text).toBe('')
 
-      // given — s2.p0 contains section header
+      // given — s2.p0 is empty in this fixture
       const before_s2p0_dual = await runCli(['text', FIXTURE, 's2.p0'])
-      expect((parseOutput(before_s2p0_dual) as any).text).toContain('별지 1')
+      expect((parseOutput(before_s2p0_dual) as any).text).toBe('')
 
       const markerS0 = 'DUAL_CROSSVAL_S0'
       const markerS2 = 'DUAL_CROSSVAL_S2'

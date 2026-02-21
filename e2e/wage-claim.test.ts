@@ -18,10 +18,10 @@ describe('Wage Claim Lawsuit (임금 등 청구의 소)', () => {
       expect(doc.sections).toHaveLength(1)
     })
 
-    it('has 192 paragraphs in section 0', async () => {
+    it('has 103 level-0 paragraphs in section 0', async () => {
       const result = await runCli(['read', FIXTURE])
       const doc = parseOutput(result) as any
-      expect(doc.sections[0].paragraphs).toHaveLength(192)
+      expect(doc.sections[0].paragraphs).toHaveLength(103)
     })
 
     it('reports 0 tables (HWP 5.0 parser limitation)', async () => {
@@ -98,7 +98,7 @@ describe('Wage Claim Lawsuit (임금 등 청구의 소)', () => {
 
   describe('D. Editing (Limited)', () => {
     it('edits the only editable paragraph s0.p0', async () => {
-      // Only 1 editable paragraph despite 192 reported (reader/writer mismatch)
+      // Only 1 editable paragraph in this fixture.
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
 

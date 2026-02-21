@@ -10,8 +10,8 @@ afterEach(async () => {
 })
 
 describe('Victim Statement Form (피해자 의견 진술서)', () => {
-  // Known limitation: 86 paragraphs reported but only s0.p0 and s0.p1 are editable.
-  // This is the most severe reader/writer mismatch among all fixtures.
+  // Known limitation: only 2 level-0 paragraphs are exposed and both are empty.
+  // Most visible text in this fixture is nested in control structures.
   // Tables return 0 despite form having tabular checkbox layout.
   // Fonts array is always empty. CharShape fontSize values are corrupted.
 
@@ -23,12 +23,10 @@ describe('Victim Statement Form (피해자 의견 진술서)', () => {
       expect(doc.sections).toHaveLength(1)
     })
 
-    it('reports 86 paragraphs (only 2 are editable)', async () => {
-      // 86 paragraphs reported by parser, but only s0.p0 and s0.p1 can be edited.
-      // Most paragraphs are embedded in control structures the writer cannot patch.
+    it('reports 2 level-0 paragraphs', async () => {
       const result = await runCli(['read', FIXTURE])
       const doc = parseOutput(result) as any
-      expect(doc.sections[0].paragraphs).toHaveLength(86)
+      expect(doc.sections[0].paragraphs).toHaveLength(2)
     })
 
     it('has 0 tables and 0 images', async () => {
@@ -112,9 +110,9 @@ describe('Victim Statement Form (피해자 의견 진술서)', () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
 
-      // given — s0.p1 contains the form title
+      // given — s0.p1 is empty in this fixture
       const before_s0p1 = await runCli(['text', FIXTURE, 's0.p1'])
-      expect((parseOutput(before_s0p1) as any).text).toContain('피해자 의견 진술서')
+      expect((parseOutput(before_s0p1) as any).text).toBe('')
 
       const newText = '사건번호: 2025-E2E-TEST-001'
       const editResult = await runCli(['edit', 'text', temp, 's0.p1', newText])
@@ -130,9 +128,9 @@ describe('Victim Statement Form (피해자 의견 진술서)', () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
 
-      // given — s0.p1 contains the form title
+      // given — s0.p1 is empty in this fixture
       const before_s0p1_cv = await runCli(['text', FIXTURE, 's0.p1'])
-      expect((parseOutput(before_s0p1_cv) as any).text).toContain('피해자 의견 진술서')
+      expect((parseOutput(before_s0p1_cv) as any).text).toBe('')
 
       const marker = 'CROSSVAL_VICTIM_2025'
       const editResult = await runCli(['edit', 'text', temp, 's0.p1', marker])

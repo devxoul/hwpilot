@@ -18,11 +18,11 @@ describe('Withholding Tax Receipt (근로소득원천징수영수증)', () => {
       expect(doc.sections).toHaveLength(2)
     })
 
-    it('has 1349 paragraphs in s0 and 325 in s1', async () => {
+    it('has 5 level-0 paragraphs in s0 and 1 in s1', async () => {
       const result = await runCli(['read', FIXTURE])
       const doc = parseOutput(result) as any
-      expect(doc.sections[0].paragraphs).toHaveLength(1349)
-      expect(doc.sections[1].paragraphs).toHaveLength(325)
+      expect(doc.sections[0].paragraphs).toHaveLength(5)
+      expect(doc.sections[1].paragraphs).toHaveLength(1)
     })
 
     it('has charShapes and paraShapes in header', async () => {
@@ -44,12 +44,11 @@ describe('Withholding Tax Receipt (근로소득원천징수영수증)', () => {
   })
 
   describe('B. Tax Content Verification', () => {
-    it('s0.p0 contains the tax form header text', async () => {
+    it('s0.p0 is an empty level-0 paragraph', async () => {
       const result = await runCli(['text', FIXTURE, 's0.p0'])
       const para = parseOutput(result) as any
       expect(para.ref).toBe('s0.p0')
-      expect(para.text).toContain('소득세법 시행규칙')
-      expect(para.text).toContain('별지 제24호서식')
+      expect(para.text).toBe('')
     })
 
     it('full text contains key tax form terms', async () => {
@@ -70,32 +69,33 @@ describe('Withholding Tax Receipt (근로소득원천징수영수증)', () => {
       const doc = parseOutput(result) as any
       const s0Count = doc.sections[0].paragraphs.length
       const s1Count = doc.sections[1].paragraphs.length
-      expect(s0Count).toBe(1349)
-      expect(s1Count).toBe(325)
+      expect(s0Count).toBe(5)
+      expect(s1Count).toBe(1)
       expect(s0Count).not.toBe(s1Count)
     })
 
-    it('s0.p0 and s1.p0 have distinct content', async () => {
-      const s0Result = await runCli(['text', FIXTURE, 's0.p0'])
-      const s1Result = await runCli(['text', FIXTURE, 's1.p0'])
+    it('s0 and s1 section text contain distinct content', async () => {
+      const s0Result = await runCli(['text', FIXTURE, 's0'])
+      const s1Result = await runCli(['text', FIXTURE, 's1'])
       const s0Para = parseOutput(s0Result) as any
       const s1Para = parseOutput(s1Result) as any
 
-      expect(s0Para.ref).toBe('s0.p0')
-      expect(s1Para.ref).toBe('s1.p0')
+      expect(s0Para.ref).toBe('s0')
+      expect(s1Para.ref).toBe('s1')
+      expect(s0Para.text).toContain('소득세법 시행규칙')
       expect(s0Para.text).not.toBe(s1Para.text)
     })
   })
 
   describe('D. Filling Tax Fields', () => {
-    // Known issue: 1349 paragraphs reported but only 5 editable (reader/writer mismatch)
+    // Known issue: most visible text lives in nested structures, not level-0 paragraphs.
     it('edits s0.p0 with updated form header', async () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
 
-      // given — s0.p0 contains the tax form header
+      // given — s0.p0 is empty in this fixture
       const before_s0p0 = await runCli(['text', FIXTURE, 's0.p0'])
-      expect((parseOutput(before_s0p0) as any).text).toContain('소득세법')
+      expect((parseOutput(before_s0p0) as any).text).toBe('')
 
       const newText = '■ 소득세법 시행규칙 [별지 제24호서식(1)] <개정안 2025. 01.>'
       const editResult = await runCli(['edit', 'text', temp, 's0.p0', newText])
@@ -126,9 +126,9 @@ describe('Withholding Tax Receipt (근로소득원천징수영수증)', () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
 
-      // given — s0.p1 contains the page number indicator
+      // given — s0.p1 is empty in this fixture
       const before_s0p1 = await runCli(['text', FIXTURE, 's0.p1'])
-      expect((parseOutput(before_s0p1) as any).text).toContain('8쪽')
+      expect((parseOutput(before_s0p1) as any).text).toBe('')
 
       const marker = 'TAXCV_2025_WITHHOLDING'
       const editResult = await runCli(['edit', 'text', temp, 's0.p1', marker])

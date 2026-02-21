@@ -72,6 +72,56 @@ export async function loadHwp(filePath: string): Promise<HwpDocument> {
   return { format: 'hwp', sections, header }
 }
 
+export async function loadHwpSectionTexts(filePath: string): Promise<string[]> {
+  const fileBuffer = await readFile(filePath)
+  const cfb = CFB.read(fileBuffer, { type: 'buffer' })
+
+  const fileHeaderEntry = CFB.find(cfb, 'FileHeader')
+  if (!fileHeaderEntry?.content) {
+    throw new Error('Invalid HWP file: FileHeader not found')
+  }
+
+  const headerContent = Buffer.from(fileHeaderEntry.content)
+  const signature = headerContent.subarray(0, 17).toString('ascii').replace(/\0/g, '')
+  if (!signature.startsWith(HWP_SIGNATURE)) {
+    throw new Error('Invalid HWP file: wrong signature')
+  }
+
+  const flags = headerContent.readUInt32LE(36)
+  if (flags & 0x2) {
+    throw new Error('Password-protected files not supported')
+  }
+
+  const isCompressed = Boolean(flags & 0x1)
+  const sections: string[] = []
+
+  let sectionIndex = 0
+  while (true) {
+    const sectionEntry = CFB.find(cfb, `/BodyText/Section${sectionIndex}`)
+    if (!sectionEntry?.content) {
+      break
+    }
+
+    const sectionBuffer = getStreamBuffer(sectionEntry, isCompressed)
+    const sectionTextParts: string[] = []
+    for (const { header, data } of iterateRecords(sectionBuffer)) {
+      if (header.tagId !== TAG.PARA_TEXT) {
+        continue
+      }
+
+      const text = extractParaText(data)
+      if (text) {
+        sectionTextParts.push(text)
+      }
+    }
+
+    sections.push(sectionTextParts.join('\n'))
+    sectionIndex += 1
+  }
+
+  return sections
+}
+
 function getStreamBuffer(entry: CFB.CFB$Entry | null | undefined, isCompressed: boolean): Buffer {
   if (!entry?.content) {
     throw new Error('Stream entry not found or empty')
@@ -296,7 +346,8 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
 
     if (header.tagId === TAG.PARA_HEADER) {
       flushParagraphLevel(header.level)
-      const target = activeCell && header.level === activeCell.paragraphLevel ? 'cell' : 'section'
+      const target =
+        activeCell && header.level === activeCell.paragraphLevel ? 'cell' : header.level === 0 ? 'section' : 'cell'
       const paraShapeRef = data.length >= 10 ? data.readUInt16LE(8) : 0
       const styleRef = data.length >= 11 ? data.readUInt8(10) : 0
       activeParagraphs.set(header.level, {

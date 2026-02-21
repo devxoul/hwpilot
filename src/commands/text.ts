@@ -1,4 +1,4 @@
-import { loadHwp } from '@/formats/hwp/reader'
+import { loadHwp, loadHwpSectionTexts } from '@/formats/hwp/reader'
 import { loadHwpx } from '@/formats/hwpx/loader'
 import { parseSections } from '@/formats/hwpx/section-parser'
 import { handleError } from '@/shared/error-handler'
@@ -10,6 +10,31 @@ import type { Paragraph, Section, Table, TableCell } from '@/types'
 export async function textCommand(file: string, ref: string | undefined, options: { pretty?: boolean }): Promise<void> {
   try {
     const format = await detectFormat(file)
+
+    if (format === 'hwp' && !ref) {
+      const allText = (await loadHwpSectionTexts(file)).join('\n')
+      console.log(formatOutput({ text: allText }, options.pretty))
+      return
+    }
+
+    if (format === 'hwp' && ref) {
+      const parsed = parseRef(ref)
+      if (parsed.image !== undefined) {
+        throw new Error(`Cannot extract text from image ref: ${ref}`)
+      }
+
+      if (parsed.paragraph === undefined && parsed.table === undefined) {
+        const sectionTexts = await loadHwpSectionTexts(file)
+        const sectionText = sectionTexts[parsed.section]
+        if (sectionText === undefined) {
+          throw new Error(`Section ${parsed.section} not found`)
+        }
+
+        console.log(formatOutput({ ref, text: sectionText }, options.pretty))
+        return
+      }
+    }
+
     const sections = format === 'hwp' ? (await loadHwp(file)).sections : await loadHwpxSections(file)
 
     if (ref) {

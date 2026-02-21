@@ -47,9 +47,9 @@ describe('crossValidate', () => {
     const temp = await tempCopy(FIXTURES.employmentContract)
     tempFiles.push(temp)
 
-    // given — s0.p0 contains the contract title
+    // given — s0.p0 is empty in this fixture
     const before_s0p0 = await runCli(['text', FIXTURES.employmentContract, 's0.p0'])
-    expect((parseOutput(before_s0p0) as any).text).toContain('표준근로계약서')
+    expect((parseOutput(before_s0p0) as any).text).toBe('')
 
     await runCli(['edit', 'text', temp, 's0.p0', 'CROSSVAL_UNIQUE_MARKER'])
     const found = await crossValidate(temp, 'CROSSVAL_UNIQUE_MARKER')

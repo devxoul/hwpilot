@@ -18,10 +18,10 @@ describe('Employment Contract (개정 표준근로계약서)', () => {
       expect(doc.sections).toHaveLength(1)
     })
 
-    it('has 330 paragraphs in section 0', async () => {
+    it('has 187 level-0 paragraphs in section 0', async () => {
       const result = await runCli(['read', FIXTURE])
       const doc = parseOutput(result) as any
-      expect(doc.sections[0].paragraphs).toHaveLength(330)
+      expect(doc.sections[0].paragraphs).toHaveLength(187)
     })
 
     it('has charShapes and paraShapes in header', async () => {
@@ -61,15 +61,15 @@ describe('Employment Contract (개정 표준근로계약서)', () => {
       expect(text).toContain('연차유급휴가')
     })
 
-    it('s0.p0 is the document title', async () => {
+    it('s0.p0 is an empty level-0 paragraph', async () => {
       const paraResult = await runCli(['text', FIXTURE, 's0.p0'])
       const para = parseOutput(paraResult) as any
       expect(para.ref).toBe('s0.p0')
-      expect(para.text.trim()).toBe('표준근로계약서(기간의 정함이 없는 경우)')
+      expect(para.text).toBe('')
     })
 
-    it('s0.p2 contains employer and employee labels', async () => {
-      const paraResult = await runCli(['text', FIXTURE, 's0.p2'])
+    it('s0.p1 contains employer and employee labels', async () => {
+      const paraResult = await runCli(['text', FIXTURE, 's0.p1'])
       const para = parseOutput(paraResult) as any
       expect(para.text).toContain('사업주')
       expect(para.text).toContain('근로자')
@@ -87,36 +87,36 @@ describe('Employment Contract (개정 표준근로계약서)', () => {
   })
 
   describe('C. Filling Form Fields', () => {
-    it('fills employer name in s0.p2', async () => {
+    it('fills employer name in s0.p1', async () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
 
-      // given — s0.p2 contains employer/employee template
-      const before_s0p2 = await runCli(['text', FIXTURE, 's0.p2'])
-      expect((parseOutput(before_s0p2) as any).text).toContain('사업주')
+      // given — s0.p1 contains employer/employee template
+      const before_s0p1 = await runCli(['text', FIXTURE, 's0.p1'])
+      expect((parseOutput(before_s0p1) as any).text).toContain('사업주')
 
       const newText =
         '(주)테스트코리아(이하 "사업주"라 함)과(와) 홍길동(이하 "근로자"라 함)은 다음과 같이 근로계약을 체결한다.'
-      const editResult = await runCli(['edit', 'text', temp, 's0.p2', newText])
+      const editResult = await runCli(['edit', 'text', temp, 's0.p1', newText])
       const editOutput = parseOutput(editResult) as any
       expect(editOutput.success).toBe(true)
-      expect(editOutput.ref).toBe('s0.p2')
+      expect(editOutput.ref).toBe('s0.p1')
       expect(editOutput.text).toContain('(주)테스트코리아')
 
       const found = await crossValidate(temp, '(주)테스트코리아')
       expect(found).toBe(true)
     })
 
-    it('fills start date in s0.p3', async () => {
+    it('fills start date in s0.p2', async () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
 
-      // given — s0.p3 contains start date template
-      const before_s0p3 = await runCli(['text', FIXTURE, 's0.p3'])
-      expect((parseOutput(before_s0p3) as any).text).toContain('근로개시일')
+      // given — s0.p2 contains start date template
+      const before_s0p2 = await runCli(['text', FIXTURE, 's0.p2'])
+      expect((parseOutput(before_s0p2) as any).text).toContain('근로개시일')
 
       const newText = '1. 근로개시일 : 2025년 3월 1일부터'
-      const editResult = await runCli(['edit', 'text', temp, 's0.p3', newText])
+      const editResult = await runCli(['edit', 'text', temp, 's0.p2', newText])
       const editOutput = parseOutput(editResult) as any
       expect(editOutput.success).toBe(true)
       expect(editOutput.text).toContain('2025년 3월 1일')
@@ -125,16 +125,16 @@ describe('Employment Contract (개정 표준근로계약서)', () => {
       expect(found).toBe(true)
     })
 
-    it('fills workplace in s0.p4', async () => {
+    it('fills workplace in s0.p3', async () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
 
-      // given — s0.p4 contains workplace template
-      const before_s0p4 = await runCli(['text', FIXTURE, 's0.p4'])
-      expect((parseOutput(before_s0p4) as any).text).toContain('근 무 장 소')
+      // given — s0.p3 contains workplace template
+      const before_s0p3 = await runCli(['text', FIXTURE, 's0.p3'])
+      expect((parseOutput(before_s0p3) as any).text).toContain('근 무 장 소')
 
       const newText = '2. 근 무 장 소 : 서울특별시 강남구 테헤란로 123'
-      const editResult = await runCli(['edit', 'text', temp, 's0.p4', newText])
+      const editResult = await runCli(['edit', 'text', temp, 's0.p3', newText])
       const editOutput = parseOutput(editResult) as any
       expect(editOutput.success).toBe(true)
       expect(editOutput.text).toContain('서울특별시 강남구')
@@ -143,16 +143,16 @@ describe('Employment Contract (개정 표준근로계약서)', () => {
       expect(found).toBe(true)
     })
 
-    it('fills job description in s0.p5', async () => {
+    it('fills job description in s0.p4', async () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
 
-      // given — s0.p5 contains job description template
-      const before_s0p5 = await runCli(['text', FIXTURE, 's0.p5'])
-      expect((parseOutput(before_s0p5) as any).text).toContain('업무의 내용')
+      // given — s0.p4 contains job description template
+      const before_s0p4 = await runCli(['text', FIXTURE, 's0.p4'])
+      expect((parseOutput(before_s0p4) as any).text).toContain('업무의 내용')
 
       const newText = '3. 업무의 내용 : 소프트웨어 개발 및 AI 서비스 구현'
-      const editResult = await runCli(['edit', 'text', temp, 's0.p5', newText])
+      const editResult = await runCli(['edit', 'text', temp, 's0.p4', newText])
       const editOutput = parseOutput(editResult) as any
       expect(editOutput.success).toBe(true)
       expect(editOutput.text).toContain('소프트웨어 개발')
@@ -167,12 +167,12 @@ describe('Employment Contract (개정 표준근로계약서)', () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
 
-      // given — s0.p3 contains start date template
-      const before_s0p3_cv = await runCli(['text', FIXTURE, 's0.p3'])
-      expect((parseOutput(before_s0p3_cv) as any).text).toContain('근로개시일')
+      // given — s0.p2 contains start date template
+      const before_s0p2_cv = await runCli(['text', FIXTURE, 's0.p2'])
+      expect((parseOutput(before_s0p2_cv) as any).text).toContain('근로개시일')
 
       const marker = 'CROSSVAL_2025_0301'
-      const editResult = await runCli(['edit', 'text', temp, 's0.p3', `1. 근로개시일 : ${marker}`])
+      const editResult = await runCli(['edit', 'text', temp, 's0.p2', `1. 근로개시일 : ${marker}`])
       const editOutput = parseOutput(editResult) as any
       expect(editOutput.success).toBe(true)
 
