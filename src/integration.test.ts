@@ -347,15 +347,15 @@ describe('integration: error cases produce valid JSON', () => {
     restoreOutput()
   })
 
-  it('image on HWP 5.0 → valid JSON error', async () => {
+  it('image list on HWP 5.0 → valid JSON array', async () => {
     const hwpFile = tempPath('img-hwp5')
     await Bun.write(hwpFile, createTestHwpCfb())
     captureOutput()
-    await expect(imageListCommand(hwpFile, {})).rejects.toThrow('process.exit')
+    await imageListCommand(hwpFile, {})
     restoreOutput()
 
-    const output = JSON.parse(errors[0])
-    expect(output.error).toContain('HWP 5.0')
+    const output = JSON.parse(logs[0])
+    expect(Array.isArray(output)).toBe(true)
   })
 
   it('no format options → valid JSON error', async () => {
@@ -494,7 +494,6 @@ describe('integration: all outputs are valid JSON', () => {
       () => editTextCommand(hwpFile, 's0.p0', 'text', {}),
       () => editFormatCommand(hwpFile, 's0.p0', { bold: true }),
       () => convertCommand(hwpxFile, 'out.hwpx', {}),
-      () => imageListCommand(hwpFile, {}),
     ]
 
     for (const cmd of errorCommands) {

@@ -86,13 +86,12 @@ describe('Wage Claim Lawsuit (임금 등 청구의 소)', () => {
       // all images share same binDataPath, dimensions are wrong
     })
 
-    it('image list fails on HWP format with error', async () => {
-      // image list is not supported for HWP 5.0 format
-      // Known issue: error message says "write not supported" which is misleading for a read operation
+    it('image list succeeds on HWP format', async () => {
       const result = await runCli(['image', 'list', FIXTURE])
-      expect(result.exitCode).not.toBe(0)
-      const errorText = result.stderr
-      expect(errorText.length).toBeGreaterThan(0)
+      expect(result.exitCode).toBe(0)
+      const images = JSON.parse(result.stdout)
+      expect(images).toHaveLength(6)
+      expect(images[0].ref).toBe('s0.img0')
     })
   })
 

@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, mock } from 'bun:test'
 import { readFile, unlink } from 'node:fs/promises'
 import JSZip from 'jszip'
-import { createTestHwpx } from '@/test-helpers'
+import { createTestHwpBinary, createTestHwpx } from '@/test-helpers'
 import { imageExtractCommand, imageInsertCommand, imageListCommand, imageReplaceCommand } from './image'
 
 const TEST_FILE = '/tmp/test-image.hwpx'
+const TEST_HWP_FILE = '/tmp/test-image.hwp'
 const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47])
 
 let logs: string[]
@@ -62,6 +63,33 @@ describe('imageListCommand', () => {
 
     const output = JSON.parse(logs[0])
     expect(output).toEqual([])
+  })
+
+  it('lists images from HWP file (returns empty for no-image HWP)', async () => {
+    const buffer = await createTestHwpBinary({ paragraphs: ['Hello'] })
+    await Bun.write(TEST_HWP_FILE, buffer)
+
+    captureOutput()
+    await imageListCommand(TEST_HWP_FILE, {})
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output).toEqual([])
+  })
+})
+
+describe('imageInsertCommand on HWP', () => {
+  it('gives clear HWPX requirement error for HWP files', async () => {
+    const buffer = await createTestHwpBinary({ paragraphs: ['Hello'] })
+    await Bun.write(TEST_HWP_FILE, buffer)
+
+    captureOutput()
+    await expect(imageInsertCommand(TEST_HWP_FILE, '/tmp/fake.png', {})).rejects.toThrow('process.exit')
+    restoreOutput()
+
+    const output = JSON.parse(errors[0])
+    expect(output.error).toContain('HWPX format')
+    expect(output.error).toContain('hwp convert')
   })
 })
 

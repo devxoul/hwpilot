@@ -89,12 +89,12 @@ describe('Assault Complaint (폭행죄 고소장)', () => {
       expect(doc.sections[0].images).toHaveLength(3)
     })
 
-    it('image list fails on HWP format with error', async () => {
-      // Known issue: image list fails on HWP 5.0 with misleading error message
-      // "HWP 5.0 write not supported" (it's a read operation)
+    it('image list succeeds on HWP format', async () => {
       const result = await runCli(['image', 'list', FIXTURE])
-      expect(result.exitCode).not.toBe(0)
-      expect(result.stderr.length).toBeGreaterThan(0)
+      expect(result.exitCode).toBe(0)
+      const images = JSON.parse(result.stdout)
+      expect(images).toHaveLength(3)
+      expect(images[0].ref).toBe('s0.img0')
     })
   })
 

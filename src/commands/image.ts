@@ -1,5 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { extname } from 'node:path'
+import { loadHwp } from '@/formats/hwp/reader'
 import { loadHwpx } from '@/formats/hwpx/loader'
 import { parseSections } from '@/formats/hwpx/section-parser'
 import { handleError } from '@/shared/error-handler'
@@ -11,10 +12,18 @@ import type { Image, Section } from '@/types'
 
 export async function imageListCommand(file: string, options: { pretty?: boolean }): Promise<void> {
   try {
-    await validateHwpxFormat(file)
-    const archive = await loadHwpx(file)
-    const sections = await parseSections(archive)
-    const images = sections.flatMap((section) => section.images)
+    const format = await detectFormat(file)
+    let images: Image[]
+
+    if (format === 'hwp') {
+      const doc = await loadHwp(file)
+      images = doc.sections.flatMap((section) => section.images)
+    } else {
+      const archive = await loadHwpx(file)
+      const sections = await parseSections(archive)
+      images = sections.flatMap((section) => section.images)
+    }
+
     console.log(formatOutput(images, options.pretty))
   } catch (e) {
     handleError(e)
@@ -89,7 +98,9 @@ export async function imageReplaceCommand(
 async function validateHwpxFormat(file: string): Promise<void> {
   const format = await detectFormat(file)
   if (format !== 'hwpx') {
-    throw new Error('HWP 5.0 write not supported')
+    throw new Error(
+      'Image insert/replace/extract requires HWPX format. Convert with: hwp convert <file.hwp> <file.hwpx>',
+    )
   }
 }
 
