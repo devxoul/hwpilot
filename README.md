@@ -1,4 +1,4 @@
-# Agent HWP
+# hwpcli
 
 Native HWP/HWPX document editor CLI for AI agents. Read and write Korean word processor documents programmatically.
 

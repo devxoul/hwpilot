@@ -17,8 +17,8 @@
     "cli",
     "office"
   ],
-  "homepage": "https://github.com/devxoul/agent-hwp",
-  "repository": "https://github.com/devxoul/agent-hwp",
+  "homepage": "https://github.com/devxoul/hwpcli",
+  "repository": "https://github.com/devxoul/hwpcli",
   "skills": [
     "./skills/hwp"
   ]

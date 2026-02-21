@@ -1,8 +1,8 @@
-# Agent HWP — Development Guide
+# hwpcli — Development Guide
 
 ## Overview
 
-Agent HWP is a native HWP/HWPX document editor CLI for AI agents. It provides programmatic access to read and write Korean word processor documents.
+hwpcli is a native HWP/HWPX document editor CLI for AI agents. It provides programmatic access to read and write Korean word processor documents.
 
 ## TypeScript Execution Model
 

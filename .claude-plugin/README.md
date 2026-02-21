@@ -6,7 +6,7 @@ Native HWP/HWPX document editor CLI for AI agents. Read and write Korean word pr
 
 ```bash
 # Add the marketplace
-claude plugin marketplace add devxoul/agent-hwp
+claude plugin marketplace add devxoul/hwpcli
 
 # Install the plugin
 claude plugin install hwp
@@ -15,7 +15,7 @@ claude plugin install hwp
 Or within Claude Code:
 
 ```
-/plugin marketplace add devxoul/agent-hwp
+/plugin marketplace add devxoul/hwpcli
 /plugin install hwp
 ```
 
@@ -77,5 +77,5 @@ hwp convert document.hwp --to hwpx --output document.hwpx
 
 ## More Information
 
-- [GitHub Repository](https://github.com/devxoul/agent-hwp)
-- [HWP Skill Documentation](https://github.com/devxoul/agent-hwp/blob/main/skills/hwp/SKILL.md)
+- [GitHub Repository](https://github.com/devxoul/hwpcli)
+- [HWP Skill Documentation](https://github.com/devxoul/hwpcli/blob/main/skills/hwp/SKILL.md)

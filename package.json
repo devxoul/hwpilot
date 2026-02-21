@@ -4,7 +4,7 @@
   "description": "Native HWP/HWPX document editor CLI for AI agents",
   "repository": {
     "type": "git",
-    "url": "https://github.com/devxoul/agent-hwp"
+    "url": "https://github.com/devxoul/hwpcli"
   },
   "type": "module",
   "module": "dist/src/cli.js",
