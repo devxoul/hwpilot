@@ -6,6 +6,7 @@ import { editHwpx } from '@/formats/hwpx/writer'
 import { handleError } from '@/shared/error-handler'
 import { detectFormat } from '@/shared/format-detector'
 import { formatOutput } from '@/shared/output'
+import { getRefHint } from '@/shared/ref-hints'
 import { parseRef, validateRef } from '@/shared/refs'
 import type { Section } from '@/types'
 
@@ -47,7 +48,8 @@ export async function tableReadCommand(file: string, ref: string, options: { pre
 
     console.log(formatOutput(output, options.pretty))
   } catch (e) {
-    handleError(e)
+    const hint = await getRefHint(file, ref).catch(() => undefined)
+    handleError(e, { context: { ref, file }, hint })
   }
 }
 
@@ -70,7 +72,7 @@ export async function tableListCommand(file: string, options: { pretty?: boolean
 
     console.log(formatOutput(tables, options.pretty))
   } catch (e) {
-    handleError(e)
+    handleError(e, { context: { file } })
   }
 }
 
@@ -100,7 +102,8 @@ export async function tableEditCommand(
 
     console.log(formatOutput({ ref, text, success: true }, options.pretty))
   } catch (e) {
-    handleError(e)
+    const hint = await getRefHint(file, ref).catch(() => undefined)
+    handleError(e, { context: { ref, file }, hint })
   }
 }
 

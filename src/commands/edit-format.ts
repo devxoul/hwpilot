@@ -4,6 +4,7 @@ import { type FormatOptions } from '@/shared/edit-types'
 import { handleError } from '@/shared/error-handler'
 import { detectFormat } from '@/shared/format-detector'
 import { formatOutput } from '@/shared/output'
+import { getRefHint } from '@/shared/ref-hints'
 import { validateRef } from '@/shared/refs'
 
 type FormatCommandOptions = {
@@ -44,6 +45,7 @@ export async function editFormatCommand(file: string, ref: string, options: Form
 
     console.log(formatOutput({ ref, format, success: true }, options.pretty))
   } catch (e) {
-    handleError(e)
+    const hint = await getRefHint(file, ref).catch(() => undefined)
+    handleError(e, { context: { ref, file }, hint })
   }
 }

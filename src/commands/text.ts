@@ -4,6 +4,7 @@ import { parseSections } from '@/formats/hwpx/section-parser'
 import { handleError } from '@/shared/error-handler'
 import { detectFormat } from '@/shared/format-detector'
 import { formatOutput } from '@/shared/output'
+import { getRefHint } from '@/shared/ref-hints'
 import { parseRef } from '@/shared/refs'
 import type { Paragraph, Section, Table, TableCell } from '@/types'
 
@@ -46,7 +47,10 @@ export async function textCommand(file: string, ref: string | undefined, options
     const allText = extractAllText(sections)
     console.log(formatOutput({ text: allText }, options.pretty))
   } catch (e) {
-    handleError(e)
+    const context: Record<string, unknown> = { file }
+    if (ref) context.ref = ref
+    const hint = ref ? await getRefHint(file, ref).catch(() => undefined) : undefined
+    handleError(e, { context, hint })
   }
 }
 

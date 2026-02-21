@@ -4,6 +4,7 @@ import { type EditOperation } from '@/shared/edit-types'
 import { handleError } from '@/shared/error-handler'
 import { detectFormat } from '@/shared/format-detector'
 import { formatOutput } from '@/shared/output'
+import { getRefHint } from '@/shared/ref-hints'
 import { parseRef, validateRef } from '@/shared/refs'
 
 export async function editTextCommand(
@@ -31,6 +32,7 @@ export async function editTextCommand(
 
     console.log(formatOutput({ ref, text, success: true }, options.pretty))
   } catch (e) {
-    handleError(e)
+    const hint = await getRefHint(file, ref).catch(() => undefined)
+    handleError(e, { context: { ref, file }, hint })
   }
 }
