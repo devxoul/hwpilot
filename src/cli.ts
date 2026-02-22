@@ -18,18 +18,34 @@ program
   .command('read <file> [ref]')
   .description('Read document structure or a specific element')
   .option('--pretty', 'Pretty-print JSON output')
-  .action(async (file: string, ref: string | undefined, options: { pretty?: boolean }) => {
-    await readCommand(file, ref, options)
-  })
+  .option('--offset <number>', 'Skip first N paragraphs (0-indexed)')
+  .option('--limit <number>', 'Return at most N paragraphs')
+  .action(
+    async (file: string, ref: string | undefined, options: { pretty?: boolean; offset?: string; limit?: string }) => {
+      await readCommand(file, ref, {
+        pretty: options.pretty,
+        offset: options.offset ? Number(options.offset) : undefined,
+        limit: options.limit ? Number(options.limit) : undefined,
+      })
+    },
+  )
 
 // hwp text <file> [ref]
 program
   .command('text <file> [ref]')
   .description('Extract text from document or a specific element')
   .option('--pretty', 'Pretty-print JSON output')
-  .action(async (file: string, ref: string | undefined, options: { pretty?: boolean }) => {
-    await textCommand(file, ref, options)
-  })
+  .option('--offset <number>', 'Skip first N paragraphs (0-indexed)')
+  .option('--limit <number>', 'Return at most N paragraphs')
+  .action(
+    async (file: string, ref: string | undefined, options: { pretty?: boolean; offset?: string; limit?: string }) => {
+      await textCommand(file, ref, {
+        pretty: options.pretty,
+        offset: options.offset ? Number(options.offset) : undefined,
+        limit: options.limit ? Number(options.limit) : undefined,
+      })
+    },
+  )
 
 // hwp edit
 const editCmd = program.command('edit').description('Edit document content')

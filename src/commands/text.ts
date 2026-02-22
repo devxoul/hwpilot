@@ -8,11 +8,18 @@ import { getRefHint } from '@/shared/ref-hints'
 import { parseRef } from '@/shared/refs'
 import type { Paragraph, Section, Table, TableCell } from '@/types'
 
-export async function textCommand(file: string, ref: string | undefined, options: { pretty?: boolean }): Promise<void> {
+type TextOptions = {
+  pretty?: boolean
+  offset?: number
+  limit?: number
+}
+
+export async function textCommand(file: string, ref: string | undefined, options: TextOptions): Promise<void> {
   try {
     const format = await detectFormat(file)
+    const hasPagination = options.offset !== undefined || options.limit !== undefined
 
-    if (format === 'hwp' && !ref) {
+    if (format === 'hwp' && !ref && !hasPagination) {
       const allText = (await loadHwpSectionTexts(file)).join('\n')
       console.log(formatOutput({ text: allText }, options.pretty))
       return
@@ -44,6 +51,12 @@ export async function textCommand(file: string, ref: string | undefined, options
       return
     }
 
+    if (hasPagination) {
+      const result = extractPaginatedText(sections, options.offset ?? 0, options.limit ?? Number.POSITIVE_INFINITY)
+      console.log(formatOutput(result, options.pretty))
+      return
+    }
+
     const allText = extractAllText(sections)
     console.log(formatOutput({ text: allText }, options.pretty))
   } catch (e) {
@@ -69,6 +82,27 @@ function cellText(cell: TableCell): string {
 
 function tableText(table: Table): string {
   return table.rows.flatMap((row) => row.cells.map(cellText)).join('\n')
+}
+
+function extractPaginatedText(
+  sections: Section[],
+  offset: number,
+  limit: number,
+): { text: string; totalParagraphs: number; offset: number; count: number } {
+  const allParagraphs: Paragraph[] = []
+  for (const section of sections) {
+    allParagraphs.push(...section.paragraphs)
+  }
+
+  const sliced = allParagraphs.slice(offset, offset + limit)
+  const text = sliced.map(paragraphText).join('\n')
+
+  return {
+    text,
+    totalParagraphs: allParagraphs.length,
+    offset,
+    count: sliced.length,
+  }
 }
 
 function extractAllText(sections: Section[]): string {

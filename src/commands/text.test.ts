@@ -6,6 +6,8 @@ const TEST_FILE = '/tmp/test-text.hwpx'
 const TEST_TABLE_FILE = '/tmp/test-text-table.hwpx'
 const TEST_HWP_FILE = '/tmp/test-text.hwp'
 const TEST_HWP_TABLE_FILE = '/tmp/test-text-table.hwp'
+const TEST_MANY_PARAGRAPHS_FILE = '/tmp/test-text-many.hwpx'
+const TEST_HWP_MANY_FILE = '/tmp/test-text-many.hwp'
 
 let logs: string[]
 const origLog = console.log
@@ -44,6 +46,13 @@ beforeAll(async () => {
     ],
   })
   await Bun.write(TEST_HWP_TABLE_FILE, hwpTableBuffer)
+
+  const manyParagraphs = ['Para0', 'Para1', 'Para2', 'Para3', 'Para4', 'Para5', 'Para6', 'Para7', 'Para8', 'Para9']
+  const manyBuffer = await createTestHwpx({ paragraphs: manyParagraphs })
+  await Bun.write(TEST_MANY_PARAGRAPHS_FILE, manyBuffer)
+
+  const manyHwpBuffer = await createTestHwpBinary({ paragraphs: manyParagraphs })
+  await Bun.write(TEST_HWP_MANY_FILE, manyHwpBuffer)
 })
 
 function captureOutput() {
@@ -191,5 +200,63 @@ describe('textCommand', () => {
 
     const output = JSON.parse(logs[0])
     expect(output.error).toContain('Invalid reference')
+  })
+
+  it('paginates text with --offset and --limit', async () => {
+    captureOutput()
+    await textCommand(TEST_MANY_PARAGRAPHS_FILE, undefined, { offset: 3, limit: 4 })
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.text).toBe('Para3\nPara4\nPara5\nPara6')
+    expect(output.totalParagraphs).toBe(10)
+    expect(output.offset).toBe(3)
+    expect(output.count).toBe(4)
+  })
+
+  it('paginates text with --limit only', async () => {
+    captureOutput()
+    await textCommand(TEST_MANY_PARAGRAPHS_FILE, undefined, { limit: 3 })
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.text).toBe('Para0\nPara1\nPara2')
+    expect(output.totalParagraphs).toBe(10)
+    expect(output.count).toBe(3)
+  })
+
+  it('paginates text with --offset only', async () => {
+    captureOutput()
+    await textCommand(TEST_MANY_PARAGRAPHS_FILE, undefined, { offset: 7 })
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.text).toBe('Para7\nPara8\nPara9')
+    expect(output.totalParagraphs).toBe(10)
+    expect(output.offset).toBe(7)
+    expect(output.count).toBe(3)
+  })
+
+  it('paginates HWP text with --offset and --limit', async () => {
+    captureOutput()
+    await textCommand(TEST_HWP_MANY_FILE, undefined, { offset: 2, limit: 3 })
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.text).toBe('Para2\nPara3\nPara4')
+    expect(output.totalParagraphs).toBe(10)
+    expect(output.offset).toBe(2)
+    expect(output.count).toBe(3)
+  })
+
+  it('returns empty text when offset exceeds paragraph count', async () => {
+    captureOutput()
+    await textCommand(TEST_MANY_PARAGRAPHS_FILE, undefined, { offset: 100 })
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.text).toBe('')
+    expect(output.totalParagraphs).toBe(10)
+    expect(output.count).toBe(0)
   })
 })

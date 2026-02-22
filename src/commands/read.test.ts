@@ -6,6 +6,7 @@ import { readCommand } from './read'
 const TEST_FILE = '/tmp/test-read.hwpx'
 const TEST_TABLE_FILE = '/tmp/test-read-table.hwpx'
 const TEST_HWP_FILE = '/tmp/test-read.hwp'
+const TEST_MANY_PARAGRAPHS_FILE = '/tmp/test-read-many.hwpx'
 
 let logs: string[]
 const origLog = console.log
@@ -30,6 +31,11 @@ beforeAll(async () => {
   await Bun.write(TEST_TABLE_FILE, tableBuffer)
 
   await Bun.write(TEST_HWP_FILE, createMinimalHwp())
+
+  const manyBuffer = await createTestHwpx({
+    paragraphs: ['Para0', 'Para1', 'Para2', 'Para3', 'Para4', 'Para5', 'Para6', 'Para7', 'Para8', 'Para9'],
+  })
+  await Bun.write(TEST_MANY_PARAGRAPHS_FILE, manyBuffer)
 })
 
 function captureOutput() {
@@ -153,6 +159,81 @@ describe('readCommand', () => {
 
     const output = JSON.parse(logs[0])
     expect(output.error).toContain('Invalid reference')
+  })
+
+  it('paginates paragraphs with --offset and --limit', async () => {
+    captureOutput()
+    await readCommand(TEST_MANY_PARAGRAPHS_FILE, undefined, { offset: 2, limit: 3 })
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    const section = output.sections[0]
+    expect(section.totalParagraphs).toBe(10)
+    expect(section.totalTables).toBe(0)
+    expect(section.totalImages).toBe(0)
+    expect(section.paragraphs).toHaveLength(3)
+    expect(section.paragraphs[0].runs[0].text).toBe('Para2')
+    expect(section.paragraphs[1].runs[0].text).toBe('Para3')
+    expect(section.paragraphs[2].runs[0].text).toBe('Para4')
+  })
+
+  it('paginates with --limit only', async () => {
+    captureOutput()
+    await readCommand(TEST_MANY_PARAGRAPHS_FILE, undefined, { limit: 2 })
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    const section = output.sections[0]
+    expect(section.totalParagraphs).toBe(10)
+    expect(section.paragraphs).toHaveLength(2)
+    expect(section.paragraphs[0].runs[0].text).toBe('Para0')
+    expect(section.paragraphs[1].runs[0].text).toBe('Para1')
+  })
+
+  it('paginates with --offset only', async () => {
+    captureOutput()
+    await readCommand(TEST_MANY_PARAGRAPHS_FILE, undefined, { offset: 8 })
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    const section = output.sections[0]
+    expect(section.totalParagraphs).toBe(10)
+    expect(section.paragraphs).toHaveLength(2)
+    expect(section.paragraphs[0].runs[0].text).toBe('Para8')
+    expect(section.paragraphs[1].runs[0].text).toBe('Para9')
+  })
+
+  it('returns empty paragraphs when offset exceeds count', async () => {
+    captureOutput()
+    await readCommand(TEST_MANY_PARAGRAPHS_FILE, undefined, { offset: 100 })
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    const section = output.sections[0]
+    expect(section.totalParagraphs).toBe(10)
+    expect(section.paragraphs).toHaveLength(0)
+  })
+
+  it('does not include totals without pagination options', async () => {
+    captureOutput()
+    await readCommand(TEST_FILE, undefined, {})
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    const section = output.sections[0]
+    expect(section.totalParagraphs).toBeUndefined()
+    expect(section.totalTables).toBeUndefined()
+    expect(section.totalImages).toBeUndefined()
+  })
+
+  it('ignores pagination when ref is provided', async () => {
+    captureOutput()
+    await readCommand(TEST_FILE, 's0.p0', { offset: 5, limit: 10 })
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.ref).toBe('s0.p0')
+    expect(output.runs[0].text).toBe('Hello')
   })
 })
 

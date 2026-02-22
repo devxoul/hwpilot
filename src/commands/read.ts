@@ -8,7 +8,13 @@ import { formatOutput } from '@/shared/output'
 import { parseRef } from '@/shared/refs'
 import type { Section } from '@/types'
 
-export async function readCommand(file: string, ref: string | undefined, options: { pretty?: boolean }): Promise<void> {
+type ReadOptions = {
+  pretty?: boolean
+  offset?: number
+  limit?: number
+}
+
+export async function readCommand(file: string, ref: string | undefined, options: ReadOptions): Promise<void> {
   try {
     const format = await detectFormat(file)
     const doc = format === 'hwp' ? await loadHwp(file) : await loadHwpxDocument(file)
@@ -19,14 +25,27 @@ export async function readCommand(file: string, ref: string | undefined, options
       return
     }
 
+    const hasPagination = options.offset !== undefined || options.limit !== undefined
+    const offset = options.offset ?? 0
+    const limit = options.limit ?? Number.POSITIVE_INFINITY
+
     const output = {
       format: doc.format,
-      sections: doc.sections.map((section, index) => ({
-        index,
-        paragraphs: section.paragraphs,
-        tables: section.tables,
-        images: section.images,
-      })),
+      sections: doc.sections.map((section, index) => {
+        const paragraphs = hasPagination ? section.paragraphs.slice(offset, offset + limit) : section.paragraphs
+
+        return {
+          index,
+          ...(hasPagination && {
+            totalParagraphs: section.paragraphs.length,
+            totalTables: section.tables.length,
+            totalImages: section.images.length,
+          }),
+          paragraphs,
+          tables: section.tables,
+          images: section.images,
+        }
+      }),
       header: doc.header,
     }
 
