@@ -1,91 +1,93 @@
 # hwpcli
 
-Native CLI for reading and writing HWP/HWPX documents. Built for AI agents that need to work with Korean word processor files programmatically.
+[![English](https://img.shields.io/badge/lang-English-blue)](./README.en.md)
 
-All commands output JSON. All edits happen in-place.
+HWP/HWPX 문서를 읽고 쓰는 네이티브 CLI. AI 에이전트가 한글 문서를 프로그래밍 방식으로 다룰 수 있도록 설계되었습니다.
 
-## Install
+모든 명령어는 JSON을 출력합니다. 모든 편집은 파일을 직접 수정합니다.
+
+## 설치
 
 ```bash
 npm install -g hwpcli
 ```
 
-## Usage
+## 사용법
 
 ```bash
-# Read first 20 paragraphs
+# 처음 20개 문단 읽기
 hwp read document.hwpx --limit 20
 
-# Search for text
+# 텍스트 검색
 hwp find document.hwpx "청구취지"
 
-# Edit a paragraph
-hwp edit text document.hwpx s0.p0 "New content"
+# 문단 편집
+hwp edit text document.hwpx s0.p0 "새로운 내용"
 
-# Edit a table cell
-hwp table edit document.hwpx s0.t0.r0.c0 "Cell value"
+# 표 셀 편집
+hwp table edit document.hwpx s0.t0.r0.c0 "셀 값"
 
-# Bold + resize
+# 굵게 + 크기 변경
 hwp edit format document.hwpx s0.p0 --bold --size 16
 
-# Convert HWP 5.0 → HWPX
+# HWP 5.0 → HWPX 변환
 hwp convert legacy.hwp output.hwpx
 ```
 
-## Reference System
+## 참조 체계
 
-Every element in a document is addressed by a hierarchical ref. Indices are 0-based.
+문서의 모든 요소는 계층적 참조(ref)로 지정합니다. 인덱스는 0부터 시작합니다.
 
 ```
-s{N}                    → Section
-s{N}.p{M}               → Paragraph
-s{N}.p{M}.r{K}          → Run (text span with uniform formatting)
-s{N}.t{M}               → Table
-s{N}.t{M}.r{R}.c{C}     → Table cell
-s{N}.t{M}.r{R}.c{C}.p{P} → Paragraph inside a table cell
-s{N}.tb{M}              → Text box
-s{N}.tb{M}.p{P}         → Paragraph inside a text box
-s{N}.img{M}             → Image
+s{N}                    → 섹션
+s{N}.p{M}               → 문단
+s{N}.p{M}.r{K}          → 런 (동일한 서식을 가진 텍스트 구간)
+s{N}.t{M}               → 표
+s{N}.t{M}.r{R}.c{C}     → 표 셀
+s{N}.t{M}.r{R}.c{C}.p{P} → 표 셀 안의 문단
+s{N}.tb{M}              → 텍스트 박스
+s{N}.tb{M}.p{P}         → 텍스트 박스 안의 문단
+s{N}.img{M}             → 이미지
 ```
 
-Examples:
-- `s0.p0` — first paragraph
-- `s0.t0.r1.c2` — table 0, row 1, cell 2
-- `s0.tb0.p0` — first paragraph inside first text box
+예시:
+- `s0.p0` — 첫 번째 문단
+- `s0.t0.r1.c2` — 표 0, 행 1, 셀 2
+- `s0.tb0.p0` — 첫 번째 텍스트 박스 안의 첫 번째 문단
 
-## Commands
+## 명령어
 
 ### read
 
-Read document structure. Use `--offset` and `--limit` to paginate.
+문서 구조를 읽습니다. `--offset`과 `--limit`으로 페이지네이션할 수 있습니다.
 
 ```bash
 hwp read <file> [ref] [--offset <n>] [--limit <n>] [--pretty]
 ```
 
 ```bash
-hwp read report.hwpx --limit 20          # first 20 paragraphs
-hwp read report.hwpx --offset 20 --limit 20  # next 20
-hwp read report.hwpx s0.t0               # a specific table
+hwp read report.hwpx --limit 20          # 처음 20개 문단
+hwp read report.hwpx --offset 20 --limit 20  # 다음 20개
+hwp read report.hwpx s0.t0               # 특정 표
 ```
 
 ### text
 
-Extract plain text.
+텍스트를 추출합니다.
 
 ```bash
 hwp text <file> [ref] [--offset <n>] [--limit <n>] [--pretty]
 ```
 
 ```bash
-hwp text report.hwpx                     # all text
-hwp text report.hwpx s0.p0               # one paragraph
-hwp text report.hwpx s0.t0.r0.c0         # a table cell
+hwp text report.hwpx                     # 전체 텍스트
+hwp text report.hwpx s0.p0               # 문단 하나
+hwp text report.hwpx s0.t0.r0.c0         # 표 셀
 ```
 
 ### find
 
-Search text across all containers (paragraphs, tables, text boxes). Case-insensitive.
+모든 컨테이너(문단, 표, 텍스트 박스)에서 텍스트를 검색합니다. 대소문자를 구분하지 않습니다.
 
 ```bash
 hwp find <file> <query> [--json]
@@ -102,34 +104,34 @@ hwp find document.hwpx "청구취지" --json
 
 ### edit text
 
-Replace text at a ref. Modifies the file in-place.
+참조 위치의 텍스트를 교체합니다. 파일을 직접 수정합니다.
 
 ```bash
 hwp edit text <file> <ref> <text> [--pretty]
 ```
 
 ```bash
-hwp edit text report.hwpx s0.p0 "New Title"
-hwp edit text report.hwpx s0.t0.r0.c0 "Cell value"
-hwp edit text report.hwpx s0.tb0.p0 "Text box content"
+hwp edit text report.hwpx s0.p0 "새 제목"
+hwp edit text report.hwpx s0.t0.r0.c0 "셀 값"
+hwp edit text report.hwpx s0.tb0.p0 "텍스트 박스 내용"
 ```
 
 ### edit format
 
-Change character formatting at a ref.
+참조 위치의 글자 서식을 변경합니다.
 
 ```bash
 hwp edit format <file> <ref> [options] [--pretty]
 ```
 
-| Flag | Effect |
+| 플래그 | 효과 |
 |---|---|
-| `--bold` / `--no-bold` | Toggle bold |
-| `--italic` / `--no-italic` | Toggle italic |
-| `--underline` / `--no-underline` | Toggle underline |
-| `--font <name>` | Set font |
-| `--size <pt>` | Set font size |
-| `--color <hex>` | Set text color (e.g. `#FF0000`) |
+| `--bold` / `--no-bold` | 굵게 토글 |
+| `--italic` / `--no-italic` | 기울임 토글 |
+| `--underline` / `--no-underline` | 밑줄 토글 |
+| `--font <name>` | 글꼴 설정 |
+| `--size <pt>` | 글자 크기 설정 |
+| `--color <hex>` | 글자 색상 설정 (예: `#FF0000`) |
 
 ```bash
 hwp edit format report.hwpx s0.p0 --bold --size 16 --font "맑은 고딕"
@@ -138,7 +140,7 @@ hwp edit format report.hwpx s0.p1 --italic --color "#0000FF"
 
 ### table read
 
-Read a table's structure (rows, cells, text).
+표 구조(행, 셀, 텍스트)를 읽습니다.
 
 ```bash
 hwp table read <file> <ref> [--pretty]
@@ -146,20 +148,20 @@ hwp table read <file> <ref> [--pretty]
 
 ### table edit
 
-Edit text in a table cell.
+표 셀의 텍스트를 편집합니다.
 
 ```bash
 hwp table edit <file> <ref> <text> [--pretty]
 ```
 
 ```bash
-hwp table edit report.hwpx s0.t0.r0.c0 "Name"
-hwp table edit report.hwpx s0.t0.r0.c1 "Date"
+hwp table edit report.hwpx s0.t0.r0.c0 "이름"
+hwp table edit report.hwpx s0.t0.r0.c1 "날짜"
 ```
 
 ### table list
 
-List all tables in the document.
+문서의 모든 표를 나열합니다.
 
 ```bash
 hwp table list <file> [--pretty]
@@ -168,64 +170,64 @@ hwp table list <file> [--pretty]
 ### image list / extract / insert / replace
 
 ```bash
-hwp image list <file>                            # list all images
-hwp image extract <file> <ref> <output-path>     # extract to file
-hwp image insert <file> <image-path>             # insert image
-hwp image replace <file> <ref> <image-path>      # replace image
+hwp image list <file>                            # 모든 이미지 나열
+hwp image extract <file> <ref> <output-path>     # 이미지 추출
+hwp image insert <file> <image-path>             # 이미지 삽입
+hwp image replace <file> <ref> <image-path>      # 이미지 교체
 ```
 
-> Image insert/replace/extract require HWPX format. `image list` works on both.
+> 이미지 삽입/교체/추출은 HWPX 포맷에서만 가능합니다. `image list`는 두 포맷 모두 지원합니다.
 
 ### create
 
-Create a new blank HWPX document.
+빈 HWPX 문서를 생성합니다.
 
 ```bash
 hwp create <file> [--title <text>] [--font <name>] [--size <pt>] [--pretty]
 ```
 
 ```bash
-hwp create report.hwpx --title "Monthly Report" --font "바탕" --size 12
+hwp create report.hwpx --title "월간 보고서" --font "바탕" --size 12
 ```
 
 ### convert
 
-Convert HWP 5.0 to HWPX.
+HWP 5.0을 HWPX로 변환합니다.
 
 ```bash
 hwp convert <input> <output> [--force] [--pretty]
 ```
 
-## Format Support
+## 포맷 지원
 
-Format is detected by file content (magic bytes), not by file extension.
+포맷은 파일 확장자가 아닌 파일 내용(매직 바이트)으로 판별합니다.
 
-| Feature | HWPX | HWP 5.0 |
+| 기능 | HWPX | HWP 5.0 |
 |---|---|---|
-| Read structure / text | ✓ | ✓ |
-| Edit text | ✓ | ✓ |
-| Edit formatting | ✓ | ✓ |
-| Table read / edit | ✓ | ✓ |
-| Text box read / edit | ✓ | ✓ |
-| Find text | ✓ | ✓ |
-| Image list | ✓ | ✓ |
-| Image insert / replace / extract | ✓ | ✗ |
-| Create new document | ✓ | ✗ |
+| 구조/텍스트 읽기 | ✓ | ✓ |
+| 텍스트 편집 | ✓ | ✓ |
+| 서식 편집 | ✓ | ✓ |
+| 표 읽기/편집 | ✓ | ✓ |
+| 텍스트 박스 읽기/편집 | ✓ | ✓ |
+| 텍스트 검색 | ✓ | ✓ |
+| 이미지 목록 | ✓ | ✓ |
+| 이미지 삽입/교체/추출 | ✓ | ✗ |
+| 새 문서 생성 | ✓ | ✗ |
 
-For image operations on HWP 5.0 files, convert first: `hwp convert file.hwp file.hwpx`
+HWP 5.0 파일에서 이미지 작업이 필요하면 먼저 변환하세요: `hwp convert file.hwp file.hwpx`
 
-## Limitations
+## 제한 사항
 
-- **No image ops on HWP 5.0** — convert to HWPX first
-- **No encrypted files** — password/DRM protected documents can't be opened
-- **No macros, equations, charts, OLE objects**
-- **No paragraph-level formatting** — only character formatting (bold, italic, underline, font, size, color)
-- **No structural edits** — can't add new paragraphs, rows, or sections; only edit existing content
-- **No grouped shapes** — only individual text boxes are supported
+- **HWP 5.0 이미지 작업 불가** — HWPX로 변환 필요
+- **암호화된 파일 불가** — 비밀번호/DRM 보호 문서는 열 수 없음
+- **매크로, 수식, 차트, OLE 객체 미지원**
+- **문단 수준 서식 불가** — 글자 서식만 지원 (굵게, 기울임, 밑줄, 글꼴, 크기, 색상)
+- **구조 편집 불가** — 새 문단, 행, 섹션 추가 불가; 기존 내용만 편집 가능
+- **그룹화된 도형 미지원** — 개별 텍스트 박스만 지원
 
-## Error Handling
+## 에러 처리
 
-All errors return JSON:
+모든 에러는 JSON으로 반환됩니다:
 
 ```json
 {
@@ -235,7 +237,7 @@ All errors return JSON:
 }
 ```
 
-## Development
+## 개발
 
 ```bash
 bun install
@@ -245,13 +247,13 @@ bun test src/
 bun run build
 ```
 
-See [AGENTS.md](./AGENTS.md) for the full development guide.
+자세한 개발 가이드는 [AGENTS.md](./AGENTS.md)를 참고하세요.
 
-## Acknowledgments
+## 감사의 말
 
-- [Hancom OWPML spec (KS X 6101)](http://www.hancom.co.kr) — HWPX format specification
-- [hwp.js](https://github.com/hahnlee/hwp.js) — open source HWP parser, reference for the HWP 5.0 binary format
+- [한컴 OWPML 규격 (KS X 6101)](http://www.hancom.co.kr) — HWPX 포맷 명세
+- [hwp.js](https://github.com/hahnlee/hwp.js) — HWP 5.0 바이너리 포맷 이해에 참고한 오픈소스 HWP 파서
 
-## License
+## 라이선스
 
 MIT
