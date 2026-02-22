@@ -109,6 +109,60 @@ describe('parseSection', () => {
     const section = parseSection(xml, 0)
     expect(section.paragraphs[0].runs[0].text).toBe('')
   })
+
+  it('parses text boxes from section-level rect drawText', () => {
+    const xml = `<?xml version="1.0"?>
+<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"
+        xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+  <hp:rect>
+    <hp:drawText>
+      <hp:subList>
+        <hp:p hp:id="0" hp:paraPrIDRef="0" hp:styleIDRef="0">
+          <hp:run hp:charPrIDRef="0"><hp:t>Text box paragraph</hp:t></hp:run>
+        </hp:p>
+      </hp:subList>
+    </hp:drawText>
+  </hp:rect>
+</hs:sec>`
+
+    const section = parseSection(xml, 0)
+    expect(section.textBoxes).toHaveLength(1)
+    expect(section.textBoxes[0].ref).toBe('s0.tb0')
+    expect(section.textBoxes[0].paragraphs).toHaveLength(1)
+    expect(section.textBoxes[0].paragraphs[0].ref).toBe('s0.tb0.p0')
+    expect(section.textBoxes[0].paragraphs[0].runs[0].text).toBe('Text box paragraph')
+    expect(section.paragraphs).toHaveLength(0)
+    expect(section.tables).toHaveLength(0)
+    expect(section.images).toHaveLength(0)
+  })
+
+  it('parses text boxes from rect inside paragraph', () => {
+    const xml = `<?xml version="1.0"?>
+<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"
+        xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+  <hp:p hp:id="0" hp:paraPrIDRef="0" hp:styleIDRef="0">
+    <hp:run hp:charPrIDRef="0"><hp:t>Outside paragraph</hp:t></hp:run>
+    <hp:rect>
+      <hp:drawText>
+        <hp:subList>
+          <hp:p hp:id="1" hp:paraPrIDRef="1" hp:styleIDRef="1">
+            <hp:run hp:charPrIDRef="1"><hp:t>Inline text box paragraph</hp:t></hp:run>
+          </hp:p>
+        </hp:subList>
+      </hp:drawText>
+    </hp:rect>
+  </hp:p>
+</hs:sec>`
+
+    const section = parseSection(xml, 0)
+    expect(section.paragraphs).toHaveLength(1)
+    expect(section.paragraphs[0].ref).toBe('s0.p0')
+    expect(section.paragraphs[0].runs[0].text).toBe('Outside paragraph')
+    expect(section.textBoxes).toHaveLength(1)
+    expect(section.textBoxes[0].ref).toBe('s0.tb0')
+    expect(section.textBoxes[0].paragraphs[0].ref).toBe('s0.tb0.p0')
+    expect(section.textBoxes[0].paragraphs[0].runs[0].text).toBe('Inline text box paragraph')
+  })
 })
 
 describe('parseSections', () => {

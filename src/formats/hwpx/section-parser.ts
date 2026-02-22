@@ -1,13 +1,13 @@
 import { XMLParser } from 'fast-xml-parser'
 import { buildRef } from '@/shared/refs'
-import type { Image, Paragraph, Run, Section, Table, TableCell, TableRow } from '@/types'
+import type { Image, Paragraph, Run, Section, Table, TableCell, TableRow, TextBox } from '@/types'
 import type { HwpxArchive } from './loader'
 
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '',
   parseAttributeValue: true,
-  isArray: (name) => ['hp:p', 'hp:run', 'hp:tbl', 'hp:tr', 'hp:tc', 'hp:pic'].includes(name),
+  isArray: (name) => ['hp:p', 'hp:run', 'hp:tbl', 'hp:tr', 'hp:tc', 'hp:pic', 'hp:rect'].includes(name),
 })
 
 type XmlNode = Record<string, unknown>
@@ -19,6 +19,9 @@ export function parseSection(xml: string, sectionIndex: number): Section {
   const rawParagraphs = asArray<XmlNode>(sec['hp:p'])
   const rawTables = asArray<XmlNode>(sec['hp:tbl'])
   const rawPics = asArray<XmlNode>(sec['hp:pic'])
+  const sectionRects = asArray<XmlNode>(sec['hp:rect'])
+  const inlineRects = rawParagraphs.flatMap((paragraph) => asArray<XmlNode>(paragraph['hp:rect']))
+  const rawRects = [...sectionRects, ...inlineRects]
 
   const paragraphs = rawParagraphs.map((paragraph, paragraphIndex) =>
     parseParagraph(paragraph, {
@@ -29,12 +32,15 @@ export function parseSection(xml: string, sectionIndex: number): Section {
 
   const tables = rawTables.map((table, tableIndex) => parseTable(table, sectionIndex, tableIndex))
   const images = rawPics.map((pic, imageIndex) => parseImage(pic, sectionIndex, imageIndex))
+  const textBoxes = rawRects
+    .map((rect, textBoxIndex) => parseTextBox(rect, sectionIndex, textBoxIndex))
+    .filter((textBox): textBox is TextBox => textBox !== null)
 
   return {
     paragraphs,
     tables,
     images,
-    textBoxes: [],
+    textBoxes,
   }
 }
 
@@ -59,6 +65,8 @@ function parseParagraph(
     row?: number
     cell?: number
     cellParagraph?: number
+    textBox?: number
+    textBoxParagraph?: number
   },
 ): Paragraph {
   const runs = asArray<XmlNode>(paragraph['hp:run']).map(parseRun)
@@ -68,6 +76,31 @@ function parseParagraph(
     runs,
     paraShapeRef: asNumber(paragraph['hp:paraPrIDRef'], 0),
     styleRef: asNumber(paragraph['hp:styleIDRef'], 0),
+  }
+}
+
+function parseTextBox(rect: XmlNode, sectionIndex: number, textBoxIndex: number): TextBox | null {
+  const drawText = rect['hp:drawText']
+  if (!drawText || typeof drawText !== 'object') {
+    return null
+  }
+
+  const subList = (drawText as XmlNode)['hp:subList']
+  if (!subList || typeof subList !== 'object') {
+    return null
+  }
+
+  const paragraphs = asArray<XmlNode>((subList as XmlNode)['hp:p']).map((paragraph, paragraphIndex) =>
+    parseParagraph(paragraph, {
+      section: sectionIndex,
+      textBox: textBoxIndex,
+      textBoxParagraph: paragraphIndex,
+    }),
+  )
+
+  return {
+    ref: buildRef({ section: sectionIndex, textBox: textBoxIndex }),
+    paragraphs,
   }
 }
 
