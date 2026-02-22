@@ -13,7 +13,8 @@
     },
     "tableCount": 0,
     "imageCount": 0,
-    "firstLineText": "표준근로계약서(기간의 정함이 없는 경우)"
+    "firstLineText": "표준근로계약서(기간의 정함이 없는 경우)",
+    "textBoxCount": 0
   },
   "employmentRules": {
     "key": "employmentRules",
@@ -29,7 +30,8 @@
     },
     "tableCount": 0,
     "imageCount": 0,
-    "firstLineText": ""
+    "firstLineText": "",
+    "textBoxCount": 0
   },
   "withholdingTax": {
     "key": "withholdingTax",
@@ -43,7 +45,8 @@
     },
     "tableCount": 0,
     "imageCount": 0,
-    "firstLineText": "■ 소득세법 시행규칙 [별지 제24호서식(1)] <개정안 2021. 11.>"
+    "firstLineText": "■ 소득세법 시행규칙 [별지 제24호서식(1)] <개정안 2021. 11.>",
+    "textBoxCount": 0
   },
   "wageClaim": {
     "key": "wageClaim",
@@ -56,7 +59,8 @@
     },
     "tableCount": 0,
     "imageCount": 6,
-    "firstLineText": "[서식 예] 임금 등 청구의 소"
+    "firstLineText": "[서식 예] 임금 등 청구의 소",
+    "textBoxCount": 0
   },
   "assaultComplaint": {
     "key": "assaultComplaint",
@@ -69,7 +73,8 @@
     },
     "tableCount": 0,
     "imageCount": 3,
-    "firstLineText": "[서식 예] 폭행죄"
+    "firstLineText": "[서식 예] 폭행죄",
+    "textBoxCount": 0
   },
   "standardContracts": {
     "key": "standardContracts",
@@ -85,7 +90,8 @@
     },
     "tableCount": 0,
     "imageCount": 0,
-    "firstLineText": "표준근로계약서(기간의 정함이 없는 경우)"
+    "firstLineText": "표준근로계약서(기간의 정함이 없는 경우)",
+    "textBoxCount": 0
   },
   "victimStatement": {
     "key": "victimStatement",
@@ -98,6 +104,7 @@
     },
     "tableCount": 0,
     "imageCount": 0,
-    "firstLineText": ""
+    "firstLineText": "",
+    "textBoxCount": 0
   }
 }
