@@ -4,6 +4,7 @@ import { convertCommand } from '@/commands/convert'
 import { createCommand } from '@/commands/create'
 import { editFormatCommand } from '@/commands/edit-format'
 import { editTextCommand } from '@/commands/edit-text'
+import { findCommand } from '@/commands/find'
 import { imageExtractCommand, imageInsertCommand, imageListCommand, imageReplaceCommand } from '@/commands/image'
 import { readCommand } from '@/commands/read'
 import { tableEditCommand, tableListCommand, tableReadCommand } from '@/commands/table'
@@ -46,6 +47,15 @@ program
       })
     },
   )
+
+// hwp find <file> <query>
+program
+  .command('find <file> <query>')
+  .description('Search text in document and return matching refs')
+  .option('--json', 'Output results as JSON')
+  .action(async (file: string, query: string, options: { json?: boolean }) => {
+    await findCommand(file, query, options)
+  })
 
 // hwp edit
 const editCmd = program.command('edit').description('Edit document content')
