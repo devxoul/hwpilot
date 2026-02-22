@@ -14,6 +14,7 @@ import type {
   Section,
   Style,
   Table,
+  TextBox,
 } from '@/types'
 import { iterateRecords } from './record-parser'
 import { TAG } from './tag-ids'
@@ -254,14 +255,23 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
   const paragraphs: Paragraph[] = []
   const tables: Table[] = []
   const images: Image[] = []
+  const textBoxes: TextBox[] = []
 
   let paraIndex = 0
   const activeParagraphs = new Map<
     number,
-    { runs: Run[]; charShapeRef: number; paraShapeRef: number; styleRef: number; target: 'section' | 'cell' }
+    {
+      runs: Run[]
+      charShapeRef: number
+      paraShapeRef: number
+      styleRef: number
+      target: 'section' | 'cell' | 'textBox'
+    }
   >()
 
   let pendingTableControlLevel: number | null = null
+  let pendingGsoLevel: number | null = null
+  let pendingTextBoxLevel: number | null = null
   let activeTable: {
     level: number
     tableIndex: number
@@ -271,6 +281,12 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
   } | null = null
   let activeCell: {
     paragraphLevel: number
+    paragraphs: Paragraph[]
+    target: 'table' | 'textBox'
+  } | null = null
+  let activeTextBox: {
+    level: number
+    textBoxIndex: number
     paragraphs: Paragraph[]
   } | null = null
 
@@ -282,30 +298,40 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
       return
     }
 
-    const destination = paragraph.target === 'section' ? paragraphs : (activeCell?.paragraphs ?? null)
-    if (destination) {
-      if (paragraph.target === 'section') {
-        destination.push({
-          ref: buildRef({ section: sectionIndex, paragraph: paraIndex }),
-          runs: paragraph.runs,
-          paraShapeRef: paragraph.paraShapeRef,
-          styleRef: paragraph.styleRef,
-        })
-        paraIndex += 1
-      } else if (activeTable) {
-        destination.push({
-          ref: buildRef({
-            section: sectionIndex,
-            table: activeTable.tableIndex,
-            row: Math.floor((activeTable.nextCellIndex - 1) / activeTable.colCount),
-            cell: (activeTable.nextCellIndex - 1) % activeTable.colCount,
-            cellParagraph: destination.length,
-          }),
-          runs: paragraph.runs,
-          paraShapeRef: paragraph.paraShapeRef,
-          styleRef: paragraph.styleRef,
-        })
-      }
+    if (paragraph.target === 'section') {
+      paragraphs.push({
+        ref: buildRef({ section: sectionIndex, paragraph: paraIndex }),
+        runs: paragraph.runs,
+        paraShapeRef: paragraph.paraShapeRef,
+        styleRef: paragraph.styleRef,
+      })
+      paraIndex += 1
+    } else if (paragraph.target === 'cell' && activeCell?.target === 'table' && activeTable) {
+      const destination = activeCell.paragraphs
+      destination.push({
+        ref: buildRef({
+          section: sectionIndex,
+          table: activeTable.tableIndex,
+          row: Math.floor((activeTable.nextCellIndex - 1) / activeTable.colCount),
+          cell: (activeTable.nextCellIndex - 1) % activeTable.colCount,
+          cellParagraph: destination.length,
+        }),
+        runs: paragraph.runs,
+        paraShapeRef: paragraph.paraShapeRef,
+        styleRef: paragraph.styleRef,
+      })
+    } else if (paragraph.target === 'textBox' && activeCell?.target === 'textBox' && activeTextBox) {
+      const destination = activeCell.paragraphs
+      destination.push({
+        ref: buildRef({
+          section: sectionIndex,
+          textBox: activeTextBox.textBoxIndex,
+          textBoxParagraph: destination.length,
+        }),
+        runs: paragraph.runs,
+        paraShapeRef: paragraph.paraShapeRef,
+        styleRef: paragraph.styleRef,
+      })
     }
 
     activeParagraphs.delete(level)
@@ -326,13 +352,20 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
     charShapeRef: number
     paraShapeRef: number
     styleRef: number
-    target: 'section' | 'cell'
+    target: 'section' | 'cell' | 'textBox'
   } | null => {
     return activeParagraphs.get(level) ?? activeParagraphs.get(level - 1) ?? null
   }
 
   for (const { header, data } of iterateRecords(buffer)) {
     flushParagraphsAbove(header.level)
+
+    if (activeTextBox && header.level <= activeTextBox.level && header.tagId !== TAG.LIST_HEADER) {
+      activeTextBox = null
+      if (activeCell?.target === 'textBox') {
+        activeCell = null
+      }
+    }
 
     if (
       activeTable &&
@@ -347,7 +380,13 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
     if (header.tagId === TAG.PARA_HEADER) {
       flushParagraphLevel(header.level)
       const target =
-        activeCell && header.level === activeCell.paragraphLevel ? 'cell' : header.level === 0 ? 'section' : 'cell'
+        header.level === 0
+          ? 'section'
+          : activeCell && header.level === activeCell.paragraphLevel
+            ? activeCell.target === 'textBox'
+              ? 'textBox'
+              : 'cell'
+            : 'cell'
       const paraShapeRef = data.length >= 10 ? data.readUInt16LE(8) : 0
       const styleRef = data.length >= 11 ? data.readUInt8(10) : 0
       activeParagraphs.set(header.level, {
@@ -386,8 +425,11 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
     }
 
     if (header.tagId === TAG.CTRL_HEADER) {
-      if (data.subarray(0, 4).toString('ascii') === 'tbl ') {
+      const controlType = data.subarray(0, 4).toString('ascii')
+      if (controlType === 'tbl ') {
         pendingTableControlLevel = header.level
+      } else if (controlType === 'gso ') {
+        pendingGsoLevel = header.level
       }
       continue
     }
@@ -442,6 +484,7 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
           activeCell = {
             paragraphLevel: header.level + 1,
             paragraphs: cellParagraphs,
+            target: 'table',
           }
         }
       }
@@ -449,7 +492,41 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
     }
 
     if (header.tagId === TAG.SHAPE_COMPONENT) {
+      if (pendingGsoLevel !== null && header.level === pendingGsoLevel + 1) {
+        const subtype = data.subarray(0, 4).toString('ascii')
+        if (subtype === '$rec') {
+          pendingTextBoxLevel = header.level
+        }
+      }
+
+      pendingGsoLevel = null
       pendingShapeSize = parseShapeSize(data)
+      continue
+    }
+
+    if (
+      header.tagId === TAG.LIST_HEADER &&
+      pendingTextBoxLevel !== null &&
+      !activeTable &&
+      header.level === pendingTextBoxLevel
+    ) {
+      const textBoxIndex = textBoxes.length
+      const textBoxParagraphs: Paragraph[] = []
+      textBoxes.push({
+        ref: buildRef({ section: sectionIndex, textBox: textBoxIndex }),
+        paragraphs: textBoxParagraphs,
+      })
+      activeTextBox = {
+        level: header.level,
+        textBoxIndex,
+        paragraphs: textBoxParagraphs,
+      }
+      activeCell = {
+        paragraphLevel: header.level + 1,
+        paragraphs: textBoxParagraphs,
+        target: 'textBox',
+      }
+      pendingTextBoxLevel = null
       continue
     }
 
@@ -474,7 +551,7 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
     flushParagraphLevel(level)
   }
 
-  return { paragraphs, tables, images, textBoxes: [] }
+  return { paragraphs, tables, images, textBoxes }
 }
 
 function parseBinDataRecord(data: Buffer): { id: number; path: string; format: string } | null {

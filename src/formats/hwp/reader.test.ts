@@ -99,6 +99,133 @@ describe('loadHwp', () => {
     expect(section.paragraphs).toHaveLength(2)
   })
 
+  it('parses text box paragraphs from gso rectangle shape and excludes them from section paragraphs', async () => {
+    const filePath = '/tmp/test-hwp-textbox-single.hwp'
+    TMP_FILES.push(filePath)
+
+    const sectionRecords = Buffer.concat([
+      paragraphRecord(0, 'Before text box'),
+      buildRecord(TAG.CTRL_HEADER, 1, Buffer.from('gso ', 'ascii')),
+      buildRecord(TAG.SHAPE_COMPONENT, 2, shapeComponentSubtypeData('$rec', 200, 80)),
+      buildRecord(TAG.SHAPE_COMPONENT_RECTANGLE, 3, Buffer.alloc(0)),
+      buildRecord(TAG.LIST_HEADER, 2, Buffer.alloc(0)),
+      paragraphRecord(3, 'Inside textbox'),
+      paragraphRecord(0, 'After text box'),
+    ])
+
+    const buffer = createHwpCfbBufferWithRecords(0, Buffer.alloc(0), sectionRecords)
+    await Bun.write(filePath, buffer)
+
+    const doc = await loadHwp(filePath)
+    const section = doc.sections[0]
+
+    expect(section.textBoxes).toHaveLength(1)
+    expect(section.textBoxes[0].ref).toBe('s0.tb0')
+    expect(section.textBoxes[0].paragraphs).toHaveLength(1)
+    expect(section.textBoxes[0].paragraphs[0].ref).toBe('s0.tb0.p0')
+    expect(section.textBoxes[0].paragraphs[0].runs[0].text).toBe('Inside textbox')
+
+    const paragraphTexts = section.paragraphs.map((paragraph) => paragraph.runs.map((run) => run.text).join(''))
+    expect(paragraphTexts).toContain('Before text box')
+    expect(paragraphTexts).toContain('After text box')
+    expect(paragraphTexts).not.toContain('Inside textbox')
+  })
+
+  it('assigns sequential refs for multiple text boxes', async () => {
+    const filePath = '/tmp/test-hwp-textbox-multiple.hwp'
+    TMP_FILES.push(filePath)
+
+    const sectionRecords = Buffer.concat([
+      buildRecord(TAG.CTRL_HEADER, 1, Buffer.from('gso ', 'ascii')),
+      buildRecord(TAG.SHAPE_COMPONENT, 2, shapeComponentSubtypeData('$rec', 120, 60)),
+      buildRecord(TAG.SHAPE_COMPONENT_RECTANGLE, 3, Buffer.alloc(0)),
+      buildRecord(TAG.LIST_HEADER, 2, Buffer.alloc(0)),
+      paragraphRecord(3, 'TB-1'),
+      buildRecord(TAG.CTRL_HEADER, 1, Buffer.from('gso ', 'ascii')),
+      buildRecord(TAG.SHAPE_COMPONENT, 2, shapeComponentSubtypeData('$rec', 140, 70)),
+      buildRecord(TAG.SHAPE_COMPONENT_RECTANGLE, 3, Buffer.alloc(0)),
+      buildRecord(TAG.LIST_HEADER, 2, Buffer.alloc(0)),
+      paragraphRecord(3, 'TB-2'),
+    ])
+
+    const buffer = createHwpCfbBufferWithRecords(0, Buffer.alloc(0), sectionRecords)
+    await Bun.write(filePath, buffer)
+
+    const doc = await loadHwp(filePath)
+    const section = doc.sections[0]
+
+    expect(section.textBoxes).toHaveLength(2)
+    expect(section.textBoxes[0].ref).toBe('s0.tb0')
+    expect(section.textBoxes[1].ref).toBe('s0.tb1')
+    expect(section.textBoxes[0].paragraphs[0].ref).toBe('s0.tb0.p0')
+    expect(section.textBoxes[1].paragraphs[0].ref).toBe('s0.tb1.p0')
+    expect(section.textBoxes[0].paragraphs[0].runs[0].text).toBe('TB-1')
+    expect(section.textBoxes[1].paragraphs[0].runs[0].text).toBe('TB-2')
+  })
+
+  it('creates empty text box when list header has no paragraphs', async () => {
+    const filePath = '/tmp/test-hwp-textbox-empty.hwp'
+    TMP_FILES.push(filePath)
+
+    const sectionRecords = Buffer.concat([
+      buildRecord(TAG.CTRL_HEADER, 1, Buffer.from('gso ', 'ascii')),
+      buildRecord(TAG.SHAPE_COMPONENT, 2, shapeComponentSubtypeData('$rec', 100, 50)),
+      buildRecord(TAG.SHAPE_COMPONENT_RECTANGLE, 3, Buffer.alloc(0)),
+      buildRecord(TAG.LIST_HEADER, 2, Buffer.alloc(0)),
+      paragraphRecord(0, 'After empty textbox'),
+    ])
+
+    const buffer = createHwpCfbBufferWithRecords(0, Buffer.alloc(0), sectionRecords)
+    await Bun.write(filePath, buffer)
+
+    const doc = await loadHwp(filePath)
+    const section = doc.sections[0]
+
+    expect(section.textBoxes).toHaveLength(1)
+    expect(section.textBoxes[0].ref).toBe('s0.tb0')
+    expect(section.textBoxes[0].paragraphs).toEqual([])
+    expect(section.paragraphs[0].runs[0].text).toBe('After empty textbox')
+  })
+
+  it('parses text box that appears after a table without regressing table parsing', async () => {
+    const filePath = '/tmp/test-hwp-table-then-textbox.hwp'
+    TMP_FILES.push(filePath)
+
+    const sectionRecords = Buffer.concat([
+      paragraphRecord(0, 'Before table'),
+      buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)),
+      buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x000b, 0x0000])),
+      buildRecord(TAG.CTRL_HEADER, 1, Buffer.from('tbl ', 'ascii')),
+      buildRecord(TAG.TABLE, 2, tableData(1, 1)),
+      cellRecord(2, 'CELL'),
+      buildRecord(TAG.CTRL_HEADER, 1, Buffer.from('gso ', 'ascii')),
+      buildRecord(TAG.SHAPE_COMPONENT, 2, shapeComponentSubtypeData('$rec', 180, 90)),
+      buildRecord(TAG.SHAPE_COMPONENT_RECTANGLE, 3, Buffer.alloc(0)),
+      buildRecord(TAG.LIST_HEADER, 2, Buffer.alloc(0)),
+      paragraphRecord(3, 'TB-AFTER-TABLE'),
+      paragraphRecord(0, 'After textbox'),
+    ])
+
+    const buffer = createHwpCfbBufferWithRecords(0, Buffer.alloc(0), sectionRecords)
+    await Bun.write(filePath, buffer)
+
+    const doc = await loadHwp(filePath)
+    const section = doc.sections[0]
+
+    expect(section.tables).toHaveLength(1)
+    expect(section.tables[0].rows[0].cells[0].paragraphs[0].runs[0].text).toBe('CELL')
+
+    expect(section.textBoxes).toHaveLength(1)
+    expect(section.textBoxes[0].ref).toBe('s0.tb0')
+    expect(section.textBoxes[0].paragraphs[0].runs[0].text).toBe('TB-AFTER-TABLE')
+
+    const paragraphTexts = section.paragraphs.map((paragraph) => paragraph.runs.map((run) => run.text).join(''))
+    expect(paragraphTexts).toContain('Before table')
+    expect(paragraphTexts).toContain('After textbox')
+    expect(paragraphTexts).not.toContain('CELL')
+    expect(paragraphTexts).not.toContain('TB-AFTER-TABLE')
+  })
+
   it('parses paraShapeRef and styleRef from PARA_HEADER record data', async () => {
     const filePath = '/tmp/test-hwp-para-shape-ref.hwp'
     TMP_FILES.push(filePath)
@@ -232,6 +359,15 @@ function shapeComponentData(width: number, height: number): Buffer {
   const data = Buffer.alloc(32)
   data.writeUInt32LE(0x24706963, 0)
   data.writeUInt32LE(0x24706963, 4)
+  data.writeInt32LE(width, 20)
+  data.writeInt32LE(height, 24)
+  return data
+}
+
+function shapeComponentSubtypeData(subtype: '$pic' | '$rec', width: number, height: number): Buffer {
+  const data = Buffer.alloc(32)
+  data.write(subtype, 0, 'ascii')
+  data.write(subtype, 4, 'ascii')
   data.writeInt32LE(width, 20)
   data.writeInt32LE(height, 24)
   return data
