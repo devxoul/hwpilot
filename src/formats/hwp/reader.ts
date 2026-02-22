@@ -363,14 +363,14 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
   for (const { header, data } of iterateRecords(buffer)) {
     flushParagraphsAbove(header.level)
 
-    if (activeTextBox && header.level <= activeTextBox.level && header.tagId !== TAG.LIST_HEADER) {
+    if (activeTextBox && header.level < activeTextBox.level && header.tagId !== TAG.LIST_HEADER) {
       activeTextBox = null
       if (activeCell?.target === 'textBox') {
         activeCell = null
       }
     }
 
-    if (activeTable && header.level <= activeTable.level && header.tagId !== TAG.LIST_HEADER) {
+    if (activeTable && header.level < activeTable.level && header.tagId !== TAG.LIST_HEADER) {
       activeTable = null
       activeCell = null
     }
