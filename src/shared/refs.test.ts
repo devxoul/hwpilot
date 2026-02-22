@@ -92,3 +92,47 @@ describe('buildRef', () => {
     expect(buildRef({ section: 0, image: 0 })).toBe('s0.img0')
   })
 })
+
+describe('parseRef - text box refs', () => {
+  it('parses text box ref', () => {
+    expect(parseRef('s0.tb0')).toEqual({ section: 0, textBox: 0 })
+    expect(parseRef('s1.tb2')).toEqual({ section: 1, textBox: 2 })
+  })
+
+  it('parses text box paragraph ref', () => {
+    expect(parseRef('s0.tb0.p0')).toEqual({ section: 0, textBox: 0, textBoxParagraph: 0 })
+    expect(parseRef('s0.tb2.p1')).toEqual({ section: 0, textBox: 2, textBoxParagraph: 1 })
+  })
+
+  it('throws for invalid text box ref', () => {
+    expect(() => parseRef('s0.tb')).toThrow() // no index
+    expect(() => parseRef('s0.tb0.r0')).toThrow() // invalid — no run notation for text boxes
+  })
+})
+
+describe('validateRef - text box refs', () => {
+  it('returns true for valid text box refs', () => {
+    expect(validateRef('s0.tb0')).toBe(true)
+    expect(validateRef('s0.tb2')).toBe(true)
+    expect(validateRef('s0.tb0.p0')).toBe(true)
+    expect(validateRef('s0.tb0.p1')).toBe(true)
+  })
+
+  it('returns false for invalid text box refs', () => {
+    expect(validateRef('s0.tb')).toBe(false) // no index
+    expect(validateRef('s0.tb0.r0')).toBe(false) // invalid — no run notation for text boxes
+    expect(validateRef('s0.tb-1')).toBe(false) // negative
+  })
+})
+
+describe('buildRef - text box refs', () => {
+  it('builds text box ref', () => {
+    expect(buildRef({ section: 0, textBox: 0 })).toBe('s0.tb0')
+    expect(buildRef({ section: 1, textBox: 3 })).toBe('s1.tb3')
+  })
+
+  it('builds text box paragraph ref', () => {
+    expect(buildRef({ section: 0, textBox: 0, textBoxParagraph: 0 })).toBe('s0.tb0.p0')
+    expect(buildRef({ section: 1, textBox: 3, textBoxParagraph: 2 })).toBe('s1.tb3.p2')
+  })
+})

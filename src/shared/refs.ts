@@ -7,9 +7,12 @@ export type ParsedRef = {
   cell?: number
   cellParagraph?: number
   image?: number
+  textBox?: number
+  textBoxParagraph?: number
 }
 
-const REF_PATTERN = /^s(\d+)(?:\.(?:p(\d+)(?:\.r(\d+))?|t(\d+)(?:\.r(\d+)\.c(\d+)(?:\.p(\d+))?)?|img(\d+)))?$/
+const REF_PATTERN =
+  /^s(\d+)(?:\.(?:p(\d+)(?:\.r(\d+))?|t(\d+)(?:\.r(\d+)\.c(\d+)(?:\.p(\d+))?)?|img(\d+)|tb(\d+)(?:\.p(\d+))?))?$/
 
 export function validateRef(ref: string): boolean {
   if (!ref || typeof ref !== 'string') {
@@ -60,6 +63,14 @@ export function parseRef(ref: string): ParsedRef {
     result.image = parseInt(match[8], 10)
   }
 
+  if (match[9] !== undefined) {
+    result.textBox = parseInt(match[9], 10)
+  }
+
+  if (match[10] !== undefined) {
+    result.textBoxParagraph = parseInt(match[10], 10)
+  }
+
   return result
 }
 
@@ -75,6 +86,11 @@ export function buildRef(parts: ParsedRef): string {
       if (parts.cellParagraph !== undefined) {
         ref += `.p${parts.cellParagraph}`
       }
+    }
+  } else if (parts.textBox !== undefined) {
+    ref += `.tb${parts.textBox}`
+    if (parts.textBoxParagraph !== undefined) {
+      ref += `.p${parts.textBoxParagraph}`
     }
   } else if (parts.paragraph !== undefined) {
     ref += `.p${parts.paragraph}`
