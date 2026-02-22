@@ -237,6 +237,80 @@ describe('readCommand', () => {
   })
 })
 
+describe('readCommand — text box support', () => {
+  const TEST_TB_FILE = '/tmp/test-read-textbox.hwpx'
+
+  beforeAll(async () => {
+    const buffer = await createTestHwpx({
+      paragraphs: ['Normal paragraph'],
+      textBoxes: [{ text: 'TextBox content' }],
+    })
+    await Bun.write(TEST_TB_FILE, buffer)
+  })
+
+  it('resolves text box ref s0.tb0', async () => {
+    captureOutput()
+    await readCommand(TEST_TB_FILE, 's0.tb0', {})
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.ref).toBe('s0.tb0')
+    expect(output.paragraphs).toHaveLength(1)
+    expect(output.paragraphs[0].runs[0].text).toBe('TextBox content')
+  })
+
+  it('resolves text box paragraph ref s0.tb0.p0', async () => {
+    captureOutput()
+    await readCommand(TEST_TB_FILE, 's0.tb0.p0', {})
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.ref).toContain('s0.tb0')
+    expect(output.runs[0].text).toBe('TextBox content')
+  })
+
+  it('includes textBoxes in section output', async () => {
+    captureOutput()
+    await readCommand(TEST_TB_FILE, undefined, {})
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    const section = output.sections[0]
+    expect(section.textBoxes).toBeDefined()
+    expect(section.textBoxes).toHaveLength(1)
+    expect(section.textBoxes[0].ref).toBe('s0.tb0')
+  })
+
+  it('includes totalTextBoxes in paginated mode', async () => {
+    captureOutput()
+    await readCommand(TEST_TB_FILE, undefined, { offset: 0, limit: 10 })
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    const section = output.sections[0]
+    expect(section.totalTextBoxes).toBe(1)
+  })
+
+  it('errors for nonexistent text box', async () => {
+    captureOutput()
+    await expect(readCommand(TEST_TB_FILE, 's0.tb5', {})).rejects.toThrow('process.exit')
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.error).toContain('not found')
+  })
+
+  it('includes textBoxes in section ref resolution', async () => {
+    captureOutput()
+    await readCommand(TEST_TB_FILE, 's0', {})
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.textBoxes).toBeDefined()
+    expect(output.textBoxes).toHaveLength(1)
+  })
+})
+
 function createMinimalHwp(): Buffer {
   const cfb = CFB.utils.cfb_new()
   const fileHeader = Buffer.alloc(256)

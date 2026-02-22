@@ -40,10 +40,12 @@ export async function readCommand(file: string, ref: string | undefined, options
             totalParagraphs: section.paragraphs.length,
             totalTables: section.tables.length,
             totalImages: section.images.length,
+            totalTextBoxes: section.textBoxes.length,
           }),
           paragraphs,
           tables: section.tables,
           images: section.images,
+          textBoxes: section.textBoxes,
         }
       }),
       header: doc.header,
@@ -81,6 +83,19 @@ function resolveRef(ref: string, sections: Section[]): unknown {
     return image
   }
 
+  if (parsed.textBox !== undefined) {
+    const textBox = section.textBoxes[parsed.textBox]
+    if (!textBox) throw new Error(`TextBox ${ref} not found`)
+
+    if (parsed.textBoxParagraph !== undefined) {
+      const para = textBox.paragraphs[parsed.textBoxParagraph]
+      if (!para) throw new Error(`Paragraph ${ref} not found`)
+      return para
+    }
+
+    return textBox
+  }
+
   if (parsed.table !== undefined) {
     const table = section.tables[parsed.table]
     if (!table) throw new Error(`Table ${ref} not found`)
@@ -114,5 +129,6 @@ function resolveRef(ref: string, sections: Section[]): unknown {
     paragraphs: section.paragraphs,
     tables: section.tables,
     images: section.images,
+    textBoxes: section.textBoxes,
   }
 }
