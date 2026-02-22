@@ -1,5 +1,5 @@
 import { describe, it } from 'bun:test'
-import type { DocumentHeader, HwpDocument, Image, Section, Table } from './types'
+import type { DocumentHeader, HwpDocument, Image, Section, Table, TextBox } from './types'
 
 describe('types', () => {
   it('HwpDocument type is correct', () => {
@@ -29,6 +29,7 @@ describe('types', () => {
       ],
       tables: [],
       images: [],
+      textBoxes: [],
     }
     void section
   })
@@ -71,5 +72,20 @@ describe('types', () => {
       styles: [{ id: 0, name: 'Normal', charShapeRef: 0, paraShapeRef: 0 }],
     }
     void header
+  })
+
+  it('TextBox type is correct', () => {
+    const textBox: TextBox = {
+      ref: 's0.tb0',
+      paragraphs: [
+        {
+          ref: 's0.tb0.p0',
+          runs: [{ text: 'text in box', charShapeRef: 0 }],
+          paraShapeRef: 0,
+          styleRef: 0,
+        },
+      ],
+    }
+    void textBox
   })
 })

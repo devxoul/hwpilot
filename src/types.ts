@@ -43,6 +43,7 @@ export type Section = {
   paragraphs: Paragraph[]
   tables: Table[]
   images: Image[]
+  textBoxes: TextBox[]
 }
 
 export type Paragraph = {
@@ -79,4 +80,9 @@ export type Image = {
   width: number
   height: number
   format: string
+}
+
+export type TextBox = {
+  ref: string
+  paragraphs: Paragraph[]
 }
