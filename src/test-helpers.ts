@@ -14,10 +14,15 @@ export type TestImage = {
   format: string
 }
 
+export type TestTextBox = {
+  text: string
+}
+
 export type TestHwpxOptions = {
   paragraphs?: string[]
   tables?: TestTable[]
   images?: TestImage[]
+  textBoxes?: TestTextBox[]
   font?: string
   fontSize?: number
 }
@@ -25,6 +30,7 @@ export type TestHwpxOptions = {
 export type TestHwpOptions = {
   paragraphs?: string[]
   tables?: TestTable[]
+  textBoxes?: TestTextBox[]
   compressed?: boolean
 }
 
@@ -34,6 +40,7 @@ export async function createTestHwpx(opts: TestHwpxOptions = {}): Promise<Buffer
   const paragraphs = opts.paragraphs ?? ['']
   const tables = opts.tables ?? []
   const images = opts.images ?? []
+  const textBoxes = opts.textBoxes ?? []
   const fontName = opts.font ?? '맑은 고딕'
   const fontHeight = opts.fontSize ?? 1000
 
@@ -132,6 +139,20 @@ export async function createTestHwpx(opts: TestHwpxOptions = {}): Promise<Buffer
     </hp:pic>`
   })
 
+  textBoxes.forEach((tb) => {
+    sectionContent += `
+    <hp:rect xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+      <hp:drawText lastWidth="0" editable="true">
+        <hp:textMargin left="0" right="0" top="0" bottom="0"/>
+        <hp:subList>
+          <hp:p hp:id="0" hp:paraPrIDRef="0" hp:styleIDRef="0">
+            <hp:run hp:charPrIDRef="0"><hp:t>${escapeXml(tb.text)}</hp:t></hp:run>
+          </hp:p>
+        </hp:subList>
+      </hp:drawText>
+    </hp:rect>`
+  })
+
   zip.file(
     'Contents/section0.xml',
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -148,10 +169,11 @@ export async function createTestHwpx(opts: TestHwpxOptions = {}): Promise<Buffer
 export async function createTestHwpBinary(opts: TestHwpOptions = {}): Promise<Buffer> {
   const paragraphs = opts.paragraphs ?? []
   const tables = opts.tables ?? []
+  const textBoxes = opts.textBoxes ?? []
   const compressed = opts.compressed ?? false
 
   const docInfo = buildDocInfoStream()
-  const section0 = buildSection0Stream(paragraphs, tables)
+  const section0 = buildSection0Stream(paragraphs, tables, textBoxes)
 
   const cfb = CFB.utils.cfb_new()
   CFB.utils.cfb_add(cfb, 'FileHeader', createHwpFileHeader(compressed))
@@ -215,7 +237,7 @@ function buildDocInfoStream(): Buffer {
   ])
 }
 
-function buildSection0Stream(paragraphs: string[], tables: TestTable[]): Buffer {
+function buildSection0Stream(paragraphs: string[], tables: TestTable[], textBoxes: TestTextBox[]): Buffer {
   const records: Buffer[] = []
 
   for (const paragraph of paragraphs) {
@@ -238,6 +260,10 @@ function buildSection0Stream(paragraphs: string[], tables: TestTable[]): Buffer 
         records.push(buildRecord(TAG.PARA_TEXT, 3, cellTextData))
       }
     }
+  }
+
+  for (const textBox of textBoxes) {
+    records.push(buildTextBoxRecord(1, textBox.text))
   }
 
   return Buffer.concat(records)
@@ -288,4 +314,27 @@ function encodeUint16(values: number[]): Buffer {
     output.writeUInt16LE(value, index * 2)
   }
   return output
+}
+
+function buildTextBoxRecord(level: number, text: string): Buffer {
+  const textData = Buffer.from(text, 'utf16le')
+  const nChars = textData.length / 2
+
+  const paraHeader = Buffer.alloc(24)
+  paraHeader.writeUInt32LE(nChars, 0)
+
+  const shapeComponentData = Buffer.alloc(32)
+  shapeComponentData.write('$rec', 0, 'ascii')
+  shapeComponentData.write('$rec', 4, 'ascii')
+  shapeComponentData.writeInt32LE(200, 20)
+  shapeComponentData.writeInt32LE(100, 24)
+
+  return Buffer.concat([
+    buildRecord(TAG.CTRL_HEADER, level, Buffer.from('gso ', 'ascii')),
+    buildRecord(TAG.SHAPE_COMPONENT, level + 1, shapeComponentData),
+    buildRecord(TAG.SHAPE_COMPONENT_RECTANGLE, level + 2, Buffer.alloc(0)),
+    buildRecord(TAG.LIST_HEADER, level + 1, Buffer.alloc(0)),
+    buildRecord(TAG.PARA_HEADER, level + 2, paraHeader),
+    buildRecord(TAG.PARA_TEXT, level + 3, textData),
+  ])
 }
