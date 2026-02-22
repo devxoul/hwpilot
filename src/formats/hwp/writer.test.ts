@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import CFB from 'cfb'
-import { createTestHwpBinary } from '../../test-helpers'
+import { buildMergedTable, createTestHwpBinary, createTestHwpCfb } from '../../test-helpers'
+import { controlIdBuffer } from './control-id'
 import { loadHwp } from './reader'
 import { iterateRecords } from './record-parser'
+import { buildRecord } from './record-serializer'
 import { decompressStream, getCompressionFlag } from './stream-util'
 import { TAG } from './tag-ids'
 import { editHwp } from './writer'
@@ -250,6 +252,46 @@ describe('editHwp', () => {
     expect(doc.sections[0].tables[0].rows[1].cells[1].paragraphs[0].runs[0].text).toBe('Changed')
   })
 
+  it('setTableCell matches merged cells by parsed LIST_HEADER address', async () => {
+    const filePath = tmpPath('writer-table-cell-merged-address')
+    TMP_FILES.push(filePath)
+    const mergedTable = buildMergedTable(
+      [
+        [
+          { text: 'LEFT', col: 0, row: 0, colSpan: 2 },
+          { text: 'RIGHT', col: 2, row: 0 },
+        ],
+      ],
+      3,
+      1,
+    )
+    const fixture = await createTestHwpBinaryWithSection0(mergedTable)
+    await Bun.write(filePath, fixture)
+
+    await editHwp(filePath, [{ type: 'setTableCell', ref: 's0.t0.r0.c2', text: 'EDITED' }])
+
+    const section = await getSectionBuffer(filePath, 0)
+    const cells = collectTableCellTexts(section)
+    expect(cells).toHaveLength(2)
+    expect(cells[0]).toEqual({ col: 0, row: 0, text: 'LEFT' })
+    expect(cells[1]).toEqual({ col: 2, row: 0, text: 'EDITED' })
+  })
+
+  it('setTableCell falls back to sequential cell matching when LIST_HEADER is empty', async () => {
+    const filePath = tmpPath('writer-table-cell-empty-list-header')
+    TMP_FILES.push(filePath)
+    const fixture = await createTestHwpBinaryWithSection0(buildTableWithEmptyListHeaders(['A', 'B']))
+    await Bun.write(filePath, fixture)
+
+    await editHwp(filePath, [{ type: 'setTableCell', ref: 's0.t0.r0.c1', text: 'EDITED' }])
+
+    const section = await getSectionBuffer(filePath, 0)
+    const cells = collectTableCellTexts(section)
+    expect(cells).toHaveLength(2)
+    expect(cells[0].text).toBe('A')
+    expect(cells[1].text).toBe('EDITED')
+  })
+
   it('setTableCell throws descriptive error for missing table', async () => {
     const filePath = tmpPath('writer-table-cell-missing-table')
     TMP_FILES.push(filePath)
@@ -417,4 +459,72 @@ function readParaHeaderAndTextLength(stream: Buffer, paragraphIndex: number): { 
   }
 
   throw new Error(`Paragraph ${paragraphIndex} not found`)
+}
+
+async function createTestHwpBinaryWithSection0(section0: Buffer): Promise<Buffer> {
+  const base = createTestHwpCfb()
+  const cfb = CFB.read(base, { type: 'buffer' })
+  CFB.utils.cfb_add(cfb, '/BodyText/Section0', section0)
+  return Buffer.from(CFB.write(cfb, { type: 'buffer' }))
+}
+
+function buildTableWithEmptyListHeaders(cells: string[]): Buffer {
+  const records: Buffer[] = []
+  const tableData = Buffer.alloc(8)
+  tableData.writeUInt16LE(1, 4)
+  tableData.writeUInt16LE(cells.length, 6)
+
+  records.push(buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)))
+  records.push(buildRecord(TAG.PARA_TEXT, 1, Buffer.from([0x0b, 0x00])))
+  records.push(buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')))
+  records.push(buildRecord(TAG.TABLE, 2, tableData))
+
+  for (const cellText of cells) {
+    const cellTextData = Buffer.from(cellText, 'utf16le')
+    const cellParaHeader = Buffer.alloc(24)
+    cellParaHeader.writeUInt32LE((0x80000000 | (cellTextData.length / 2)) >>> 0, 0)
+    records.push(buildRecord(TAG.LIST_HEADER, 2, Buffer.alloc(0)))
+    records.push(buildRecord(TAG.PARA_HEADER, 3, cellParaHeader))
+    records.push(buildRecord(TAG.PARA_TEXT, 3, cellTextData))
+  }
+
+  return Buffer.concat(records)
+}
+
+function collectTableCellTexts(stream: Buffer): Array<{ col: number | null; row: number | null; text: string }> {
+  const cells: Array<{ col: number | null; row: number | null; text: string }> = []
+  let currentCol: number | null = null
+  let currentRow: number | null = null
+
+  for (const { header, data } of iterateRecords(stream)) {
+    if (header.tagId === TAG.LIST_HEADER && header.level === 2) {
+      const address = parseCellAddressForTest(data)
+      currentCol = address?.col ?? null
+      currentRow = address?.row ?? null
+      continue
+    }
+
+    if (header.tagId === TAG.PARA_TEXT && header.level === 3 && currentCol !== null && currentRow !== null) {
+      cells.push({ col: currentCol, row: currentRow, text: data.toString('utf16le') })
+      continue
+    }
+
+    if (header.tagId === TAG.PARA_TEXT && header.level === 3 && currentCol === null && currentRow === null) {
+      cells.push({ col: null, row: null, text: data.toString('utf16le') })
+    }
+  }
+
+  return cells
+}
+
+function parseCellAddressForTest(data: Buffer): { col: number; row: number } | null {
+  const commonHeaderSize = data.length === 30 ? 6 : 8
+  if (data.length < commonHeaderSize + 4) {
+    return null
+  }
+
+  return {
+    col: data.readUInt16LE(commonHeaderSize),
+    row: data.readUInt16LE(commonHeaderSize + 2),
+  }
 }

@@ -279,6 +279,8 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
     rowCount: number
     colCount: number
     nextCellIndex: number
+    currentCellCol: number
+    currentCellRow: number
   } | null = null
   let activeCell: {
     paragraphLevel: number
@@ -313,8 +315,8 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
         ref: buildRef({
           section: sectionIndex,
           table: activeTable.tableIndex,
-          row: Math.floor((activeTable.nextCellIndex - 1) / activeTable.colCount),
-          cell: (activeTable.nextCellIndex - 1) % activeTable.colCount,
+          row: activeTable.currentCellRow,
+          cell: activeTable.currentCellCol,
           cellParagraph: destination.length,
         }),
         runs: paragraph.runs,
@@ -368,12 +370,7 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
       }
     }
 
-    if (
-      activeTable &&
-      activeTable.nextCellIndex >= activeTable.rowCount * activeTable.colCount &&
-      header.level <= activeTable.level &&
-      header.tagId !== TAG.LIST_HEADER
-    ) {
+    if (activeTable && header.level <= activeTable.level && header.tagId !== TAG.LIST_HEADER) {
       activeTable = null
       activeCell = null
     }
@@ -439,10 +436,10 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
       header.tagId === TAG.TABLE &&
       pendingTableControlLevel !== null &&
       header.level === pendingTableControlLevel + 1 &&
-      data.length >= 6
+      data.length >= 8
     ) {
-      const rowCount = data.readUInt16LE(2)
-      const colCount = data.readUInt16LE(4)
+      const rowCount = data.readUInt16LE(4)
+      const colCount = data.readUInt16LE(6)
       const tableIndex = tables.length
       const rows = Array.from({ length: rowCount }, () => ({
         cells: [] as NonNullable<Table['rows'][number]['cells']>,
@@ -459,6 +456,8 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
         rowCount,
         colCount,
         nextCellIndex: 0,
+        currentCellCol: 0,
+        currentCellRow: 0,
       }
       activeCell = null
       pendingTableControlLevel = null
@@ -466,27 +465,39 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
     }
 
     if (header.tagId === TAG.LIST_HEADER && activeTable && header.level === activeTable.level) {
-      const cellIndex = activeTable.nextCellIndex
       activeTable.nextCellIndex += 1
+      const parsed = parseCellAddress(data)
+      const fallbackCellIndex = activeTable.nextCellIndex - 1
+      const rowIndex = parsed
+        ? parsed.row
+        : activeTable.colCount > 0
+          ? Math.floor(fallbackCellIndex / activeTable.colCount)
+          : 0
+      const colIndex = parsed
+        ? parsed.col
+        : activeTable.colCount > 0
+          ? fallbackCellIndex % activeTable.colCount
+          : fallbackCellIndex
+      const colSpan = parsed?.colSpan ?? 1
+      const rowSpan = parsed?.rowSpan ?? 1
 
-      if (activeTable.colCount > 0) {
-        const rowIndex = Math.floor(cellIndex / activeTable.colCount)
-        const colIndex = cellIndex % activeTable.colCount
-        const cellParagraphs: Paragraph[] = []
+      activeTable.currentCellCol = colIndex
+      activeTable.currentCellRow = rowIndex
 
-        if (rowIndex < activeTable.rowCount) {
-          tables[activeTable.tableIndex].rows[rowIndex].cells.push({
-            ref: buildRef({ section: sectionIndex, table: activeTable.tableIndex, row: rowIndex, cell: colIndex }),
-            paragraphs: cellParagraphs,
-            colSpan: 1,
-            rowSpan: 1,
-          })
+      const cellParagraphs: Paragraph[] = []
 
-          activeCell = {
-            paragraphLevel: header.level + 1,
-            paragraphs: cellParagraphs,
-            target: 'table',
-          }
+      if (rowIndex < activeTable.rowCount) {
+        tables[activeTable.tableIndex].rows[rowIndex].cells.push({
+          ref: buildRef({ section: sectionIndex, table: activeTable.tableIndex, row: rowIndex, cell: colIndex }),
+          paragraphs: cellParagraphs,
+          colSpan,
+          rowSpan,
+        })
+
+        activeCell = {
+          paragraphLevel: header.level + 1,
+          paragraphs: cellParagraphs,
+          target: 'table',
         }
       }
       continue
@@ -595,6 +606,20 @@ function readUtf16LengthPrefixed(data: Buffer, offset: number): string {
   }
 
   return data.subarray(textStart, textEnd).toString('utf16le')
+}
+
+function parseCellAddress(data: Buffer): { col: number; row: number; colSpan: number; rowSpan: number } | null {
+  const commonHeaderSize = data.length === 30 ? 6 : 8
+  if (data.length < commonHeaderSize + 8) {
+    return null
+  }
+
+  return {
+    col: data.readUInt16LE(commonHeaderSize),
+    row: data.readUInt16LE(commonHeaderSize + 2),
+    colSpan: data.readUInt16LE(commonHeaderSize + 4),
+    rowSpan: data.readUInt16LE(commonHeaderSize + 6),
+  }
 }
 
 function parseShapeSize(data: Buffer): { width: number; height: number } | null {

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'bun:test'
 import CFB from 'cfb'
+import { buildCellListHeaderData, buildMergedTable } from '../../test-helpers'
 import { controlIdBuffer } from './control-id'
 import { extractParaText, loadHwp } from './reader'
 import { buildRecord } from './record-serializer'
@@ -49,10 +50,10 @@ describe('loadHwp', () => {
       buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x000b, 0x0000])),
       buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')),
       buildRecord(TAG.TABLE, 2, tableData(2, 2)),
-      cellRecord(2, 'A1'),
-      cellRecord(2, 'A2'),
-      cellRecord(2, 'B1'),
-      cellRecord(2, 'B2'),
+      cellRecord(2, 'A1', 0, 0),
+      cellRecord(2, 'A2', 1, 0),
+      cellRecord(2, 'B1', 0, 1),
+      cellRecord(2, 'B2', 1, 1),
       paragraphRecord(0, 'After table'),
     ])
 
@@ -78,6 +79,116 @@ describe('loadHwp', () => {
     expect(paragraphTexts).not.toContain('A2')
     expect(paragraphTexts).not.toContain('B1')
     expect(paragraphTexts).not.toContain('B2')
+  })
+
+  it('parses merged cell with colSpan from LIST_HEADER data', async () => {
+    const filePath = '/tmp/test-hwp-table-merged-colspan.hwp'
+    TMP_FILES.push(filePath)
+
+    const sectionRecords = Buffer.concat([
+      buildMergedTable(
+        [
+          [
+            { text: 'A1-A2', col: 0, row: 0, colSpan: 2, rowSpan: 1 },
+            { text: 'A3', col: 2, row: 0, colSpan: 1, rowSpan: 1 },
+          ],
+        ],
+        3,
+        1,
+      ),
+      paragraphRecord(0, 'After merged table'),
+    ])
+
+    const buffer = createHwpCfbBufferWithRecords(0, Buffer.alloc(0), sectionRecords)
+    await Bun.write(filePath, buffer)
+
+    const doc = await loadHwp(filePath)
+    const row = doc.sections[0].tables[0].rows[0]
+
+    expect(row.cells).toHaveLength(2)
+    expect(row.cells[0].colSpan).toBe(2)
+    expect(row.cells[0].ref).toBe('s0.t0.r0.c0')
+    expect(row.cells[1].colSpan).toBe(1)
+    expect(row.cells[1].ref).toBe('s0.t0.r0.c2')
+  })
+
+  it('falls back to sequential cell addressing when LIST_HEADER data is empty', async () => {
+    const filePath = '/tmp/test-hwp-table-empty-list-header.hwp'
+    TMP_FILES.push(filePath)
+
+    const sectionRecords = Buffer.concat([
+      buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)),
+      buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x000b, 0x0000])),
+      buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')),
+      buildRecord(TAG.TABLE, 2, tableData(1, 3)),
+      buildRecord(TAG.LIST_HEADER, 2, Buffer.alloc(0)),
+      paragraphRecord(3, 'A1'),
+      buildRecord(TAG.LIST_HEADER, 2, Buffer.alloc(0)),
+      paragraphRecord(3, 'A2'),
+      buildRecord(TAG.LIST_HEADER, 2, Buffer.alloc(0)),
+      paragraphRecord(3, 'A3'),
+    ])
+
+    const buffer = createHwpCfbBufferWithRecords(0, Buffer.alloc(0), sectionRecords)
+    await Bun.write(filePath, buffer)
+
+    const doc = await loadHwp(filePath)
+    const cells = doc.sections[0].tables[0].rows[0].cells
+
+    expect(cells).toHaveLength(3)
+    expect(cells[0].ref).toBe('s0.t0.r0.c0')
+    expect(cells[1].ref).toBe('s0.t0.r0.c1')
+    expect(cells[2].ref).toBe('s0.t0.r0.c2')
+  })
+
+  it('populates colSpan and rowSpan from LIST_HEADER', async () => {
+    const filePath = '/tmp/test-hwp-table-colspan-rowspan.hwp'
+    TMP_FILES.push(filePath)
+
+    const sectionRecords = Buffer.concat([
+      buildMergedTable([[{ text: 'Merged', col: 0, row: 0, colSpan: 3, rowSpan: 2 }]], 3, 2),
+      paragraphRecord(0, 'After table'),
+    ])
+
+    const buffer = createHwpCfbBufferWithRecords(0, Buffer.alloc(0), sectionRecords)
+    await Bun.write(filePath, buffer)
+
+    const doc = await loadHwp(filePath)
+    const cell = doc.sections[0].tables[0].rows[0].cells[0]
+
+    expect(cell.colSpan).toBe(3)
+    expect(cell.rowSpan).toBe(2)
+  })
+
+  it('completes table parsing by level even when merged cells reduce LIST_HEADER count', async () => {
+    const filePath = '/tmp/test-hwp-table-completion-merged.hwp'
+    TMP_FILES.push(filePath)
+
+    const sectionRecords = Buffer.concat([
+      buildMergedTable(
+        [
+          [{ text: 'Top merged', col: 0, row: 0, colSpan: 2, rowSpan: 1 }],
+          [{ text: 'Bottom merged', col: 0, row: 1, colSpan: 2, rowSpan: 1 }],
+        ],
+        2,
+        2,
+      ),
+      paragraphRecord(0, 'After merged table'),
+    ])
+
+    const buffer = createHwpCfbBufferWithRecords(0, Buffer.alloc(0), sectionRecords)
+    await Bun.write(filePath, buffer)
+
+    const doc = await loadHwp(filePath)
+    const section = doc.sections[0]
+
+    expect(section.tables).toHaveLength(1)
+    expect(section.tables[0].rows[0].cells[0].paragraphs[0].runs[0].text).toBe('Top merged')
+    expect(section.tables[0].rows[1].cells[0].paragraphs[0].runs[0].text).toBe('Bottom merged')
+    const paragraphTexts = section.paragraphs.map((paragraph) => paragraph.runs.map((run) => run.text).join(''))
+    expect(paragraphTexts).toContain('After merged table')
+    expect(paragraphTexts).not.toContain('Top merged')
+    expect(paragraphTexts).not.toContain('Bottom merged')
   })
 
   it('returns empty table list when no tbl control exists', async () => {
@@ -336,14 +447,17 @@ function paragraphRecord(level: number, text: string): Buffer {
 }
 
 function tableData(rows: number, cols: number): Buffer {
-  const data = Buffer.alloc(6)
-  data.writeUInt16LE(rows, 2)
-  data.writeUInt16LE(cols, 4)
+  const data = Buffer.alloc(8)
+  data.writeUInt16LE(rows, 4)
+  data.writeUInt16LE(cols, 6)
   return data
 }
 
-function cellRecord(level: number, text: string): Buffer {
-  return Buffer.concat([buildRecord(TAG.LIST_HEADER, level, Buffer.alloc(0)), paragraphRecord(level + 1, text)])
+function cellRecord(level: number, text: string, col = 0, row = 0, colSpan = 1, rowSpan = 1): Buffer {
+  return Buffer.concat([
+    buildRecord(TAG.LIST_HEADER, level, buildCellListHeaderData(col, row, colSpan, rowSpan)),
+    paragraphRecord(level + 1, text),
+  ])
 }
 
 function binDataRecord(binId: number, extension: string): Buffer {

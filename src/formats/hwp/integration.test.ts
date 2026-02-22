@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'bun:test'
 import { readFile, unlink, writeFile } from 'node:fs/promises'
 import CFB from 'cfb'
-import { createTestHwpBinary } from '../../test-helpers'
+import { buildMergedTable, createTestHwpBinary, type MergedTableRow } from '../../test-helpers'
 import { loadHwp } from './reader'
 import { iterateRecords } from './record-parser'
 import { decompressStream, getCompressionFlag } from './stream-util'
@@ -271,6 +271,61 @@ describe('HWP writer: error cases', () => {
     await expect(editHwp(file, [{ type: 'setFormat', ref: 's0.p99', format: { bold: true } }])).rejects.toThrow(
       /not found/,
     )
+  })
+})
+
+function createHwpFromSection(section0: Buffer): Buffer {
+  const cfb = CFB.utils.cfb_new()
+  const fileHeader = Buffer.alloc(256)
+  fileHeader.write('HWP Document File', 0, 'ascii')
+  fileHeader.writeUInt32LE(0x05040000, 32)
+  fileHeader.writeUInt32LE(0, 36)
+  CFB.utils.cfb_add(cfb, 'FileHeader', fileHeader)
+  CFB.utils.cfb_add(cfb, 'DocInfo', Buffer.alloc(0))
+  CFB.utils.cfb_add(cfb, 'BodyText/Section0', section0)
+  return Buffer.from(CFB.write(cfb, { type: 'buffer' }))
+}
+
+describe('HWP writer: merged-cell table round-trip', () => {
+  it('setTableCell on non-merged cell in colSpan table → read back → correct cell changed', async () => {
+    // given — 3-col, 1-row table: col=0 spans 2, col=2 is normal
+    const rows: MergedTableRow[] = [
+      [
+        { text: 'Merged', col: 0, row: 0, colSpan: 2, rowSpan: 1 },
+        { text: 'Normal', col: 2, row: 0, colSpan: 1, rowSpan: 1 },
+      ],
+    ]
+    const buf = createHwpFromSection(buildMergedTable(rows, 3, 1))
+    const file = tempPath()
+    await writeFile(file, buf)
+
+    // when
+    await editHwp(file, [{ type: 'setTableCell', ref: 's0.t0.r0.c2', text: 'EDITED' }])
+
+    // then
+    const doc = await loadHwp(file)
+    const table = doc.sections[0].tables[0]
+    expect(table.rows[0].cells[0].paragraphs[0].runs[0].text).toBe('Merged')
+    expect(table.rows[0].cells[1].paragraphs[0].runs[0].text).toBe('EDITED')
+  })
+
+  it('non-merged table round-trip still works (regression guard)', async () => {
+    // given
+    const buf = await createTestHwpBinary({
+      tables: [{ rows: [['A', 'B', 'C']] }],
+    })
+    const file = tempPath()
+    await writeFile(file, buf)
+
+    // when
+    await editHwp(file, [{ type: 'setTableCell', ref: 's0.t0.r0.c1', text: 'EDITED' }])
+
+    // then
+    const doc = await loadHwp(file)
+    const table = doc.sections[0].tables[0]
+    expect(table.rows[0].cells[0].paragraphs[0].runs[0].text).toBe('A')
+    expect(table.rows[0].cells[1].paragraphs[0].runs[0].text).toBe('EDITED')
+    expect(table.rows[0].cells[2].paragraphs[0].runs[0].text).toBe('C')
   })
 })
 

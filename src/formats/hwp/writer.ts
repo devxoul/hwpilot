@@ -22,6 +22,7 @@ type SectionTableCellOperation = {
   table: number
   row: number
   cell: number
+  paragraph?: number
   text: string
   ref: string
 }
@@ -78,7 +79,15 @@ export async function editHwp(filePath: string, operations: EditOperation[]): Pr
         continue
       }
 
-      stream = patchTableCellText(stream, operation.table, operation.row, operation.cell, operation.text, operation.ref)
+      stream = patchTableCellText(
+        stream,
+        operation.table,
+        operation.row,
+        operation.cell,
+        operation.paragraph ?? 0,
+        operation.text,
+        operation.ref,
+      )
     }
 
     CFB.utils.cfb_add(cfb, streamPath, compressed ? compressStream(stream) : stream)
@@ -132,6 +141,7 @@ function groupOperationsBySection(operations: EditOperation[]): Map<number, Sect
         table: ref.table,
         row: ref.row,
         cell: ref.cell,
+        paragraph: ref.cellParagraph,
         text: operation.text,
         ref: operation.ref,
       })
@@ -190,11 +200,24 @@ function patchParagraphText(stream: Buffer, operation: SectionTextOperation): Bu
   throw new Error(`Paragraph not found for reference: ${operation.ref}`)
 }
 
+function parseCellAddress(data: Buffer): { col: number; row: number } | null {
+  const commonHeaderSize = data.length === 30 ? 6 : 8
+  if (data.length < commonHeaderSize + 4) {
+    return null
+  }
+
+  return {
+    col: data.readUInt16LE(commonHeaderSize),
+    row: data.readUInt16LE(commonHeaderSize + 2),
+  }
+}
+
 function patchTableCellText(
   stream: Buffer,
   tableIndex: number,
   rowIndex: number,
   colIndex: number,
+  paragraph = 0,
   text: string,
   ref: string,
 ): Buffer {
@@ -202,9 +225,9 @@ function patchTableCellText(
   let tableFound = false
   let tableLevel: number | undefined
   let colCount: number | undefined
-  let targetCellIndex: number | undefined
   let cellCursor = -1
   let insideTargetCell = false
+  let paragraphCursor = -1
   let paraHeaderDataOffset: number | undefined
   let paraHeaderDataSize = 0
 
@@ -223,26 +246,27 @@ function patchTableCellText(
     }
 
     if (colCount === undefined && header.tagId === TAG.TABLE && header.level === tableLevel) {
-      if (data.length < 6) {
+      if (data.length < 8) {
         throw new Error(`Malformed TABLE record for reference: ${ref}`)
       }
-      colCount = data.readUInt16LE(4)
-      targetCellIndex = rowIndex * colCount + colIndex
-      continue
-    }
-
-    if (targetCellIndex === undefined) {
+      colCount = data.readUInt16LE(6)
       continue
     }
 
     if (header.tagId === TAG.LIST_HEADER && header.level === tableLevel) {
       cellCursor += 1
-      if (cellCursor > targetCellIndex && insideTargetCell) {
-        throw new Error(`Cell text not found for reference: ${ref}`)
+      const parsed = parseCellAddress(data)
+      if (parsed !== null) {
+        insideTargetCell = parsed.col === colIndex && parsed.row === rowIndex
+      } else if (colCount === undefined) {
+        insideTargetCell = false
+      } else {
+        const targetCellIndex = rowIndex * colCount + colIndex
+        insideTargetCell = cellCursor === targetCellIndex
       }
-      insideTargetCell = cellCursor === targetCellIndex
       paraHeaderDataOffset = undefined
       paraHeaderDataSize = 0
+      paragraphCursor = -1
       continue
     }
 
@@ -253,6 +277,11 @@ function patchTableCellText(
     }
 
     if (insideTargetCell && header.tagId === TAG.PARA_TEXT && header.level === tableLevel + 1) {
+      paragraphCursor += 1
+      if (paragraphCursor !== paragraph) {
+        continue
+      }
+
       const patchedData = buildPatchedParaText(data, text)
       const newStream = replaceRecordData(stream, offset, patchedData)
       updateParaHeaderNChars(newStream, paraHeaderDataOffset, paraHeaderDataSize, patchedData.length / 2)

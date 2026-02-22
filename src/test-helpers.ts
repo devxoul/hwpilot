@@ -9,6 +9,16 @@ export type TestTable = {
   rows: string[][]
 }
 
+export type MergedCell = {
+  text: string
+  colSpan?: number
+  rowSpan?: number
+  col?: number
+  row?: number
+}
+
+export type MergedTableRow = MergedCell[]
+
 export type TestImage = {
   name: string
   data: Buffer
@@ -251,12 +261,13 @@ function buildSection0Stream(paragraphs: string[], tables: TestTable[], textBoxe
     records.push(buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')))
     records.push(buildRecord(TAG.TABLE, 2, buildTableData(table.rows.length, table.rows[0]?.length ?? 0)))
 
-    for (const row of table.rows) {
-      for (const cellText of row) {
+    for (let rowIndex = 0; rowIndex < table.rows.length; rowIndex++) {
+      for (let colIndex = 0; colIndex < table.rows[rowIndex].length; colIndex++) {
+        const cellText = table.rows[rowIndex][colIndex]
         const cellTextData = Buffer.from(cellText, 'utf16le')
         const cellParaHeader = Buffer.alloc(24)
         cellParaHeader.writeUInt32LE((0x80000000 | (cellTextData.length / 2)) >>> 0, 0)
-        records.push(buildRecord(TAG.LIST_HEADER, 2, Buffer.alloc(0)))
+        records.push(buildRecord(TAG.LIST_HEADER, 2, buildCellListHeaderData(colIndex, rowIndex, 1, 1)))
         records.push(buildRecord(TAG.PARA_HEADER, 3, cellParaHeader))
         records.push(buildRecord(TAG.PARA_TEXT, 3, cellTextData))
       }
@@ -287,11 +298,52 @@ function buildParagraphRecords(text: string): Buffer {
   ])
 }
 
+export function buildCellListHeaderData(col: number, row: number, colSpan: number, rowSpan: number): Buffer {
+  const buf = Buffer.alloc(32)
+  buf.writeInt32LE(1, 0)
+  buf.writeUInt32LE(0, 4)
+  buf.writeUInt16LE(col, 8)
+  buf.writeUInt16LE(row, 10)
+  buf.writeUInt16LE(colSpan, 12)
+  buf.writeUInt16LE(rowSpan, 14)
+  buf.writeUInt32LE(0, 16)
+  buf.writeUInt32LE(0, 20)
+  return buf
+}
+
 function buildTableData(rowCount: number, colCount: number): Buffer {
-  const table = Buffer.alloc(6)
-  table.writeUInt16LE(rowCount, 2)
-  table.writeUInt16LE(colCount, 4)
+  const table = Buffer.alloc(8)
+  table.writeUInt16LE(rowCount, 4)
+  table.writeUInt16LE(colCount, 6)
   return table
+}
+
+export function buildMergedTable(rows: MergedTableRow[], colCount: number, rowCount: number): Buffer {
+  const records: Buffer[] = []
+
+  records.push(buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)))
+  records.push(buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x000b])))
+  records.push(buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')))
+  records.push(buildRecord(TAG.TABLE, 2, buildTableData(rowCount, colCount)))
+
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+    for (let colIndex = 0; colIndex < rows[rowIndex].length; colIndex++) {
+      const cell = rows[rowIndex][colIndex]
+      const col = cell.col ?? colIndex
+      const row = cell.row ?? rowIndex
+      const colSpan = cell.colSpan ?? 1
+      const rowSpan = cell.rowSpan ?? 1
+
+      const cellTextData = Buffer.from(cell.text, 'utf16le')
+      const cellParaHeader = Buffer.alloc(24)
+      cellParaHeader.writeUInt32LE((0x80000000 | (cellTextData.length / 2)) >>> 0, 0)
+      records.push(buildRecord(TAG.LIST_HEADER, 2, buildCellListHeaderData(col, row, colSpan, rowSpan)))
+      records.push(buildRecord(TAG.PARA_HEADER, 3, cellParaHeader))
+      records.push(buildRecord(TAG.PARA_TEXT, 3, cellTextData))
+    }
+  }
+
+  return Buffer.concat(records)
 }
 
 function createHwpFileHeader(compressed: boolean): Buffer {
