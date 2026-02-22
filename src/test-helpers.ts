@@ -1,5 +1,6 @@
 import CFB from 'cfb'
 import JSZip from 'jszip'
+import { controlIdBuffer } from '@/formats/hwp/control-id'
 import { buildRecord } from '@/formats/hwp/record-serializer'
 import { compressStream } from '@/formats/hwp/stream-util'
 import { TAG } from '@/formats/hwp/tag-ids'
@@ -247,7 +248,7 @@ function buildSection0Stream(paragraphs: string[], tables: TestTable[], textBoxe
   for (const table of tables) {
     records.push(buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)))
     records.push(buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x000b])))
-    records.push(buildRecord(TAG.CTRL_HEADER, 1, Buffer.from('tbl ', 'ascii')))
+    records.push(buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')))
     records.push(buildRecord(TAG.TABLE, 2, buildTableData(table.rows.length, table.rows[0]?.length ?? 0)))
 
     for (const row of table.rows) {
@@ -324,13 +325,13 @@ function buildTextBoxRecord(level: number, text: string): Buffer {
   paraHeader.writeUInt32LE(nChars, 0)
 
   const shapeComponentData = Buffer.alloc(32)
-  shapeComponentData.write('$rec', 0, 'ascii')
-  shapeComponentData.write('$rec', 4, 'ascii')
+  controlIdBuffer('$rec').copy(shapeComponentData, 0)
+  controlIdBuffer('$rec').copy(shapeComponentData, 4)
   shapeComponentData.writeInt32LE(200, 20)
   shapeComponentData.writeInt32LE(100, 24)
 
   return Buffer.concat([
-    buildRecord(TAG.CTRL_HEADER, level, Buffer.from('gso ', 'ascii')),
+    buildRecord(TAG.CTRL_HEADER, level, controlIdBuffer('gso ')),
     buildRecord(TAG.SHAPE_COMPONENT, level + 1, shapeComponentData),
     buildRecord(TAG.SHAPE_COMPONENT_RECTANGLE, level + 2, Buffer.alloc(0)),
     buildRecord(TAG.LIST_HEADER, level + 1, Buffer.alloc(0)),

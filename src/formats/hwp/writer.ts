@@ -2,6 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import CFB from 'cfb'
 import { type EditOperation, type FormatOptions } from '@/shared/edit-types'
 import { parseRef } from '@/shared/refs'
+import { readControlId } from './control-id'
 import { iterateRecords } from './record-parser'
 import { buildRecord, replaceRecordData } from './record-serializer'
 import { compressStream, decompressStream, getCompressionFlag } from './stream-util'
@@ -208,11 +209,7 @@ function patchTableCellText(
   let paraHeaderDataSize = 0
 
   for (const { header, data, offset } of iterateRecords(stream)) {
-    if (
-      header.tagId === TAG.CTRL_HEADER &&
-      header.level > 0 &&
-      data.subarray(0, 4).equals(Buffer.from('tbl ', 'ascii'))
-    ) {
+    if (header.tagId === TAG.CTRL_HEADER && header.level > 0 && readControlId(data) === 'tbl ') {
       tableCursor += 1
       if (tableCursor === tableIndex) {
         tableFound = true
@@ -287,13 +284,13 @@ function patchTextBoxText(
   let paraHeaderDataSize = 0
 
   for (const { header, data, offset } of iterateRecords(stream)) {
-    if (header.tagId === TAG.CTRL_HEADER && data.subarray(0, 4).equals(Buffer.from('gso ', 'ascii'))) {
+    if (header.tagId === TAG.CTRL_HEADER && readControlId(data) === 'gso ') {
       pendingGsoLevel = header.level
       continue
     }
 
     if (pendingGsoLevel !== undefined && header.tagId === TAG.SHAPE_COMPONENT && header.level === pendingGsoLevel + 1) {
-      const subtype = data.subarray(0, 4).toString('ascii')
+      const subtype = readControlId(data)
       if (subtype === '$rec') {
         textBoxCursor += 1
         if (textBoxCursor === textBoxIndex) {

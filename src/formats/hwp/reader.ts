@@ -16,6 +16,7 @@ import type {
   Table,
   TextBox,
 } from '@/types'
+import { readControlId } from './control-id'
 import { iterateRecords } from './record-parser'
 import { TAG } from './tag-ids'
 
@@ -425,7 +426,7 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
     }
 
     if (header.tagId === TAG.CTRL_HEADER) {
-      const controlType = data.subarray(0, 4).toString('ascii')
+      const controlType = readControlId(data)
       if (controlType === 'tbl ') {
         pendingTableControlLevel = header.level
       } else if (controlType === 'gso ') {
@@ -493,7 +494,7 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
 
     if (header.tagId === TAG.SHAPE_COMPONENT) {
       if (pendingGsoLevel !== null && header.level === pendingGsoLevel + 1) {
-        const subtype = data.subarray(0, 4).toString('ascii')
+        const subtype = readControlId(data)
         if (subtype === '$rec') {
           pendingTextBoxLevel = header.level
         }

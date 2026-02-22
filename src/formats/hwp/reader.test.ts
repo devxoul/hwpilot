@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'bun:test'
 import CFB from 'cfb'
+import { controlIdBuffer } from './control-id'
 import { extractParaText, loadHwp } from './reader'
 import { buildRecord } from './record-serializer'
 import { TAG } from './tag-ids'
@@ -46,7 +47,7 @@ describe('loadHwp', () => {
       paragraphRecord(0, 'Before table'),
       buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)),
       buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x000b, 0x0000])),
-      buildRecord(TAG.CTRL_HEADER, 1, Buffer.from('tbl ', 'ascii')),
+      buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')),
       buildRecord(TAG.TABLE, 2, tableData(2, 2)),
       cellRecord(2, 'A1'),
       cellRecord(2, 'A2'),
@@ -85,7 +86,7 @@ describe('loadHwp', () => {
 
     const sectionRecords = Buffer.concat([
       paragraphRecord(0, 'Line 1'),
-      buildRecord(TAG.CTRL_HEADER, 1, Buffer.from('gso ', 'ascii')),
+      buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('gso ')),
       paragraphRecord(0, 'Line 2'),
     ])
 
@@ -105,7 +106,7 @@ describe('loadHwp', () => {
 
     const sectionRecords = Buffer.concat([
       paragraphRecord(0, 'Before text box'),
-      buildRecord(TAG.CTRL_HEADER, 1, Buffer.from('gso ', 'ascii')),
+      buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('gso ')),
       buildRecord(TAG.SHAPE_COMPONENT, 2, shapeComponentSubtypeData('$rec', 200, 80)),
       buildRecord(TAG.SHAPE_COMPONENT_RECTANGLE, 3, Buffer.alloc(0)),
       buildRecord(TAG.LIST_HEADER, 2, Buffer.alloc(0)),
@@ -136,12 +137,12 @@ describe('loadHwp', () => {
     TMP_FILES.push(filePath)
 
     const sectionRecords = Buffer.concat([
-      buildRecord(TAG.CTRL_HEADER, 1, Buffer.from('gso ', 'ascii')),
+      buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('gso ')),
       buildRecord(TAG.SHAPE_COMPONENT, 2, shapeComponentSubtypeData('$rec', 120, 60)),
       buildRecord(TAG.SHAPE_COMPONENT_RECTANGLE, 3, Buffer.alloc(0)),
       buildRecord(TAG.LIST_HEADER, 2, Buffer.alloc(0)),
       paragraphRecord(3, 'TB-1'),
-      buildRecord(TAG.CTRL_HEADER, 1, Buffer.from('gso ', 'ascii')),
+      buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('gso ')),
       buildRecord(TAG.SHAPE_COMPONENT, 2, shapeComponentSubtypeData('$rec', 140, 70)),
       buildRecord(TAG.SHAPE_COMPONENT_RECTANGLE, 3, Buffer.alloc(0)),
       buildRecord(TAG.LIST_HEADER, 2, Buffer.alloc(0)),
@@ -168,7 +169,7 @@ describe('loadHwp', () => {
     TMP_FILES.push(filePath)
 
     const sectionRecords = Buffer.concat([
-      buildRecord(TAG.CTRL_HEADER, 1, Buffer.from('gso ', 'ascii')),
+      buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('gso ')),
       buildRecord(TAG.SHAPE_COMPONENT, 2, shapeComponentSubtypeData('$rec', 100, 50)),
       buildRecord(TAG.SHAPE_COMPONENT_RECTANGLE, 3, Buffer.alloc(0)),
       buildRecord(TAG.LIST_HEADER, 2, Buffer.alloc(0)),
@@ -195,10 +196,10 @@ describe('loadHwp', () => {
       paragraphRecord(0, 'Before table'),
       buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)),
       buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x000b, 0x0000])),
-      buildRecord(TAG.CTRL_HEADER, 1, Buffer.from('tbl ', 'ascii')),
+      buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')),
       buildRecord(TAG.TABLE, 2, tableData(1, 1)),
       cellRecord(2, 'CELL'),
-      buildRecord(TAG.CTRL_HEADER, 1, Buffer.from('gso ', 'ascii')),
+      buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('gso ')),
       buildRecord(TAG.SHAPE_COMPONENT, 2, shapeComponentSubtypeData('$rec', 180, 90)),
       buildRecord(TAG.SHAPE_COMPONENT_RECTANGLE, 3, Buffer.alloc(0)),
       buildRecord(TAG.LIST_HEADER, 2, Buffer.alloc(0)),
@@ -366,8 +367,9 @@ function shapeComponentData(width: number, height: number): Buffer {
 
 function shapeComponentSubtypeData(subtype: '$pic' | '$rec', width: number, height: number): Buffer {
   const data = Buffer.alloc(32)
-  data.write(subtype, 0, 'ascii')
-  data.write(subtype, 4, 'ascii')
+  const idBytes = controlIdBuffer(subtype)
+  idBytes.copy(data, 0)
+  idBytes.copy(data, 4)
   data.writeInt32LE(width, 20)
   data.writeInt32LE(height, 24)
   return data
