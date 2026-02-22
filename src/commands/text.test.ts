@@ -260,3 +260,80 @@ describe('textCommand', () => {
     expect(output.count).toBe(0)
   })
 })
+
+describe('textCommand — text box support', () => {
+  const TEST_TB_FILE = '/tmp/test-text-textbox.hwpx'
+  const TEST_TB_HWP_FILE = '/tmp/test-text-textbox.hwp'
+
+  beforeAll(async () => {
+    const buffer = await createTestHwpx({
+      paragraphs: ['Normal'],
+      textBoxes: [{ text: 'Box text' }],
+    })
+    await Bun.write(TEST_TB_FILE, buffer)
+
+    const hwpBuffer = await createTestHwpBinary({
+      paragraphs: ['Normal'],
+      textBoxes: [{ text: 'Box text' }],
+    })
+    await Bun.write(TEST_TB_HWP_FILE, hwpBuffer)
+  })
+
+  it('extracts text from text box ref s0.tb0', async () => {
+    captureOutput()
+    await textCommand(TEST_TB_FILE, 's0.tb0', {})
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.ref).toBe('s0.tb0')
+    expect(output.text).toBe('Box text')
+  })
+
+  it('extracts text from text box paragraph ref s0.tb0.p0', async () => {
+    captureOutput()
+    await textCommand(TEST_TB_FILE, 's0.tb0.p0', {})
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.ref).toBe('s0.tb0.p0')
+    expect(output.text).toBe('Box text')
+  })
+
+  it('includes text box text in full extraction', async () => {
+    captureOutput()
+    await textCommand(TEST_TB_FILE, undefined, {})
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.text).toContain('Normal')
+    expect(output.text).toContain('Box text')
+  })
+
+  it('extracts text from HWP text box ref', async () => {
+    captureOutput()
+    await textCommand(TEST_TB_HWP_FILE, 's0.tb0.p0', {})
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.ref).toBe('s0.tb0.p0')
+    expect(output.text).toBe('Box text')
+  })
+
+  it('errors for nonexistent text box', async () => {
+    captureOutput()
+    await expect(textCommand(TEST_TB_FILE, 's0.tb5', {})).rejects.toThrow('process.exit')
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.error).toContain('not found')
+  })
+
+  it('errors for text from image ref', async () => {
+    captureOutput()
+    await expect(textCommand(TEST_TB_FILE, 's0.img0', {})).rejects.toThrow('process.exit')
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.error).toContain('image')
+  })
+})

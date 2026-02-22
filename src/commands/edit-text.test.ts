@@ -121,4 +121,41 @@ describe('editTextCommand', () => {
     const output = JSON.parse(logs[0])
     expect(output).toEqual({ ref: 's0.p0', text: 'Pretty', success: true })
   })
+
+  it('edits text box paragraph in HWPX', async () => {
+    const tbFile = '/tmp/test-edit-text-textbox.hwpx'
+    const buffer = await createTestHwpx({
+      paragraphs: ['Normal'],
+      textBoxes: [{ text: 'Original' }],
+    })
+    await Bun.write(tbFile, buffer)
+
+    captureOutput()
+    await editTextCommand(tbFile, 's0.tb0.p0', 'Edited', {})
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output).toEqual({ ref: 's0.tb0.p0', text: 'Edited', success: true })
+  })
+
+  it('edits text box paragraph in HWP', async () => {
+    const tbHwpFile = '/tmp/test-edit-text-textbox.hwp'
+    const hwpBuffer = await createTestHwpBinary({
+      paragraphs: ['Normal'],
+      textBoxes: [{ text: 'Original' }],
+    })
+    await Bun.write(tbHwpFile, hwpBuffer)
+
+    captureOutput()
+    await editTextCommand(tbHwpFile, 's0.tb0.p0', 'Modified', {})
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output).toEqual({ ref: 's0.tb0.p0', text: 'Modified', success: true })
+
+    // cross-validate
+    const doc = await loadHwp(tbHwpFile)
+    const tbText = doc.sections[0].textBoxes[0].paragraphs[0].runs.map((r) => r.text).join('')
+    expect(tbText).toBe('Modified')
+  })
 })

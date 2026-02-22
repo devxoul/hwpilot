@@ -31,7 +31,7 @@ export async function textCommand(file: string, ref: string | undefined, options
         throw new Error(`Cannot extract text from image ref: ${ref}`)
       }
 
-      if (parsed.paragraph === undefined && parsed.table === undefined) {
+      if (parsed.paragraph === undefined && parsed.table === undefined && parsed.textBox === undefined) {
         const sectionTexts = await loadHwpSectionTexts(file)
         const sectionText = sectionTexts[parsed.section]
         if (sectionText === undefined) {
@@ -114,6 +114,11 @@ function extractAllText(sections: Section[]): string {
     for (const t of section.tables) {
       parts.push(tableText(t))
     }
+    for (const tb of section.textBoxes) {
+      for (const p of tb.paragraphs) {
+        parts.push(paragraphText(p))
+      }
+    }
   }
   return parts.join('\n')
 }
@@ -128,6 +133,19 @@ function extractRefText(ref: string, sections: Section[]): string {
 
   if (parsed.image !== undefined) {
     throw new Error(`Cannot extract text from image ref: ${ref}`)
+  }
+
+  if (parsed.textBox !== undefined) {
+    const textBox = section.textBoxes[parsed.textBox]
+    if (!textBox) throw new Error(`TextBox ${ref} not found`)
+
+    if (parsed.textBoxParagraph !== undefined) {
+      const para = textBox.paragraphs[parsed.textBoxParagraph]
+      if (!para) throw new Error(`Paragraph ${ref} not found`)
+      return paragraphText(para)
+    }
+
+    return textBox.paragraphs.map(paragraphText).join('\n')
   }
 
   if (parsed.table !== undefined) {
@@ -164,6 +182,11 @@ function extractRefText(ref: string, sections: Section[]): string {
   }
   for (const t of section.tables) {
     parts.push(tableText(t))
+  }
+  for (const tb of section.textBoxes) {
+    for (const p of tb.paragraphs) {
+      parts.push(paragraphText(p))
+    }
   }
   return parts.join('\n')
 }
