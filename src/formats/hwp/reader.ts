@@ -474,7 +474,7 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
     flushParagraphLevel(level)
   }
 
-  return { paragraphs, tables, images }
+  return { paragraphs, tables, images, textBoxes: [] }
 }
 
 function parseBinDataRecord(data: Buffer): { id: number; path: string; format: string } | null {

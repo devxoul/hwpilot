@@ -34,6 +34,7 @@ export function parseSection(xml: string, sectionIndex: number): Section {
     paragraphs,
     tables,
     images,
+    textBoxes: [],
   }
 }
 
