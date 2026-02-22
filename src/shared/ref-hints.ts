@@ -49,6 +49,23 @@ function computeHint(sections: Section[], ref: string): string | undefined {
     return undefined
   }
 
+  if (parsed.textBox !== undefined) {
+    const textBox = section.textBoxes[parsed.textBox]
+    if (!textBox) {
+      if (section.textBoxes.length === 0) return `Section ${parsed.section} has no text boxes`
+      return `Valid text box refs: s${parsed.section}.tb0 through s${parsed.section}.tb${section.textBoxes.length - 1}`
+    }
+
+    if (parsed.textBoxParagraph !== undefined) {
+      const para = textBox.paragraphs[parsed.textBoxParagraph]
+      if (!para) {
+        return `Valid text box paragraph refs: s${parsed.section}.tb${parsed.textBox}.p0 through s${parsed.section}.tb${parsed.textBox}.p${textBox.paragraphs.length - 1}`
+      }
+    }
+
+    return undefined
+  }
+
   if (parsed.paragraph !== undefined) {
     const para = section.paragraphs[parsed.paragraph]
     if (!para) {
