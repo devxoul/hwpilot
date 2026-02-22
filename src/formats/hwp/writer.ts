@@ -9,7 +9,9 @@ import { TAG } from './tag-ids'
 
 type SectionTextOperation = {
   type: 'setText'
-  paragraph: number
+  paragraph?: number
+  textBox?: number
+  textBoxParagraph?: number
   text: string
   ref: string
 }
@@ -51,7 +53,17 @@ export async function editHwp(filePath: string, operations: EditOperation[]): Pr
 
     for (const operation of sectionOperations) {
       if (operation.type === 'setText') {
-        stream = patchParagraphText(stream, operation)
+        if (operation.textBox !== undefined) {
+          stream = patchTextBoxText(
+            stream,
+            operation.textBox,
+            operation.textBoxParagraph ?? 0,
+            operation.text,
+            operation.ref,
+          )
+        } else {
+          stream = patchParagraphText(stream, operation)
+        }
         continue
       }
 
@@ -80,6 +92,23 @@ function groupOperationsBySection(operations: EditOperation[]): Map<number, Sect
   for (const operation of operations) {
     if (operation.type === 'setText') {
       const ref = parseRef(operation.ref)
+      if (ref.textBox !== undefined) {
+        if (ref.textBoxParagraph === undefined) {
+          throw new Error(`setText requires textbox paragraph reference: ${operation.ref}`)
+        }
+
+        const sectionOperations = grouped.get(ref.section) ?? []
+        sectionOperations.push({
+          type: 'setText',
+          textBox: ref.textBox,
+          textBoxParagraph: ref.textBoxParagraph,
+          text: operation.text,
+          ref: operation.ref,
+        })
+        grouped.set(ref.section, sectionOperations)
+        continue
+      }
+
       if (ref.paragraph === undefined) {
         throw new Error(`setText requires paragraph reference: ${operation.ref}`)
       }
@@ -239,6 +268,108 @@ function patchTableCellText(
   }
 
   throw new Error(`Cell not found for reference: ${ref}`)
+}
+
+function patchTextBoxText(
+  stream: Buffer,
+  textBoxIndex: number,
+  paragraphIndex: number,
+  text: string,
+  ref: string,
+): Buffer {
+  let textBoxCursor = -1
+  let pendingGsoLevel: number | undefined
+  let targetShapeLevel: number | undefined
+  let targetShapeConfirmed = false
+  let insideTargetTextBox = false
+  let textBoxParagraphCursor = -1
+  let paraHeaderDataOffset: number | undefined
+  let paraHeaderDataSize = 0
+
+  for (const { header, data, offset } of iterateRecords(stream)) {
+    if (header.tagId === TAG.CTRL_HEADER && data.subarray(0, 4).equals(Buffer.from('gso ', 'ascii'))) {
+      pendingGsoLevel = header.level
+      continue
+    }
+
+    if (pendingGsoLevel !== undefined && header.tagId === TAG.SHAPE_COMPONENT && header.level === pendingGsoLevel + 1) {
+      const subtype = data.subarray(0, 4).toString('ascii')
+      if (subtype === '$rec') {
+        textBoxCursor += 1
+        if (textBoxCursor === textBoxIndex) {
+          targetShapeLevel = header.level
+          targetShapeConfirmed = false
+          insideTargetTextBox = false
+          textBoxParagraphCursor = -1
+          paraHeaderDataOffset = undefined
+          paraHeaderDataSize = 0
+        }
+      }
+      pendingGsoLevel = undefined
+      continue
+    }
+
+    if (
+      targetShapeLevel !== undefined &&
+      !targetShapeConfirmed &&
+      header.tagId === TAG.SHAPE_COMPONENT_RECTANGLE &&
+      header.level === targetShapeLevel + 1
+    ) {
+      targetShapeConfirmed = true
+      continue
+    }
+
+    if (
+      targetShapeLevel !== undefined &&
+      targetShapeConfirmed &&
+      header.tagId === TAG.LIST_HEADER &&
+      header.level === targetShapeLevel
+    ) {
+      insideTargetTextBox = true
+      textBoxParagraphCursor = -1
+      paraHeaderDataOffset = undefined
+      paraHeaderDataSize = 0
+      continue
+    }
+
+    if (!insideTargetTextBox || targetShapeLevel === undefined) {
+      continue
+    }
+
+    if (header.level <= targetShapeLevel && header.tagId !== TAG.PARA_HEADER && header.tagId !== TAG.PARA_TEXT) {
+      break
+    }
+
+    if (header.tagId === TAG.PARA_HEADER && header.level === targetShapeLevel + 1) {
+      textBoxParagraphCursor += 1
+      if (textBoxParagraphCursor > paragraphIndex) {
+        throw new Error(`Text box paragraph not found for reference: ${ref}`)
+      }
+
+      if (textBoxParagraphCursor === paragraphIndex) {
+        paraHeaderDataOffset = offset + header.headerSize
+        paraHeaderDataSize = header.size
+      }
+      continue
+    }
+
+    if (
+      textBoxParagraphCursor === paragraphIndex &&
+      header.tagId === TAG.PARA_TEXT &&
+      header.level === targetShapeLevel + 2
+    ) {
+      const patchedData = buildPatchedParaText(data, text)
+      const newStream = replaceRecordData(stream, offset, patchedData)
+      updateParaHeaderNChars(newStream, paraHeaderDataOffset, paraHeaderDataSize, patchedData.length / 2)
+      return newStream
+    }
+  }
+
+  if (textBoxCursor < textBoxIndex) {
+    throw new Error(`Text box not found for reference: ${ref}`)
+  }
+
+  throw new Error(`Text box paragraph not found for reference: ${ref}`)
 }
 
 function applySetFormat(

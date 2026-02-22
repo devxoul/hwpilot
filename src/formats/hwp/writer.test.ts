@@ -260,6 +260,39 @@ describe('editHwp', () => {
       'Table not found for reference: s0.t1.r0.c0',
     )
   })
+
+  it('setText updates textbox paragraph and keeps section/table content unchanged', async () => {
+    const filePath = tmpPath('writer-textbox-edit')
+    TMP_FILES.push(filePath)
+    const fixture = await createTestHwpBinary({
+      paragraphs: ['section para'],
+      tables: [{ rows: [['cell text']] }],
+      textBoxes: [{ text: 'textbox original' }],
+    })
+    await Bun.write(filePath, fixture)
+
+    await editHwp(filePath, [{ type: 'setText', ref: 's0.tb0.p0', text: 'textbox changed' }])
+
+    const doc = await loadHwp(filePath)
+    expect(joinRuns(doc.sections[0].textBoxes[0].paragraphs[0].runs)).toBe('textbox changed')
+    expect(joinRuns(doc.sections[0].paragraphs[0].runs)).toBe('section para')
+    expect(doc.sections[0].tables[0].rows[0].cells[0].paragraphs[0].runs[0].text).toBe('cell text')
+  })
+
+  it('setText targets textbox by index (tb1 edits second textbox)', async () => {
+    const filePath = tmpPath('writer-textbox-index')
+    TMP_FILES.push(filePath)
+    const fixture = await createTestHwpBinary({
+      textBoxes: [{ text: 'first textbox' }, { text: 'second textbox' }],
+    })
+    await Bun.write(filePath, fixture)
+
+    await editHwp(filePath, [{ type: 'setText', ref: 's0.tb1.p0', text: 'second changed' }])
+
+    const doc = await loadHwp(filePath)
+    expect(joinRuns(doc.sections[0].textBoxes[0].paragraphs[0].runs)).toBe('first textbox')
+    expect(joinRuns(doc.sections[0].textBoxes[1].paragraphs[0].runs)).toBe('second changed')
+  })
 })
 
 function tmpPath(name: string): string {
