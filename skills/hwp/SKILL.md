@@ -39,6 +39,8 @@ Documents use hierarchical refs to address elements. All indices are 0-based.
 | `s{N}.t{M}` | Table M in section N | `s0.t0` |
 | `s{N}.t{M}.r{R}.c{C}` | Row R, cell C of table M | `s0.t1.r2.c0` |
 | `s{N}.t{M}.r{R}.c{C}.p{P}` | Paragraph P inside table cell | `s0.t0.r0.c0.p0` |
+| `s{N}.tb{M}` | Text box M in section N | `s0.tb0` |
+| `s{N}.tb{M}.p{P}` | Paragraph P inside text box M | `s0.tb0.p0` |
 | `s{N}.img{M}` | Image M in section N | `s0.img0` |
 
 A "run" is a contiguous span of text sharing the same character formatting within a paragraph. Most paragraphs have a single run (`r0`).
@@ -49,6 +51,8 @@ A "run" is a contiguous span of text sharing the same character formatting withi
 - `s0.p0` ... first paragraph of first section
 - `s0.t0.r1.c2` ... table 0, row 1, cell 2
 - `s0.t0.r0.c0.p0` ... first paragraph inside a table cell
+- `s0.tb0` ... first text box in section 0
+- `s0.tb0.p0` ... first paragraph inside text box 0
 - `s0.img0` ... first image in section 0
 
 ## Command Reference
@@ -144,6 +148,37 @@ Example output (with pagination):
 { "text": "Para10\nPara11\nPara12", "totalParagraphs": 50, "offset": 10, "count": 3 }
 ```
 
+### `hwp find` ... Search text in document
+
+```bash
+hwp find <file> <query> [--json]
+```
+
+Searches all text containers (paragraphs, table cells, text boxes) for a case-insensitive substring match. Returns matching refs with their text. Handles text split across runs.
+
+```bash
+# Find text in any container
+hwp find document.hwpx "청구취지"
+
+# JSON output with container type
+hwp find document.hwpx "청구취지" --json
+```
+
+Default output (one match per line):
+
+```
+s0.p3: 청구취지
+s0.tb0.p0: 청구취지 및 청구원인
+```
+
+JSON output:
+
+```json
+{"matches":[{"ref":"s0.p3","text":"청구취지","container":"paragraph"},{"ref":"s0.tb0.p0","text":"청구취지 및 청구원인","container":"textBox"}]}
+```
+
+No matches returns empty output (exit code 0).
+
 ### `hwp edit text` ... Edit text in-place
 
 ```bash
@@ -155,6 +190,7 @@ Replaces the text at the given ref. The file is modified in-place.
 ```bash
 hwp edit text report.hwpx s0.p0 "New Title"
 hwp edit text report.hwpx s0.t0.r0.c0 "Cell value"
+hwp edit text report.hwpx s0.tb0.p0 "Text box content"
 ```
 
 Example output:
@@ -286,11 +322,11 @@ hwp convert old-doc.hwp new-doc.hwpx
 
 ### 1. Read a document and understand its structure
 
-Start with `hwp read --limit` to get an overview without dumping the entire document. Then page through or drill into specific elements.
+**Always start with `--limit` to paginate.** Korean government documents often have 50+ paragraphs — dumping everything wastes context. Page through progressively.
 
 ```bash
-# Get first 20 paragraphs + total counts
-hwp read document.hwpx --limit 20 --pretty
+# Get first 20 paragraphs + total counts (recommended first step)
+hwp read document.hwpx --limit 20
 
 # Continue reading from paragraph 20
 hwp read document.hwpx --offset 20 --limit 20
@@ -298,23 +334,20 @@ hwp read document.hwpx --offset 20 --limit 20
 # Drill into specific elements
 hwp read document.hwpx s0.p0
 hwp read document.hwpx s0.t0
+hwp read document.hwpx s0.tb0
 ```
 
-### 2. Find and replace text
+### 2. Find and edit text
 
-Use `hwp text` to find content, then `hwp edit text` to replace it.
+Use `hwp find` to locate content by ref, then `hwp edit text` to change it. This is much faster than reading paragraphs one by one.
 
 ```bash
-# Extract all text to find what you're looking for
-hwp text document.hwpx
+# Search for text across all containers (paragraphs, tables, text boxes)
+hwp find document.hwpx "청구취지"
+# Output: s0.tb0.p0: 청구취지 및 청구원인
 
-# Read specific paragraphs to locate the target
-hwp text document.hwpx s0.p0
-hwp text document.hwpx s0.p1
-hwp text document.hwpx s0.p2
-
-# Replace the text you found
-hwp edit text document.hwpx s0.p2 "Corrected text"
+# Edit the matched ref directly
+hwp edit text document.hwpx s0.tb0.p0 "Updated content"
 ```
 
 ### 3. Fill in a template (table cells)
@@ -332,16 +365,37 @@ hwp table edit document.hwpx s0.t0.r1.c0 "Kim Minjun"
 hwp table edit document.hwpx s0.t0.r1.c1 "2025-01-15"
 ```
 
-### 4. Extract all text for analysis
+### 4. Fill in a form template (text boxes)
 
-Pull the full document text without specifying a ref.
+Korean government templates often use text boxes instead of tables for form fields. Use `find` to locate them, then edit.
 
 ```bash
+# Find all form fields
+hwp find template.hwpx "" --json
+# Shows all non-empty text across paragraphs, tables, and text boxes
+
+# Read the text box structure
+hwp read template.hwpx s0.tb0
+
+# Fill in text box fields
+hwp edit text template.hwpx s0.tb0.p0 "홍길동"
+hwp edit text template.hwpx s0.tb1.p0 "2025-01-15"
+```
+
+### 5. Extract all text for analysis
+
+Pull the full document text without specifying a ref. Use `--limit` for large documents.
+
+```bash
+# First 30 paragraphs
+hwp text document.hwpx --limit 30
+
+# All text (can be large)
 hwp text document.hwpx
 # Returns: { "text": "all document text concatenated with newlines" }
 ```
 
-### 5. Edit HWP 5.0 binary files directly
+### 6. Edit HWP 5.0 binary files directly
 
 HWP 5.0 files support text, table cell, and character formatting edits in-place.
 
@@ -357,7 +411,7 @@ To convert HWP to HWPX (e.g. for image operations):
 hwp convert legacy.hwp editable.hwpx
 ```
 
-### 6. Create a new document with content
+### 7. Create a new document with content
 
 Create a blank document, then populate it.
 
@@ -379,6 +433,9 @@ hwp edit format report.hwpx s0.p0 --bold --size 18
 | Edit formatting | Yes | Yes (bold, italic, underline, fontSize, color) |
 | Table read | Yes | Yes |
 | Table edit | Yes | Yes |
+| Text box read | Yes | Yes |
+| Text box edit | Yes | Yes |
+| Find text | Yes | Yes |
 | Image list | Yes | Yes |
 | Image insert/replace/extract | Yes | No (convert to HWPX first) |
 | Create new | Yes | No |
@@ -395,6 +452,8 @@ What's NOT supported:
 - **Password/DRM protected files**: Cannot open encrypted documents.
 - **Macros and scripts**: No macro execution or editing.
 - **Equations, charts, OLE objects, video**: These embedded objects can't be read or modified.
+- **Grouped/container shapes**: Only individual text boxes are supported — grouped shapes (`SHAPE_COMPONENT_CONTAINER`) are ignored.
+- **Text box formatting**: Text inside text boxes can be edited, but character formatting (`edit format`) on text box refs is not supported.
 - **Paragraph-level formatting**: Alignment, spacing, indentation aren't editable. Only character formatting (bold, italic, underline, font, size, color) is supported.
 - **Adding new paragraphs or sections**: You can only edit existing content. Can't insert new paragraphs, rows, or sections into an existing document.
 
@@ -417,6 +476,7 @@ Common errors and fixes:
 | `Section N not found` | Ref points beyond document | Use `hwp read` to check available sections |
 | `Paragraph N not found` | Ref points beyond section | Use `hwp read <file> s0` to see paragraph count |
 | `Table N not found` | No such table | Use `hwp read` to list tables |
+| `TextBox N not found` | No such text box | Use `hwp read` to list text boxes, or `hwp find` to search |
 | `Image insert/replace/extract requires HWPX format` | Write image ops on HWP 5.0 file | Convert first: `hwp convert file.hwp file.hwpx` |
 | `File already exists: <path>` | Convert output file already exists | Use `--force` flag or choose a different output path |
 | `ENOENT: no such file` | File doesn't exist | Check file path |
