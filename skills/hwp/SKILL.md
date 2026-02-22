@@ -56,51 +56,70 @@ A "run" is a contiguous span of text sharing the same character formatting withi
 ### `hwp read` ... Read document structure
 
 ```bash
-hwp read <file> [ref] [--pretty]
+hwp read <file> [ref] [--offset <n>] [--limit <n>] [--pretty]
 ```
 
-Without a ref, returns the full document tree. With a ref, returns that specific element.
+Without a ref, returns the full document tree. With a ref, returns that specific element. Use `--offset` and `--limit` to paginate paragraphs and reduce output size.
+
+| Option | Effect |
+|---|---|
+| `--offset <n>` | Skip first N paragraphs (0-indexed) |
+| `--limit <n>` | Return at most N paragraphs |
 
 ```bash
-# Full document
-hwp read report.hwpx
+# First 20 paragraphs
+hwp read report.hwpx --limit 20
 
-# Single paragraph
+# Paragraphs 20–39
+hwp read report.hwpx --offset 20 --limit 20
+
+# Single paragraph by ref (no pagination needed)
 hwp read report.hwpx s0.p0
 
 # A table
 hwp read report.hwpx s0.t0
 ```
 
-Example output (full document):
+Example output (with pagination):
 
 ```json
 {
   "format": "hwpx",
   "sections": [{
     "index": 0,
+    "totalParagraphs": 50,
+    "totalTables": 2,
+    "totalImages": 1,
     "paragraphs": [
       { "ref": "s0.p0", "runs": [{ "text": "Title", "charShapeRef": 0 }] },
       { "ref": "s0.p1", "runs": [{ "text": "Body text here", "charShapeRef": 1 }] }
     ],
-    "tables": [],
-    "images": []
+    "tables": [...],
+    "images": [...]
   }],
   "header": { ... }
 }
 ```
 
+When `--offset` or `--limit` is used, each section includes `totalParagraphs`, `totalTables`, and `totalImages` counts. Without pagination flags, these fields are omitted (backward compatible).
+
 ### `hwp text` ... Extract text
 
 ```bash
-hwp text <file> [ref] [--pretty]
+hwp text <file> [ref] [--offset <n>] [--limit <n>] [--pretty]
 ```
 
-Without a ref, returns all text concatenated. With a ref, returns text from that element only.
+Without a ref, returns all text concatenated. With a ref, returns text from that element only. Use `--offset` and `--limit` to paginate paragraphs.
 
 ```bash
 # All text in document
 hwp text report.hwpx
+
+# First 10 paragraphs of text
+hwp text report.hwpx --limit 10
+
+# Paragraphs 10–19
+hwp text report.hwpx --offset 10 --limit 10
 
 # Text from one paragraph
 hwp text report.hwpx s0.p0
@@ -117,6 +136,12 @@ Example output:
 
 ```json
 { "text": "Title\nBody text here\nMore content" }
+```
+
+Example output (with pagination):
+
+```json
+{ "text": "Para10\nPara11\nPara12", "totalParagraphs": 50, "offset": 10, "count": 3 }
 ```
 
 ### `hwp edit text` ... Edit text in-place
@@ -261,11 +286,16 @@ hwp convert old-doc.hwp new-doc.hwpx
 
 ### 1. Read a document and understand its structure
 
-Start with `hwp read` to see sections, paragraphs, tables, and images. Then drill into specific elements.
+Start with `hwp read --limit` to get an overview without dumping the entire document. Then page through or drill into specific elements.
 
 ```bash
-hwp read document.hwpx --pretty
-# Inspect the output: count paragraphs, find tables, locate images
+# Get first 20 paragraphs + total counts
+hwp read document.hwpx --limit 20 --pretty
+
+# Continue reading from paragraph 20
+hwp read document.hwpx --offset 20 --limit 20
+
+# Drill into specific elements
 hwp read document.hwpx s0.p0
 hwp read document.hwpx s0.t0
 ```
