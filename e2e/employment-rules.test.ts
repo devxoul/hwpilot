@@ -36,12 +36,14 @@ describe('Employment Rules (개정 표준취업규칙)', () => {
       expect(doc.header.paraShapes.length).toBeGreaterThan(0)
     })
 
-    it('has 0 tables and 0 images across all sections', async () => {
-      // tables=0 despite tabular content in text (HWP 5.0 parser limitation)
+    it('detects tables per section (s0:1, s1:37, s2:7, s3:0) and 0 images', async () => {
       const result = await runCli(['read', FIXTURE])
       const doc = parseOutput(result) as any
+      expect(doc.sections[0].tables).toHaveLength(1)
+      expect(doc.sections[1].tables).toHaveLength(37)
+      expect(doc.sections[2].tables).toHaveLength(7)
+      expect(doc.sections[3].tables).toHaveLength(0)
       for (const section of doc.sections) {
-        expect(section.tables).toHaveLength(0)
         expect(section.images).toHaveLength(0)
       }
     })

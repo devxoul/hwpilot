@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import CFB from 'cfb'
 import { inflateRaw } from 'pako'
+import { readControlId } from '../src/formats/hwp/control-id'
 import { iterateRecords } from '../src/formats/hwp/record-parser'
 import { TAG } from '../src/formats/hwp/tag-ids'
 import { detectFormat } from '../src/shared/format-detector'
@@ -70,7 +71,7 @@ async function probeHwpFixture(key: string, filePath: string): Promise<ProbeResu
       // Check for CTRL_HEADER with GSO marker (level 0 = new shape)
       if (tagId === TAG.CTRL_HEADER && level === 0) {
         if (data.length >= 4) {
-          const marker = data.subarray(0, 4).toString('ascii')
+          const marker = readControlId(data, 0)
           if (marker === 'gso ') {
             gsoCount++
             inGsoShape = true

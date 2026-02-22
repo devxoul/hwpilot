@@ -31,10 +31,10 @@ describe('Standard Contracts 7-Type (표준 근로계약서 7종)', () => {
       expect(doc.header.paraShapes.length).toBeGreaterThan(0)
     })
 
-    it('has 0 tables (HWP 5.0 parser limitation)', async () => {
+    it('detects 14 tables in section 0', async () => {
       const result = await runCli(['read', FIXTURE])
       const doc = parseOutput(result) as any
-      expect(doc.sections[0].tables).toHaveLength(0)
+      expect(doc.sections[0].tables).toHaveLength(14)
     })
 
     it('has 0 images', async () => {

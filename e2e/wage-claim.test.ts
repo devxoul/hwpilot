@@ -24,11 +24,10 @@ describe('Wage Claim Lawsuit (임금 등 청구의 소)', () => {
       expect(doc.sections[0].paragraphs).toHaveLength(103)
     })
 
-    it('reports 0 tables (HWP 5.0 parser limitation)', async () => {
-      // Known issue: tables return 0 despite legal document having tabular content
+    it('detects 2 tables in section 0', async () => {
       const result = await runCli(['read', FIXTURE])
       const doc = parseOutput(result) as any
-      expect(doc.sections[0].tables).toHaveLength(0)
+      expect(doc.sections[0].tables).toHaveLength(2)
     })
   })
 
@@ -114,7 +113,27 @@ describe('Wage Claim Lawsuit (임금 등 청구의 소)', () => {
     })
   })
 
-  describe('E. Cross-Validation', () => {
+  describe('E. Table Cell Editing', () => {
+    it('edits a table cell and cross-validates via HWP→HWPX conversion', async () => {
+      const temp = await tempCopy(FIXTURE)
+      tempFiles.push(temp)
+
+      const marker = 'TABLE_EDIT_CROSSVAL_2026'
+      const editResult = await runCli(['table', 'edit', temp, 's0.t1.r0.c0', marker])
+      const editOutput = parseOutput(editResult) as any
+      expect(editOutput.success).toBe(true)
+      expect(editOutput.ref).toBe('s0.t1.r0.c0')
+
+      const textResult = await runCli(['text', temp])
+      const textOutput = parseOutput(textResult) as any
+      expect(textOutput.text).toContain(marker)
+
+      const found = await crossValidate(temp, marker)
+      expect(found).toBe(true)
+    })
+  })
+
+  describe('F. Cross-Validation', () => {
     it('edited text survives HWP→HWPX conversion round-trip', async () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)

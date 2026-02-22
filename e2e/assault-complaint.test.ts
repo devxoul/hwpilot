@@ -31,12 +31,12 @@ describe('Assault Complaint (폭행죄 고소장)', () => {
       expect(doc.header.paraShapes.length).toBeGreaterThan(0)
     })
 
-    it('table list returns empty array (HWP 5.0 parser limitation)', async () => {
+    it('detects 1 table via table list', async () => {
       const result = await runCli(['table', 'list', FIXTURE])
       const output = parseOutput(result) as any
-      // Known issue: HWP 5.0 tables are not detected by the parser
       expect(Array.isArray(output)).toBe(true)
-      expect(output).toHaveLength(0)
+      expect(output).toHaveLength(1)
+      expect(output[0].ref).toBe('s0.t0')
     })
   })
 

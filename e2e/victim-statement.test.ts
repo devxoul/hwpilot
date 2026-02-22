@@ -10,11 +10,6 @@ afterEach(async () => {
 })
 
 describe('Victim Statement Form (피해자 의견 진술서)', () => {
-  // Known limitation: only 2 level-0 paragraphs are exposed and both are empty.
-  // Most visible text in this fixture is nested in control structures.
-  // Tables return 0 despite form having tabular checkbox layout.
-  // Fonts array is always empty. CharShape fontSize values are corrupted.
-
   describe('A. Document Structure', () => {
     it('reads as HWP format with 1 section', async () => {
       const result = await runCli(['read', FIXTURE])
@@ -29,10 +24,10 @@ describe('Victim Statement Form (피해자 의견 진술서)', () => {
       expect(doc.sections[0].paragraphs).toHaveLength(2)
     })
 
-    it('has 0 tables and 0 images', async () => {
+    it('detects 2 tables and 0 images', async () => {
       const result = await runCli(['read', FIXTURE])
       const doc = parseOutput(result) as any
-      expect(doc.sections[0].tables).toHaveLength(0)
+      expect(doc.sections[0].tables).toHaveLength(2)
       expect(doc.sections[0].images).toHaveLength(0)
     })
   })

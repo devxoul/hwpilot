@@ -32,13 +32,12 @@ describe('Withholding Tax Receipt (근로소득원천징수영수증)', () => {
       expect(doc.header.paraShapes.length).toBeGreaterThan(0)
     })
 
-    // Known issue: tables return 0 despite this being a form with tabular layout
-    it('has 0 tables and 0 images (HWP 5.0 parser limitation)', async () => {
+    it('detects tables per section (s0:11, s1:4) and 0 images', async () => {
       const result = await runCli(['read', FIXTURE])
       const doc = parseOutput(result) as any
-      expect(doc.sections[0].tables).toHaveLength(0)
+      expect(doc.sections[0].tables).toHaveLength(11)
       expect(doc.sections[0].images).toHaveLength(0)
-      expect(doc.sections[1].tables).toHaveLength(0)
+      expect(doc.sections[1].tables).toHaveLength(4)
       expect(doc.sections[1].images).toHaveLength(0)
     })
   })

@@ -31,10 +31,10 @@ describe('Employment Contract (개정 표준근로계약서)', () => {
       expect(doc.header.paraShapes.length).toBeGreaterThan(0)
     })
 
-    it('has 0 tables (HWP 5.0 parser limitation)', async () => {
+    it('detects 10 tables in section 0', async () => {
       const result = await runCli(['read', FIXTURE])
       const doc = parseOutput(result) as any
-      expect(doc.sections[0].tables).toHaveLength(0)
+      expect(doc.sections[0].tables).toHaveLength(10)
     })
 
     it('has 0 images', async () => {
