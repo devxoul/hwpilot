@@ -102,6 +102,16 @@ function setTextInRef(sectionTree: XmlNode[], ref: ParsedRef, text: string): voi
     return
   }
 
+  if (ref.textBox !== undefined) {
+    if (ref.textBoxParagraph === undefined) {
+      throw new Error(`setText requires a text box paragraph reference: s${ref.section}.tb${ref.textBox}`)
+    }
+
+    const paragraphNode = getTextBoxParagraphNode(sectionTree, ref.textBox, ref.textBoxParagraph)
+    setParagraphText(paragraphNode, text)
+    return
+  }
+
   if (ref.paragraph === undefined) {
     throw new Error(`setText requires a paragraph or cell reference: s${ref.section}`)
   }
@@ -297,6 +307,44 @@ function getTableCellNode(sectionTree: XmlNode[], tableIndex: number, rowIndex: 
   }
 
   return cell
+}
+
+function getTextBoxParagraphNode(sectionTree: XmlNode[], textBoxIndex: number, paragraphIndex: number): XmlNode {
+  const rects = getTextBoxRectNodes(sectionTree)
+  const rect = rects[textBoxIndex]
+  if (!rect) {
+    throw new Error(`Text box not found: index ${textBoxIndex}`)
+  }
+
+  const drawText = getChildElements(getElementChildren(rect, 'hp:rect'), 'hp:drawText')[0]
+  if (!drawText) {
+    throw new Error(`Text box has no hp:drawText: index ${textBoxIndex}`)
+  }
+
+  const subList = getChildElements(getElementChildren(drawText, 'hp:drawText'), 'hp:subList')[0]
+  if (!subList) {
+    throw new Error(`Text box has no hp:subList: index ${textBoxIndex}`)
+  }
+
+  const paragraphs = getChildElements(getElementChildren(subList, 'hp:subList'), 'hp:p')
+  const paragraph = paragraphs[paragraphIndex]
+  if (!paragraph) {
+    throw new Error(`Text box paragraph not found: tb${textBoxIndex}.p${paragraphIndex}`)
+  }
+
+  return paragraph
+}
+
+function getTextBoxRectNodes(sectionTree: XmlNode[]): XmlNode[] {
+  const sectionRoot = getSectionRootNode(sectionTree)
+  const sectionChildren = getElementChildren(sectionRoot, getElementName(sectionRoot))
+  const sectionRects = getChildElements(sectionChildren, 'hp:rect')
+  const sectionParagraphs = getChildElements(sectionChildren, 'hp:p')
+  const inlineRects = sectionParagraphs.flatMap((paragraph) =>
+    getChildElements(getElementChildren(paragraph, 'hp:p'), 'hp:rect'),
+  )
+
+  return [...sectionRects, ...inlineRects]
 }
 
 function getCellParagraphNodes(cellNode: XmlNode): XmlNode[] {

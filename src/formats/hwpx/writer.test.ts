@@ -49,6 +49,47 @@ describe('editHwpx', () => {
     }
   })
 
+  it('setText edits target text box paragraph and preserves section paragraph', async () => {
+    const filePath = tmpPath('writer-textbox-text')
+    const fixture = await createTestHwpx({
+      paragraphs: ['Section text'],
+      textBoxes: [{ text: 'Text box original' }],
+    })
+    await Bun.write(filePath, fixture)
+
+    try {
+      await editHwpx(filePath, [{ type: 'setText', ref: 's0.tb0.p0', text: 'Text box changed' }])
+
+      const archive = await loadHwpx(filePath)
+      const sections = await parseSections(archive)
+
+      expect(sections[0].textBoxes[0]?.paragraphs[0]?.runs[0]?.text).toBe('Text box changed')
+      expect(sections[0].paragraphs[0]?.runs[0]?.text).toBe('Section text')
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('setText targets the requested text box only', async () => {
+    const filePath = tmpPath('writer-textbox-target')
+    const fixture = await createTestHwpx({
+      textBoxes: [{ text: 'First box' }, { text: 'Second box' }],
+    })
+    await Bun.write(filePath, fixture)
+
+    try {
+      await editHwpx(filePath, [{ type: 'setText', ref: 's0.tb1.p0', text: 'Updated second box' }])
+
+      const archive = await loadHwpx(filePath)
+      const sections = await parseSections(archive)
+
+      expect(sections[0].textBoxes[0]?.paragraphs[0]?.runs[0]?.text).toBe('First box')
+      expect(sections[0].textBoxes[1]?.paragraphs[0]?.runs[0]?.text).toBe('Updated second box')
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
   it('preserves untouched ZIP entries byte-identical', async () => {
     const filePath = tmpPath('writer-roundtrip')
     const fixture = await createTestHwpx({ paragraphs: ['Original'] })
