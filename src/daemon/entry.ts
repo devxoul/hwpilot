@@ -1,7 +1,5 @@
 #!/usr/bin/env bun
-// Daemon entry point — started by launcher.ts
-// Full implementation added in Task 11 (server.ts)
-// For now: just exit to allow launcher tests to work
+import { startDaemonServer } from '@/daemon/server'
 
 const filePath = process.argv[2]
 if (!filePath) {
@@ -9,5 +7,7 @@ if (!filePath) {
   process.exit(1)
 }
 
-// Placeholder: Task 11 will replace this with startDaemonServer(filePath)
-process.exit(0)
+startDaemonServer(filePath).catch((err) => {
+  process.stderr.write(`Fatal error: ${err}\n`)
+  process.exit(1)
+})
