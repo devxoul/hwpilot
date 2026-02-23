@@ -212,6 +212,12 @@ async function handleRequest(
           return { success: true, data: result }
         }
 
+        // HWP full-text must use loadHwpSectionTexts to match direct mode behavior
+        if (holder instanceof HwpHolder) {
+          const texts = await holder.getSectionTexts()
+          return { success: true, data: { text: texts.join('\n') } }
+        }
+
         return { success: true, data: { text: extractAllText(sections) } }
       }
 

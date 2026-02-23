@@ -3,7 +3,7 @@ import { readFile, rename, rm, writeFile } from 'node:fs/promises'
 import CFB from 'cfb'
 import type { FlushScheduler } from '@/daemon/flush'
 import { mutateHwpCfb } from '@/formats/hwp/mutator'
-import { loadHwp } from '@/formats/hwp/reader'
+import { loadHwp, loadHwpSectionTexts } from '@/formats/hwp/reader'
 import { getCompressionFlag } from '@/formats/hwp/stream-util'
 import type { EditOperation } from '@/shared/edit-types'
 import type { DocumentHeader, Section } from '@/types'
@@ -46,6 +46,17 @@ export class HwpHolder {
     }
 
     return this.sectionsCache
+  }
+
+  async getSectionTexts(): Promise<string[]> {
+    const cfb = this.requireCfb()
+    const tempPath = `${this.filePath}.holder-${randomUUID()}.tmp.hwp`
+    try {
+      await writeFile(tempPath, this.serializeCfb(cfb))
+      return await loadHwpSectionTexts(tempPath)
+    } finally {
+      await rm(tempPath, { force: true })
+    }
   }
 
   async applyOperations(ops: EditOperation[]): Promise<void> {
