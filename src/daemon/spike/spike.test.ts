@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { spawn, spawnSync } from 'node:child_process'
 import { readdir, readFile, unlink } from 'node:fs/promises'
 import { createConnection } from 'node:net'
@@ -32,13 +32,31 @@ async function waitForFile(path: string, timeoutMs = 5_000) {
 
 // track spawned pids for cleanup
 const pids: number[] = []
-afterEach(() => {
+
+async function cleanupSpikeFiles() {
+  try {
+    const files = await readdir('/tmp')
+    const spikeFiles = files.filter((f) => f.startsWith('spike-test-') && f.endsWith('.json'))
+    for (const file of spikeFiles) {
+      try {
+        await unlink(`/tmp/${file}`)
+      } catch {}
+    }
+  } catch {}
+}
+
+beforeEach(async () => {
+  await cleanupSpikeFiles()
+})
+
+afterEach(async () => {
   for (const pid of pids) {
     try {
       process.kill(pid, 'SIGKILL')
     } catch {}
   }
   pids.length = 0
+  await cleanupSpikeFiles()
 })
 
 describe('daemon spike', () => {
