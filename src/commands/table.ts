@@ -3,6 +3,7 @@ import { editHwp } from '@/formats/hwp/writer'
 import { loadHwpx } from '@/formats/hwpx/loader'
 import { parseSections } from '@/formats/hwpx/section-parser'
 import { editHwpx } from '@/formats/hwpx/writer'
+import { getTableData, listTables } from '@/shared/document-ops'
 import { handleError } from '@/shared/error-handler'
 import { detectFormat } from '@/shared/format-detector'
 import { formatOutput } from '@/shared/output'
@@ -18,33 +19,8 @@ export async function tableReadCommand(file: string, ref: string, options: { pre
       throw new Error(`Invalid reference: ${ref}`)
     }
 
-    const parsed = parseRef(ref)
-    if (parsed.table === undefined) {
-      throw new Error(`Not a table reference: ${ref}`)
-    }
-
     const sections = format === 'hwp' ? (await loadHwp(file)).sections : await loadHwpxSections(file)
-    const section = sections[parsed.section]
-
-    if (!section) {
-      throw new Error(`Section ${parsed.section} not found`)
-    }
-
-    const table = section.tables[parsed.table]
-    if (!table) {
-      throw new Error(`Table ${ref} not found`)
-    }
-
-    const output = {
-      ref: table.ref,
-      rows: table.rows.map((row) => ({
-        cells: row.cells.map((cell) => ({
-          ref: cell.ref,
-          text: cell.paragraphs.flatMap((p) => p.runs.map((r) => r.text)).join(''),
-          paragraphs: cell.paragraphs,
-        })),
-      })),
-    }
+    const output = getTableData(sections, ref)
 
     console.log(formatOutput(output, options.pretty))
   } catch (e) {
@@ -58,17 +34,7 @@ export async function tableListCommand(file: string, options: { pretty?: boolean
     const format = await detectFormat(file)
     const sections = format === 'hwp' ? (await loadHwp(file)).sections : await loadHwpxSections(file)
 
-    const tables: { ref: string; rows: number; cols: number }[] = []
-
-    for (const [si, section] of sections.entries()) {
-      for (const [ti, table] of section.tables.entries()) {
-        tables.push({
-          ref: `s${si}.t${ti}`,
-          rows: table.rows.length,
-          cols: table.rows[0]?.cells.length ?? 0,
-        })
-      }
-    }
+    const tables = listTables(sections)
 
     console.log(formatOutput(tables, options.pretty))
   } catch (e) {

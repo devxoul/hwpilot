@@ -2,11 +2,10 @@ import { loadHwp } from '@/formats/hwp/reader'
 import { parseHeader } from '@/formats/hwpx/header-parser'
 import { loadHwpx } from '@/formats/hwpx/loader'
 import { parseSections } from '@/formats/hwpx/section-parser'
+import { resolveRef } from '@/shared/document-ops'
 import { handleError } from '@/shared/error-handler'
 import { detectFormat } from '@/shared/format-detector'
 import { formatOutput } from '@/shared/output'
-import { parseRef } from '@/shared/refs'
-import type { Section } from '@/types'
 
 type ReadOptions = {
   pretty?: boolean
@@ -66,69 +65,5 @@ async function loadHwpxDocument(file: string) {
     format: 'hwpx' as const,
     sections,
     header,
-  }
-}
-
-function resolveRef(ref: string, sections: Section[]): unknown {
-  const parsed = parseRef(ref)
-  const section = sections[parsed.section]
-
-  if (!section) {
-    throw new Error(`Section ${parsed.section} not found`)
-  }
-
-  if (parsed.image !== undefined) {
-    const image = section.images[parsed.image]
-    if (!image) throw new Error(`Image ${ref} not found`)
-    return image
-  }
-
-  if (parsed.textBox !== undefined) {
-    const textBox = section.textBoxes[parsed.textBox]
-    if (!textBox) throw new Error(`TextBox ${ref} not found`)
-
-    if (parsed.textBoxParagraph !== undefined) {
-      const para = textBox.paragraphs[parsed.textBoxParagraph]
-      if (!para) throw new Error(`Paragraph ${ref} not found`)
-      return para
-    }
-
-    return textBox
-  }
-
-  if (parsed.table !== undefined) {
-    const table = section.tables[parsed.table]
-    if (!table) throw new Error(`Table ${ref} not found`)
-
-    if (parsed.row !== undefined && parsed.cell !== undefined) {
-      const row = table.rows[parsed.row]
-      if (!row) throw new Error(`Row ${ref} not found`)
-      const cell = row.cells[parsed.cell]
-      if (!cell) throw new Error(`Cell ${ref} not found`)
-
-      if (parsed.cellParagraph !== undefined) {
-        const para = cell.paragraphs[parsed.cellParagraph]
-        if (!para) throw new Error(`Paragraph ${ref} not found`)
-        return para
-      }
-
-      return cell
-    }
-
-    return table
-  }
-
-  if (parsed.paragraph !== undefined) {
-    const para = section.paragraphs[parsed.paragraph]
-    if (!para) throw new Error(`Paragraph ${ref} not found`)
-    return para
-  }
-
-  return {
-    index: parsed.section,
-    paragraphs: section.paragraphs,
-    tables: section.tables,
-    images: section.images,
-    textBoxes: section.textBoxes,
   }
 }

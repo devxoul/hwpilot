@@ -3,6 +3,7 @@ import { extname } from 'node:path'
 import { loadHwp } from '@/formats/hwp/reader'
 import { loadHwpx } from '@/formats/hwpx/loader'
 import { parseSections } from '@/formats/hwpx/section-parser'
+import { listImages } from '@/shared/document-ops'
 import { handleError } from '@/shared/error-handler'
 import { detectFormat } from '@/shared/format-detector'
 import { formatOutput } from '@/shared/output'
@@ -13,17 +14,17 @@ import type { Image, Section } from '@/types'
 export async function imageListCommand(file: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const format = await detectFormat(file)
-    let images: Image[]
+    let sections: Section[]
 
     if (format === 'hwp') {
       const doc = await loadHwp(file)
-      images = doc.sections.flatMap((section) => section.images)
+      sections = doc.sections
     } else {
       const archive = await loadHwpx(file)
-      const sections = await parseSections(archive)
-      images = sections.flatMap((section) => section.images)
+      sections = await parseSections(archive)
     }
 
+    const images = listImages(sections)
     console.log(formatOutput(images, options.pretty))
   } catch (e) {
     handleError(e)
