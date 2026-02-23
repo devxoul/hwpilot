@@ -6,13 +6,14 @@ import { mutateHwpCfb } from '@/formats/hwp/mutator'
 import { loadHwp } from '@/formats/hwp/reader'
 import { getCompressionFlag } from '@/formats/hwp/stream-util'
 import type { EditOperation } from '@/shared/edit-types'
-import type { Section } from '@/types'
+import type { DocumentHeader, Section } from '@/types'
 
 export class HwpHolder {
   private readonly filePath: string
   private cfb: CFB.CFB$Container | null = null
   private compressed = false
   private sectionsCache: Section[] | null = null
+  private headerCache: DocumentHeader | null = null
   private dirty = false
 
   constructor(filePath: string) {
@@ -24,6 +25,7 @@ export class HwpHolder {
     this.cfb = CFB.read(buffer, { type: 'buffer' })
     this.compressed = getCompressionFlag(this.getFileHeaderBuffer(this.cfb))
     this.sectionsCache = null
+    this.headerCache = null
     this.dirty = false
   }
 
@@ -37,6 +39,7 @@ export class HwpHolder {
         await writeFile(tempPath, this.serializeCfb(cfb))
         const doc = await loadHwp(tempPath)
         this.sectionsCache = doc.sections
+        this.headerCache = doc.header
       } finally {
         await rm(tempPath, { force: true })
       }
@@ -53,6 +56,7 @@ export class HwpHolder {
     const cfb = this.requireCfb()
     mutateHwpCfb(cfb, ops, this.compressed)
     this.sectionsCache = null
+    this.headerCache = null
     this.dirty = true
   }
 
@@ -77,6 +81,11 @@ export class HwpHolder {
 
   isDirty(): boolean {
     return this.dirty
+  }
+
+  async getHeader(): Promise<DocumentHeader> {
+    await this.getSections()
+    return this.headerCache!
   }
 
   getFormat(): 'hwp' {

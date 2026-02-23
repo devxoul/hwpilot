@@ -169,10 +169,12 @@ async function handleRequest(
         const offset = numberArg(msg.args.offset, 0)
         const limit = numberArg(msg.args.limit, Number.POSITIVE_INFINITY)
         const hasPagination = msg.args.offset !== undefined || msg.args.limit !== undefined
+        const header = await holder.getHeader()
 
         return {
           success: true,
           data: {
+            format: holder.getFormat(),
             sections: sections.map((section, index) => {
               const paragraphs = hasPagination ? section.paragraphs.slice(offset, offset + limit) : section.paragraphs
 
@@ -190,7 +192,7 @@ async function handleRequest(
                 textBoxes: section.textBoxes,
               }
             }),
-            format: undefined,
+            header,
           },
         }
       }
@@ -236,7 +238,7 @@ async function handleRequest(
         const ref = stringArg(msg.args.ref, 'ref')
         const text = stringArg(msg.args.text, 'text')
         await holder.applyOperations([{ type: 'setText', ref, text }])
-        holder.scheduleFlush(scheduler)
+        await scheduler.flushNow()
         return { success: true, data: { ref, text, success: true } }
       }
 
@@ -244,7 +246,7 @@ async function handleRequest(
         const ref = stringArg(msg.args.ref, 'ref')
         const format = formatArg(msg.args.format)
         await holder.applyOperations([{ type: 'setFormat', ref, format }])
-        holder.scheduleFlush(scheduler)
+        await scheduler.flushNow()
         return { success: true, data: { ref, format, success: true } }
       }
 
@@ -252,7 +254,7 @@ async function handleRequest(
         const ref = stringArg(msg.args.ref, 'ref')
         const text = stringArg(msg.args.text, 'text')
         await holder.applyOperations([{ type: 'setTableCell', ref, text }])
-        holder.scheduleFlush(scheduler)
+        await scheduler.flushNow()
         return { success: true, data: { ref, text, success: true } }
       }
 
