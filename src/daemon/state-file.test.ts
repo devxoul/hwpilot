@@ -12,6 +12,7 @@ import {
   readStateFile,
   type StateFileData,
   writeStateFile,
+  writeStateFileExclusive,
 } from './state-file'
 
 describe('state-file', () => {
@@ -114,6 +115,72 @@ describe('state-file', () => {
       const read = readStateFile(filePath)
 
       expect(read).toEqual(data2)
+    })
+  })
+
+  describe('writeStateFileExclusive', () => {
+    let testDir: string
+
+    beforeEach(() => {
+      testDir = join(tmpdir(), `state-test-${Date.now()}`)
+      mkdirSync(testDir, { recursive: true })
+    })
+
+    afterEach(async () => {
+      await rm(testDir, { recursive: true, force: true })
+    })
+
+    it('writes state file when it does not exist', () => {
+      const filePath = join(testDir, 'test.hwpx')
+      writeFileSync(filePath, '')
+
+      const data: StateFileData = {
+        port: 3000,
+        token: 'abc123',
+        pid: 12345,
+        version: '1.0.0',
+      }
+
+      writeStateFileExclusive(filePath, data)
+      const read = readStateFile(filePath)
+      expect(read).toEqual(data)
+
+      deleteStateFile(filePath)
+    })
+
+    it('throws EEXIST when state file already exists', () => {
+      const filePath = join(testDir, 'test.hwpx')
+      writeFileSync(filePath, '')
+
+      const data: StateFileData = {
+        port: 3000,
+        token: 'abc123',
+        pid: 12345,
+        version: '1.0.0',
+      }
+
+      writeStateFileExclusive(filePath, data)
+      expect(() => writeStateFileExclusive(filePath, data)).toThrow()
+
+      deleteStateFile(filePath)
+    })
+
+    it('preserves first write on EEXIST conflict', () => {
+      const filePath = join(testDir, 'test.hwpx')
+      writeFileSync(filePath, '')
+
+      const first: StateFileData = { port: 3000, token: 'first', pid: 1, version: '1.0.0' }
+      const second: StateFileData = { port: 3001, token: 'second', pid: 2, version: '1.0.0' }
+
+      writeStateFileExclusive(filePath, first)
+      try {
+        writeStateFileExclusive(filePath, second)
+      } catch {}
+
+      const read = readStateFile(filePath)
+      expect(read).toEqual(first)
+
+      deleteStateFile(filePath)
     })
   })
 

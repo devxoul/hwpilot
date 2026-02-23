@@ -5,7 +5,7 @@ import { createFlushScheduler, type FlushScheduler } from '@/daemon/flush'
 import { HwpHolder } from '@/daemon/holder-hwp'
 import { HwpxHolder } from '@/daemon/holder-hwpx'
 import { createMessageReader, type DaemonResponse, encodeMessage } from '@/daemon/protocol'
-import { deleteStateFile, generateToken, getVersion, writeStateFile } from '@/daemon/state-file'
+import { deleteStateFile, generateToken, getVersion, writeStateFileExclusive } from '@/daemon/state-file'
 import {
   extractAllText,
   extractPaginatedText,
@@ -108,12 +108,21 @@ export async function startDaemonServer(filePath: string): Promise<void> {
     throw new Error('Failed to bind daemon server')
   }
 
-  writeStateFile(resolvedPath, {
-    port: address.port,
-    token,
-    pid: process.pid,
-    version,
-  })
+  try {
+    writeStateFileExclusive(resolvedPath, {
+      port: address.port,
+      token,
+      pid: process.pid,
+      version,
+    })
+  } catch (err: unknown) {
+    if (err instanceof Error && 'code' in err && err.code === 'EEXIST') {
+      // Another daemon won the race — exit gracefully
+      server.close()
+      process.exit(0)
+    }
+    throw err
+  }
 
   process.on('SIGTERM', () => {
     void shutdown('SIGTERM')

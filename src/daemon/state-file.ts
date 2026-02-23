@@ -32,6 +32,11 @@ export function writeStateFile(filePath: string, data: StateFileData): void {
   renameSync(tmpPath, stateFilePath)
 }
 
+export function writeStateFileExclusive(filePath: string, data: StateFileData): void {
+  const stateFilePath = getStateFilePath(filePath)
+  writeFileSync(stateFilePath, JSON.stringify(data), { flag: 'wx' })
+}
+
 export function readStateFile(filePath: string): StateFileData | null {
   try {
     const stateFilePath = getStateFilePath(filePath)

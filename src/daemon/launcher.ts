@@ -2,18 +2,23 @@ import { spawn } from 'node:child_process'
 import { existsSync, realpathSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { deleteStateFile, isProcessAlive, readStateFile } from '@/daemon/state-file'
+import { deleteStateFile, getVersion, isProcessAlive, readStateFile } from '@/daemon/state-file'
 
 export async function ensureDaemon(filePath: string): Promise<{ port: number; token: string }> {
   const resolvedPath = resolvePath(filePath)
 
   const existing = readStateFile(resolvedPath)
-  if (existing && isProcessAlive(existing.pid)) {
-    return { port: existing.port, token: existing.token }
-  }
-
   if (existing) {
-    deleteStateFile(resolvedPath)
+    if (!isProcessAlive(existing.pid)) {
+      deleteStateFile(resolvedPath)
+    } else if (existing.version !== getVersion()) {
+      try {
+        process.kill(existing.pid, 'SIGTERM')
+      } catch {}
+      deleteStateFile(resolvedPath)
+    } else {
+      return { port: existing.port, token: existing.token }
+    }
   }
 
   const entryScript = getEntryScript()
@@ -28,6 +33,7 @@ export async function ensureDaemon(filePath: string): Promise<{ port: number; to
   for (let i = 0; i < MAX_ATTEMPTS; i++) {
     await sleep(POLL_INTERVAL_MS)
     const state = readStateFile(resolvedPath)
+    // PID may differ from spawned child if another daemon won the race
     if (state && isProcessAlive(state.pid)) {
       return { port: state.port, token: state.token }
     }

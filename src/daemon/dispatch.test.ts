@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { dispatchViaDaemon } from '@/daemon/dispatch'
 import { killDaemon } from '@/daemon/launcher'
-import { deleteStateFile, writeStateFile } from '@/daemon/state-file'
+import { deleteStateFile, getVersion, writeStateFile } from '@/daemon/state-file'
 import { createTestHwpx } from '@/test-helpers'
 
 const tempDirs: string[] = []
@@ -55,7 +55,7 @@ describe('dispatchViaDaemon', () => {
       port: 1,
       token: 'stale-token',
       pid: process.pid,
-      version: '1.0.0',
+      version: getVersion(),
     })
 
     const result = await dispatchViaDaemon(filePath, 'read', { ref: 's0.p0' })
