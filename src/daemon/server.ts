@@ -130,6 +130,14 @@ export async function startDaemonServer(filePath: string): Promise<void> {
   process.on('SIGINT', () => {
     void shutdown('SIGINT')
   })
+  process.on('uncaughtException', (err) => {
+    process.stderr.write(`Daemon uncaught exception: ${err.message}\n`)
+    void shutdown('uncaughtException')
+  })
+  process.on('unhandledRejection', (reason) => {
+    process.stderr.write(`Daemon unhandled rejection: ${reason}\n`)
+    void shutdown('unhandledRejection')
+  })
 
   resetIdleTimer()
 }
