@@ -8,22 +8,19 @@ export type DaemonResponse =
   | { success: true; data: unknown }
   | { success: false; error: string; context?: unknown; hint?: string }
 
-/**
- * Encodes a message as: 4-byte uint32 BE length prefix + UTF-8 JSON
- */
+const MAX_MESSAGE_SIZE = 64 * 1024 * 1024 // 64 MB
+
 export function encodeMessage(obj: unknown): Buffer {
   const json = JSON.stringify(obj)
-  const utf8 = Buffer.from(json, 'utf-8')
-  const lengthPrefix = Buffer.alloc(4)
-  lengthPrefix.writeUInt32BE(utf8.length, 0)
-  return Buffer.concat([lengthPrefix, utf8])
+  const body = Buffer.from(json, 'utf8')
+  const header = Buffer.alloc(4)
+  header.writeUInt32BE(body.length, 0)
+  return Buffer.concat([header, body])
 }
 
-/**
- * Creates a message reader that buffers TCP chunks and emits complete messages.
- * Returns a function that processes incoming Buffer chunks.
- */
-export function createMessageReader(callback: (msg: unknown) => void): (chunk: Buffer) => void {
+export function createMessageReader(
+  callback: (msg: unknown) => void,
+): (chunk: Buffer) => void {
   let buffer = Buffer.alloc(0)
 
   return (chunk: Buffer) => {
@@ -32,16 +29,19 @@ export function createMessageReader(callback: (msg: unknown) => void): (chunk: B
     while (buffer.length >= 4) {
       const length = buffer.readUInt32BE(0)
 
-      if (buffer.length < 4 + length) {
-        break
+      if (length > MAX_MESSAGE_SIZE) {
+        buffer = Buffer.alloc(0)
+        throw new Error(`Message too large: ${length} bytes`)
       }
 
-      const messageBuffer = buffer.slice(4, 4 + length)
-      const json = messageBuffer.toString('utf-8')
-      const message = JSON.parse(json)
-      callback(message)
+      if (buffer.length < 4 + length) {
+        break // wait for more data
+      }
 
-      buffer = buffer.slice(4 + length)
+      const body = buffer.subarray(4, 4 + length)
+      buffer = buffer.subarray(4 + length)
+      const parsed = JSON.parse(body.toString('utf8'))
+      callback(parsed)
     }
   }
 }

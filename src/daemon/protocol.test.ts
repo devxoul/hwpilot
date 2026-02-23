@@ -1,233 +1,101 @@
 import { describe, expect, it } from 'bun:test'
-import { createMessageReader, DaemonRequest, DaemonResponse, encodeMessage } from './protocol'
+import { createMessageReader, encodeMessage } from './protocol'
 
-describe('protocol', () => {
-  describe('encodeMessage', () => {
-    it('single message round-trip', () => {
-      const obj = { token: 'abc123', command: 'read', args: { file: 'doc.hwpx' } }
-      const encoded = encodeMessage(obj)
+function collect(encoded: Buffer): unknown[] {
+  const results: unknown[] = []
+  const reader = createMessageReader((msg) => results.push(msg))
+  reader(encoded)
+  return results
+}
 
-      const length = encoded.readUInt32BE(0)
-      const json = encoded.slice(4).toString('utf-8')
-      const decoded = JSON.parse(json)
-
-      expect(decoded).toEqual(obj)
-      expect(length).toBe(encoded.length - 4)
-    })
-
-    it('empty object', () => {
-      const obj = {}
-      const encoded = encodeMessage(obj)
-
-      const length = encoded.readUInt32BE(0)
-      const json = encoded.slice(4).toString('utf-8')
-      const decoded = JSON.parse(json)
-
-      expect(decoded).toEqual(obj)
-      expect(length).toBe(2) // "{}"
-    })
-
-    it('complex nested object', () => {
-      const obj = {
-        token: 'xyz',
-        command: 'edit',
-        args: {
-          ref: 's0.p0',
-          format: { bold: true, size: 16, color: '#FF0000' },
-          nested: { deep: { value: 42 } },
-        },
-      }
-      const encoded = encodeMessage(obj)
-
-      const length = encoded.readUInt32BE(0)
-      const json = encoded.slice(4).toString('utf-8')
-      const decoded = JSON.parse(json)
-
-      expect(decoded).toEqual(obj)
-      expect(length).toBe(encoded.length - 4)
-    })
-
-    it('UTF-8 Korean text', () => {
-      const obj = { text: '안녕하세요 한글 문서' }
-      const encoded = encodeMessage(obj)
-
-      const length = encoded.readUInt32BE(0)
-      const json = encoded.slice(4).toString('utf-8')
-      const decoded = JSON.parse(json)
-
-      expect(decoded).toEqual(obj)
-      expect(decoded.text).toBe('안녕하세요 한글 문서')
-      expect(length).toBe(encoded.length - 4)
-    })
-
-    it('large message', () => {
-      const largeString = 'x'.repeat(100000)
-      const obj = { data: largeString }
-      const encoded = encodeMessage(obj)
-
-      const length = encoded.readUInt32BE(0)
-      const json = encoded.slice(4).toString('utf-8')
-      const decoded = JSON.parse(json)
-
-      expect(decoded.data).toBe(largeString)
-      expect(length).toBe(encoded.length - 4)
-    })
+describe('encodeMessage + createMessageReader', () => {
+  it('round-trips a simple object', () => {
+    const obj = { hello: 'world', n: 42 }
+    const results = collect(encodeMessage(obj))
+    expect(results).toEqual([obj])
   })
 
-  describe('createMessageReader', () => {
-    it('single message round-trip', () => {
-      const messages: unknown[] = []
-      const reader = createMessageReader((msg) => messages.push(msg))
+  it('handles chunked delivery', () => {
+    const obj = { key: 'value', nested: { a: 1 } }
+    const encoded = encodeMessage(obj)
+    const mid = Math.floor(encoded.length / 2)
+    const chunk1 = encoded.subarray(0, mid)
+    const chunk2 = encoded.subarray(mid)
 
-      const obj = { token: 'abc', command: 'read' }
-      const encoded = encodeMessage(obj)
-      reader(encoded)
+    const results: unknown[] = []
+    const reader = createMessageReader((msg) => results.push(msg))
+    reader(chunk1)
+    expect(results).toHaveLength(0)
+    reader(chunk2)
+    expect(results).toEqual([obj])
+  })
 
-      expect(messages).toHaveLength(1)
-      expect(messages[0]).toEqual(obj)
-    })
+  it('handles multiple messages in one chunk', () => {
+    const a = { msg: 'first' }
+    const b = { msg: 'second' }
+    const combined = Buffer.concat([encodeMessage(a), encodeMessage(b)])
+    const results = collect(combined)
+    expect(results).toEqual([a, b])
+  })
 
-    it('chunked delivery - split across two buffers', () => {
-      const messages: unknown[] = []
-      const reader = createMessageReader((msg) => messages.push(msg))
+  it('round-trips UTF-8 Korean text', () => {
+    const obj = { text: '안녕하세요 한글 문서' }
+    const results = collect(encodeMessage(obj))
+    expect(results).toEqual([obj])
+  })
 
-      const obj = { token: 'abc', command: 'read' }
-      const encoded = encodeMessage(obj)
+  it('round-trips an empty object', () => {
+    const results = collect(encodeMessage({}))
+    expect(results).toEqual([{}])
+  })
 
-      const mid = Math.floor(encoded.length / 2)
-      const chunk1 = encoded.slice(0, mid)
-      const chunk2 = encoded.slice(mid)
+  it('round-trips a complex nested object', () => {
+    const obj = {
+      success: false,
+      error: 'not found',
+      context: { ref: 's0.p999', file: 'doc.hwp' },
+      hint: 'Valid refs: s0.p0 through s0.p49',
+    }
+    const results = collect(encodeMessage(obj))
+    expect(results).toEqual([obj])
+  })
 
-      reader(chunk1)
-      expect(messages).toHaveLength(0)
+  it('round-trips a large message', () => {
+    const obj = { data: 'x'.repeat(100_000) }
+    const results = collect(encodeMessage(obj))
+    expect(results).toEqual([obj])
+  })
 
-      reader(chunk2)
-      expect(messages).toHaveLength(1)
-      expect(messages[0]).toEqual(obj)
-    })
+  it('buffers partial length header', () => {
+    const encoded = encodeMessage({ partial: true })
+    const results: unknown[] = []
+    const reader = createMessageReader((msg) => results.push(msg))
 
-    it('multiple messages in one chunk', () => {
-      const messages: unknown[] = []
-      const reader = createMessageReader((msg) => messages.push(msg))
+    // send only 2 bytes of the 4-byte header
+    reader(encoded.subarray(0, 2))
+    expect(results).toHaveLength(0)
 
-      const obj1 = { id: 1, text: 'first' }
-      const obj2 = { id: 2, text: 'second' }
-      const obj3 = { id: 3, text: 'third' }
+    // send the rest
+    reader(encoded.subarray(2))
+    expect(results).toEqual([{ partial: true }])
+  })
 
-      const encoded1 = encodeMessage(obj1)
-      const encoded2 = encodeMessage(obj2)
-      const encoded3 = encodeMessage(obj3)
+  it('handles three messages delivered byte-by-byte', () => {
+    const objects = [{ a: 1 }, { b: 2 }, { c: 3 }]
+    const encoded = Buffer.concat(objects.map(encodeMessage))
+    const results: unknown[] = []
+    const reader = createMessageReader((msg) => results.push(msg))
 
-      const combined = Buffer.concat([encoded1, encoded2, encoded3])
-      reader(combined)
+    for (let i = 0; i < encoded.length; i++) {
+      reader(encoded.subarray(i, i + 1))
+    }
+    expect(results).toEqual(objects)
+  })
 
-      expect(messages).toHaveLength(3)
-      expect(messages[0]).toEqual(obj1)
-      expect(messages[1]).toEqual(obj2)
-      expect(messages[2]).toEqual(obj3)
-    })
-
-    it('UTF-8 Korean text', () => {
-      const messages: unknown[] = []
-      const reader = createMessageReader((msg) => messages.push(msg))
-
-      const obj = { text: '안녕하세요 한글 문서' }
-      const encoded = encodeMessage(obj)
-      reader(encoded)
-
-      expect(messages).toHaveLength(1)
-      expect(messages[0]).toEqual(obj)
-      expect((messages[0] as Record<string, unknown>).text).toBe('안녕하세요 한글 문서')
-    })
-
-    it('partial message handling', () => {
-      const messages: unknown[] = []
-      const reader = createMessageReader((msg) => messages.push(msg))
-
-      const obj1 = { id: 1 }
-      const obj2 = { id: 2 }
-
-      const encoded1 = encodeMessage(obj1)
-      const encoded2 = encodeMessage(obj2)
-
-      const chunk1 = encoded1.slice(0, 2)
-      const chunk2 = Buffer.concat([encoded1.slice(2), encoded2.slice(0, 3)])
-      const chunk3 = encoded2.slice(3)
-
-      reader(chunk1)
-      expect(messages).toHaveLength(0)
-
-      reader(chunk2)
-      expect(messages).toHaveLength(1)
-      expect(messages[0]).toEqual(obj1)
-
-      reader(chunk3)
-      expect(messages).toHaveLength(2)
-      expect(messages[1]).toEqual(obj2)
-    })
-
-    it('DaemonRequest type', () => {
-      const messages: unknown[] = []
-      const reader = createMessageReader((msg) => messages.push(msg))
-
-      const request: DaemonRequest = {
-        token: 'auth-token-123',
-        command: 'read',
-        args: { file: 'document.hwpx', limit: 20 },
-      }
-
-      const encoded = encodeMessage(request)
-      reader(encoded)
-
-      expect(messages).toHaveLength(1)
-      const decoded = messages[0] as DaemonRequest
-      expect(decoded.token).toBe('auth-token-123')
-      expect(decoded.command).toBe('read')
-      expect(decoded.args.file).toBe('document.hwpx')
-    })
-
-    it('DaemonResponse success type', () => {
-      const messages: unknown[] = []
-      const reader = createMessageReader((msg) => messages.push(msg))
-
-      const response: DaemonResponse = {
-        success: true,
-        data: { paragraphs: [{ ref: 's0.p0', text: 'Hello' }] },
-      }
-
-      const encoded = encodeMessage(response)
-      reader(encoded)
-
-      expect(messages).toHaveLength(1)
-      const decoded = messages[0] as DaemonResponse
-      expect(decoded.success).toBe(true)
-      if (decoded.success) {
-        expect(decoded.data).toBeDefined()
-      }
-    })
-
-    it('DaemonResponse error type', () => {
-      const messages: unknown[] = []
-      const reader = createMessageReader((msg) => messages.push(msg))
-
-      const response: DaemonResponse = {
-        success: false,
-        error: 'File not found',
-        context: { file: 'missing.hwpx' },
-        hint: 'Check file path',
-      }
-
-      const encoded = encodeMessage(response)
-      reader(encoded)
-
-      expect(messages).toHaveLength(1)
-      const decoded = messages[0] as DaemonResponse
-      expect(decoded.success).toBe(false)
-      if (!decoded.success) {
-        expect(decoded.error).toBe('File not found')
-        expect(decoded.context).toEqual({ file: 'missing.hwpx' })
-        expect(decoded.hint).toBe('Check file path')
-      }
-    })
+  it('throws on oversized message', () => {
+    const header = Buffer.alloc(4)
+    header.writeUInt32BE(128 * 1024 * 1024, 0) // 128 MB > 64 MB limit
+    const reader = createMessageReader(() => {})
+    expect(() => reader(header)).toThrow('Message too large')
   })
 })
