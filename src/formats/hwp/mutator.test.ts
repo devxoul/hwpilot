@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'bun:test'
-import { readFile, writeFile, unlink } from 'node:fs/promises'
+import { readFile, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import CFB from 'cfb'
-import { getCompressionFlag } from './stream-util'
-import { mutateHwpCfb, getEntryBuffer } from './mutator'
+import { getEntryBuffer, mutateHwpCfb } from './mutator'
 import { loadHwp } from './reader'
+import { getCompressionFlag } from './stream-util'
 
 const fixture = 'e2e/fixtures/임금 등 청구의 소.hwp'
 const tmpPath = (name: string) => join(tmpdir(), `${name}-${Date.now()}-${Math.random().toString(36).slice(2)}.hwp`)

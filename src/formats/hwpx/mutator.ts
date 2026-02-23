@@ -27,11 +27,7 @@ const builder = new XMLBuilder({
   suppressEmptyNode: false,
 })
 
-export async function mutateHwpxZip(
-  zip: JSZip,
-  archive: HwpxArchive,
-  operations: EditOperation[],
-): Promise<void> {
+export async function mutateHwpxZip(zip: JSZip, archive: HwpxArchive, operations: EditOperation[]): Promise<void> {
   if (operations.length === 0) return
 
   const sectionOps = groupOperationsBySection(operations)

@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'bun:test'
-import { createTestHwpx } from '../../test-helpers'
-import JSZip from 'jszip'
-import { loadHwpx } from './loader'
-import { mutateHwpxZip, parseXml } from './mutator'
-import { parseSections } from './section-parser'
+import { unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { unlink, writeFile } from 'node:fs/promises'
+import { createTestHwpx } from '../../test-helpers'
+import { loadHwpx } from './loader'
+import { mutateHwpxZip } from './mutator'
+import { parseSections } from './section-parser'
 
 const tmpPath = (name: string) => join(tmpdir(), `${name}-${Date.now()}-${Math.random().toString(36).slice(2)}.hwpx`)
 
@@ -42,9 +41,7 @@ describe('mutateHwpxZip', () => {
       const archive = await loadHwpx(filePath)
       const zip = archive.getZip()
 
-      await mutateHwpxZip(zip, archive, [
-        { type: 'setTableCell', ref: 's0.t0.r0.c0', text: 'MUTATED_CELL' },
-      ])
+      await mutateHwpxZip(zip, archive, [{ type: 'setTableCell', ref: 's0.t0.r0.c0', text: 'MUTATED_CELL' }])
 
       const sectionXml = await zip.file('Contents/section0.xml')!.async('string')
       expect(sectionXml).toContain('MUTATED_CELL')

@@ -18,9 +18,7 @@ export function encodeMessage(obj: unknown): Buffer {
   return Buffer.concat([header, body])
 }
 
-export function createMessageReader(
-  callback: (msg: unknown) => void,
-): (chunk: Buffer) => void {
+export function createMessageReader(callback: (msg: unknown) => void): (chunk: Buffer) => void {
   let buffer = Buffer.alloc(0)
 
   return (chunk: Buffer) => {

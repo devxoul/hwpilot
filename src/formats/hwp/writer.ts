@@ -1,8 +1,8 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import CFB from 'cfb'
 import type { EditOperation } from '@/shared/edit-types'
+import { getEntryBuffer, mutateHwpCfb } from './mutator'
 import { getCompressionFlag } from './stream-util'
-import { mutateHwpCfb, getEntryBuffer } from './mutator'
 
 export async function editHwp(filePath: string, operations: EditOperation[]): Promise<void> {
   if (operations.length === 0) {

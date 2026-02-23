@@ -1,6 +1,6 @@
-import { describe, expect, it, afterEach } from 'bun:test'
+import { afterEach, describe, expect, it } from 'bun:test'
 import { spawn, spawnSync } from 'node:child_process'
-import { readFile, readdir, unlink } from 'node:fs/promises'
+import { readdir, readFile, unlink } from 'node:fs/promises'
 import { createConnection } from 'node:net'
 import { join } from 'node:path'
 
@@ -34,7 +34,9 @@ async function waitForFile(path: string, timeoutMs = 5_000) {
 const pids: number[] = []
 afterEach(() => {
   for (const pid of pids) {
-    try { process.kill(pid, 'SIGKILL') } catch {}
+    try {
+      process.kill(pid, 'SIGKILL')
+    } catch {}
   }
   pids.length = 0
 })
@@ -91,7 +93,9 @@ describe('daemon spike', () => {
     expect(pidAlive(pid)).toBe(false)
 
     // cleanup file
-    try { await unlink(portFile) } catch {}
+    try {
+      await unlink(portFile)
+    } catch {}
   }, 10_000)
 
   it('process.argv0 is a usable runtime', () => {
