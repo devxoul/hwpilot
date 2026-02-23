@@ -1,3 +1,4 @@
+import { dispatchViaDaemon } from '@/daemon/dispatch'
 import { editHwp } from '@/formats/hwp/writer'
 import { editHwpx } from '@/formats/hwpx/writer'
 import { type FormatOptions } from '@/shared/edit-types'
@@ -19,6 +20,33 @@ type FormatCommandOptions = {
 
 export async function editFormatCommand(file: string, ref: string, options: FormatCommandOptions): Promise<void> {
   try {
+    const daemonResult = await dispatchViaDaemon(file, 'edit-format', {
+      ref,
+      format: {
+        bold: options.bold,
+        italic: options.italic,
+        underline: options.underline,
+        fontName: options.font,
+        fontSize: options.size,
+        color: options.color,
+      },
+    })
+    if (daemonResult !== null) {
+      if (!daemonResult.success) {
+        const errorOptions =
+          daemonResult.context && typeof daemonResult.context === 'object'
+            ? { context: daemonResult.context as Record<string, unknown>, hint: daemonResult.hint }
+            : daemonResult.hint
+              ? { hint: daemonResult.hint }
+              : undefined
+        handleError(new Error(daemonResult.error), errorOptions)
+        return
+      }
+
+      console.log(formatOutput(daemonResult.data, options.pretty))
+      return
+    }
+
     const fileFormat = await detectFormat(file)
 
     if (!validateRef(ref)) {

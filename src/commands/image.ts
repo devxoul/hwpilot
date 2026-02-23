@@ -1,5 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { extname } from 'node:path'
+import { dispatchViaDaemon } from '@/daemon/dispatch'
 import { loadHwp } from '@/formats/hwp/reader'
 import { loadHwpx } from '@/formats/hwpx/loader'
 import { parseSections } from '@/formats/hwpx/section-parser'
@@ -13,6 +14,23 @@ import type { Image, Section } from '@/types'
 
 export async function imageListCommand(file: string, options: { pretty?: boolean }): Promise<void> {
   try {
+    const daemonResult = await dispatchViaDaemon(file, 'image-list', {})
+    if (daemonResult !== null) {
+      if (!daemonResult.success) {
+        const errorOptions =
+          daemonResult.context && typeof daemonResult.context === 'object'
+            ? { context: daemonResult.context as Record<string, unknown>, hint: daemonResult.hint }
+            : daemonResult.hint
+              ? { hint: daemonResult.hint }
+              : undefined
+        handleError(new Error(daemonResult.error), errorOptions)
+        return
+      }
+
+      console.log(formatOutput(daemonResult.data, options.pretty))
+      return
+    }
+
     const format = await detectFormat(file)
     let sections: Section[]
 

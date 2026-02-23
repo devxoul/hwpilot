@@ -1,3 +1,4 @@
+import { dispatchViaDaemon } from '@/daemon/dispatch'
 import { loadHwp, loadHwpSectionTexts } from '@/formats/hwp/reader'
 import { loadHwpx } from '@/formats/hwpx/loader'
 import { parseSections } from '@/formats/hwpx/section-parser'
@@ -17,6 +18,27 @@ type TextOptions = {
 
 export async function textCommand(file: string, ref: string | undefined, options: TextOptions): Promise<void> {
   try {
+    const daemonResult = await dispatchViaDaemon(file, 'text', {
+      ref,
+      offset: options.offset,
+      limit: options.limit,
+    })
+    if (daemonResult !== null) {
+      if (!daemonResult.success) {
+        const errorOptions =
+          daemonResult.context && typeof daemonResult.context === 'object'
+            ? { context: daemonResult.context as Record<string, unknown>, hint: daemonResult.hint }
+            : daemonResult.hint
+              ? { hint: daemonResult.hint }
+              : undefined
+        handleError(new Error(daemonResult.error), errorOptions)
+        return
+      }
+
+      console.log(formatOutput(daemonResult.data, options.pretty))
+      return
+    }
+
     const format = await detectFormat(file)
     const hasPagination = options.offset !== undefined || options.limit !== undefined
 

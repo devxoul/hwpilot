@@ -1,3 +1,4 @@
+import { dispatchViaDaemon } from '@/daemon/dispatch'
 import { loadHwp } from '@/formats/hwp/reader'
 import { editHwp } from '@/formats/hwp/writer'
 import { loadHwpx } from '@/formats/hwpx/loader'
@@ -13,6 +14,23 @@ import type { Section } from '@/types'
 
 export async function tableReadCommand(file: string, ref: string, options: { pretty?: boolean }): Promise<void> {
   try {
+    const daemonResult = await dispatchViaDaemon(file, 'table-read', { ref })
+    if (daemonResult !== null) {
+      if (!daemonResult.success) {
+        const errorOptions =
+          daemonResult.context && typeof daemonResult.context === 'object'
+            ? { context: daemonResult.context as Record<string, unknown>, hint: daemonResult.hint }
+            : daemonResult.hint
+              ? { hint: daemonResult.hint }
+              : undefined
+        handleError(new Error(daemonResult.error), errorOptions)
+        return
+      }
+
+      console.log(formatOutput(daemonResult.data, options.pretty))
+      return
+    }
+
     const format = await detectFormat(file)
 
     if (!validateRef(ref)) {
@@ -31,6 +49,23 @@ export async function tableReadCommand(file: string, ref: string, options: { pre
 
 export async function tableListCommand(file: string, options: { pretty?: boolean }): Promise<void> {
   try {
+    const daemonResult = await dispatchViaDaemon(file, 'table-list', {})
+    if (daemonResult !== null) {
+      if (!daemonResult.success) {
+        const errorOptions =
+          daemonResult.context && typeof daemonResult.context === 'object'
+            ? { context: daemonResult.context as Record<string, unknown>, hint: daemonResult.hint }
+            : daemonResult.hint
+              ? { hint: daemonResult.hint }
+              : undefined
+        handleError(new Error(daemonResult.error), errorOptions)
+        return
+      }
+
+      console.log(formatOutput(daemonResult.data, options.pretty))
+      return
+    }
+
     const format = await detectFormat(file)
     const sections = format === 'hwp' ? (await loadHwp(file)).sections : await loadHwpxSections(file)
 
@@ -49,6 +84,26 @@ export async function tableEditCommand(
   options: { pretty?: boolean },
 ): Promise<void> {
   try {
+    const daemonResult = await dispatchViaDaemon(file, 'table-edit', {
+      ref,
+      text,
+    })
+    if (daemonResult !== null) {
+      if (!daemonResult.success) {
+        const errorOptions =
+          daemonResult.context && typeof daemonResult.context === 'object'
+            ? { context: daemonResult.context as Record<string, unknown>, hint: daemonResult.hint }
+            : daemonResult.hint
+              ? { hint: daemonResult.hint }
+              : undefined
+        handleError(new Error(daemonResult.error), errorOptions)
+        return
+      }
+
+      console.log(formatOutput(daemonResult.data, options.pretty))
+      return
+    }
+
     const format = await detectFormat(file)
 
     if (!validateRef(ref)) {
