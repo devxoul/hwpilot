@@ -1,6 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { extname } from 'node:path'
 import { dispatchViaDaemon } from '@/daemon/dispatch'
+import { killDaemon } from '@/daemon/launcher'
 import { loadHwp } from '@/formats/hwp/reader'
 import { loadHwpx } from '@/formats/hwpx/loader'
 import { parseSections } from '@/formats/hwpx/section-parser'
@@ -56,6 +57,8 @@ export async function imageExtractCommand(
   options: { pretty?: boolean },
 ): Promise<void> {
   try {
+    // Kill daemon first — image extract reads directly from file, bypassing daemon state
+    await killDaemon(file).catch(() => {})
     await validateHwpxFormat(file)
     const parsed = validateImageRef(ref)
     const archive = await loadHwpx(file)
@@ -75,6 +78,7 @@ export async function imageInsertCommand(
   options: { pretty?: boolean },
 ): Promise<void> {
   try {
+    await killDaemon(file).catch(() => {})
     await validateHwpxFormat(file)
     const imageBuffer = await readFile(imagePath)
     const format = detectImageFormat(imagePath)
@@ -98,6 +102,7 @@ export async function imageReplaceCommand(
   options: { pretty?: boolean },
 ): Promise<void> {
   try {
+    await killDaemon(file).catch(() => {})
     await validateHwpxFormat(file)
     const parsed = validateImageRef(ref)
     const archive = await loadHwpx(file)
