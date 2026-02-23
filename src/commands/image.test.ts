@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, mock } from 'bun:test'
+import { afterAll, afterEach, beforeAll, describe, expect, it, mock } from 'bun:test'
 import { readFile, unlink } from 'node:fs/promises'
 import JSZip from 'jszip'
 import { createTestHwpBinary, createTestHwpx } from '@/test-helpers'
@@ -31,6 +31,14 @@ function restoreOutput() {
 }
 
 afterEach(restoreOutput)
+
+beforeAll(() => {
+  process.env.HWPCLI_NO_DAEMON = '1'
+})
+
+afterAll(() => {
+  delete process.env.HWPCLI_NO_DAEMON
+})
 
 describe('imageListCommand', () => {
   it('lists images with correct ref and path', async () => {

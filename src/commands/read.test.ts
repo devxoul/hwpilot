@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it, mock } from 'bun:test'
+import { afterAll, afterEach, beforeAll, describe, expect, it, mock } from 'bun:test'
 import CFB from 'cfb'
 import { createTestHwpx } from '@/test-helpers'
 import { readCommand } from './read'
@@ -14,6 +14,8 @@ const origError = console.error
 const origExit = process.exit
 
 beforeAll(async () => {
+  process.env.HWPCLI_NO_DAEMON = '1'
+
   const buffer = await createTestHwpx({ paragraphs: ['Hello', 'World'] })
   await Bun.write(TEST_FILE, buffer)
 
@@ -36,6 +38,10 @@ beforeAll(async () => {
     paragraphs: ['Para0', 'Para1', 'Para2', 'Para3', 'Para4', 'Para5', 'Para6', 'Para7', 'Para8', 'Para9'],
   })
   await Bun.write(TEST_MANY_PARAGRAPHS_FILE, manyBuffer)
+})
+
+afterAll(() => {
+  delete process.env.HWPCLI_NO_DAEMON
 })
 
 function captureOutput() {

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test'
 import { unlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -34,6 +34,14 @@ function restoreOutput() {
 }
 
 afterEach(restoreOutput)
+
+beforeAll(() => {
+  process.env.HWPCLI_NO_DAEMON = '1'
+})
+
+afterAll(() => {
+  delete process.env.HWPCLI_NO_DAEMON
+})
 
 describe('editFormatCommand', () => {
   let testFile: string

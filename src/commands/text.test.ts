@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it, mock } from 'bun:test'
+import { afterAll, afterEach, beforeAll, describe, expect, it, mock } from 'bun:test'
 import { createTestHwpBinary, createTestHwpx } from '@/test-helpers'
 import { textCommand } from './text'
 
@@ -15,6 +15,8 @@ const origError = console.error
 const origExit = process.exit
 
 beforeAll(async () => {
+  process.env.HWPCLI_NO_DAEMON = '1'
+
   const buffer = await createTestHwpx({ paragraphs: ['Hello', 'World'] })
   await Bun.write(TEST_FILE, buffer)
 
@@ -53,6 +55,10 @@ beforeAll(async () => {
 
   const manyHwpBuffer = await createTestHwpBinary({ paragraphs: manyParagraphs })
   await Bun.write(TEST_HWP_MANY_FILE, manyHwpBuffer)
+})
+
+afterAll(() => {
+  delete process.env.HWPCLI_NO_DAEMON
 })
 
 function captureOutput() {

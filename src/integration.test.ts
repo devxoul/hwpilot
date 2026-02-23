@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, mock } from 'bun:test'
+import { afterAll, afterEach, beforeAll, describe, expect, it, mock } from 'bun:test'
 import { readFile, unlink } from 'node:fs/promises'
 import CFB from 'cfb'
 import JSZip from 'jszip'
@@ -59,6 +59,14 @@ afterEach(async () => {
     } catch {}
   }
   tempFiles.length = 0
+})
+
+beforeAll(() => {
+  process.env.HWPCLI_NO_DAEMON = '1'
+})
+
+afterAll(() => {
+  delete process.env.HWPCLI_NO_DAEMON
 })
 
 describe('integration: full HWPX lifecycle', () => {

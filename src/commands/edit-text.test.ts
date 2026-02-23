@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test'
 import { loadHwp } from '@/formats/hwp/reader'
 import { createTestHwpBinary, createTestHwpx } from '@/test-helpers'
 import { editTextCommand } from './edit-text'
@@ -29,6 +29,14 @@ function restoreOutput() {
 }
 
 afterEach(restoreOutput)
+
+beforeAll(() => {
+  process.env.HWPCLI_NO_DAEMON = '1'
+})
+
+afterAll(() => {
+  delete process.env.HWPCLI_NO_DAEMON
+})
 
 describe('editTextCommand', () => {
   beforeEach(async () => {

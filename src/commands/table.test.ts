@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test'
 import { createTestHwpBinary, createTestHwpx } from '@/test-helpers'
 import { tableEditCommand, tableListCommand, tableReadCommand } from './table'
 
@@ -27,6 +27,14 @@ function restoreOutput() {
 }
 
 afterEach(restoreOutput)
+
+beforeAll(() => {
+  process.env.HWPCLI_NO_DAEMON = '1'
+})
+
+afterAll(() => {
+  delete process.env.HWPCLI_NO_DAEMON
+})
 
 describe('tableReadCommand', () => {
   beforeEach(async () => {
