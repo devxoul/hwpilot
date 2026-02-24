@@ -464,18 +464,45 @@ function updateParaHeaderNChars(
   }
 }
 
-const PARA_END_MARKER = Buffer.from([0x0d, 0x00])
-function buildPatchedParaText(originalData: Buffer, nextText: string): Buffer {
-  const nextTextData = Buffer.from(nextText, 'utf16le')
-  if (hasTrailingParaEnd(originalData)) {
-    return Buffer.concat([nextTextData, PARA_END_MARKER])
-  }
-  return nextTextData
+function charByteSize(code: number): number {
+  if (code === 0x0009 || code === 0x000a || code === 0x000d) return 2
+  if (code < 0x0020) return 8
+  return 2
 }
 
-function hasTrailingParaEnd(data: Buffer): boolean {
-  if (data.length < 2) return false
-  return data[data.length - 2] === 0x0d && data[data.length - 1] === 0x00
+function buildPatchedParaText(originalData: Buffer, nextText: string): Buffer {
+  const nextTextData = Buffer.from(nextText, 'utf16le')
+  const parts: Buffer[] = []
+  let textInserted = false
+  let offset = 0
+
+  while (offset + 1 < originalData.length) {
+    const code = originalData.readUInt16LE(offset)
+    const size = charByteSize(code)
+    const end = Math.min(offset + size, originalData.length)
+
+    if (code >= 0x0020) {
+      if (!textInserted) {
+        parts.push(nextTextData)
+        textInserted = true
+      }
+    } else {
+      parts.push(originalData.subarray(offset, end))
+    }
+
+    offset = end
+  }
+
+  if (!textInserted) {
+    const last = parts[parts.length - 1]
+    if (last && last.length === 2 && last.readUInt16LE(0) === 0x000d) {
+      parts.splice(parts.length - 1, 0, nextTextData)
+    } else {
+      parts.push(nextTextData)
+    }
+  }
+
+  return Buffer.concat(parts)
 }
 
 function findParagraphCharShapeRecord(stream: Buffer, paragraphIndex: number): { data: Buffer; offset: number } | null {
