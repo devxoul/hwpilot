@@ -1,4 +1,4 @@
-# hwpcli
+# hwpilot
 
 [![English](https://img.shields.io/badge/lang-English-blue)](./README.en.md)
 
@@ -9,29 +9,29 @@ HWP/HWPX 문서를 읽고 쓰는 네이티브 CLI. AI 에이전트가 한글 문
 ## 설치
 
 ```bash
-npm install -g hwpcli
+npm install -g hwpilot
 ```
 
 ## 사용법
 
 ```bash
 # 처음 20개 문단 읽기
-hwp read document.hwpx --limit 20
+hwpilot read document.hwpx --limit 20
 
 # 텍스트 검색
-hwp find document.hwpx "청구취지"
+hwpilot find document.hwpx "청구취지"
 
 # 문단 편집
-hwp edit text document.hwpx s0.p0 "새로운 내용"
+hwpilot edit text document.hwpx s0.p0 "새로운 내용"
 
 # 표 셀 편집
-hwp table edit document.hwpx s0.t0.r0.c0 "셀 값"
+hwpilot table edit document.hwpx s0.t0.r0.c0 "셀 값"
 
 # 굵게 + 크기 변경
-hwp edit format document.hwpx s0.p0 --bold --size 16
+hwpilot edit format document.hwpx s0.p0 --bold --size 16
 
 # HWP 5.0 → HWPX 변환
-hwp convert legacy.hwp output.hwpx
+hwpilot convert legacy.hwp output.hwpx
 ```
 
 ## 참조 체계
@@ -62,13 +62,13 @@ s{N}.img{M}             → 이미지
 문서 구조를 읽습니다. `--offset`과 `--limit`으로 페이지네이션할 수 있습니다.
 
 ```bash
-hwp read <file> [ref] [--offset <n>] [--limit <n>] [--pretty]
+hwpilot read <file> [ref] [--offset <n>] [--limit <n>] [--pretty]
 ```
 
 ```bash
-hwp read report.hwpx --limit 20          # 처음 20개 문단
-hwp read report.hwpx --offset 20 --limit 20  # 다음 20개
-hwp read report.hwpx s0.t0               # 특정 표
+hwpilot read report.hwpx --limit 20          # 처음 20개 문단
+hwpilot read report.hwpx --offset 20 --limit 20  # 다음 20개
+hwpilot read report.hwpx s0.t0               # 특정 표
 ```
 
 ### text
@@ -76,13 +76,13 @@ hwp read report.hwpx s0.t0               # 특정 표
 텍스트를 추출합니다.
 
 ```bash
-hwp text <file> [ref] [--offset <n>] [--limit <n>] [--pretty]
+hwpilot text <file> [ref] [--offset <n>] [--limit <n>] [--pretty]
 ```
 
 ```bash
-hwp text report.hwpx                     # 전체 텍스트
-hwp text report.hwpx s0.p0               # 문단 하나
-hwp text report.hwpx s0.t0.r0.c0         # 표 셀
+hwpilot text report.hwpx                     # 전체 텍스트
+hwpilot text report.hwpx s0.p0               # 문단 하나
+hwpilot text report.hwpx s0.t0.r0.c0         # 표 셀
 ```
 
 ### find
@@ -90,15 +90,15 @@ hwp text report.hwpx s0.t0.r0.c0         # 표 셀
 모든 컨테이너(문단, 표, 텍스트 박스)에서 텍스트를 검색합니다. 대소문자를 구분하지 않습니다.
 
 ```bash
-hwp find <file> <query> [--json]
+hwpilot find <file> <query> [--json]
 ```
 
 ```bash
-hwp find document.hwpx "청구취지"
+hwpilot find document.hwpx "청구취지"
 # s0.p3: 청구취지
 # s0.tb0.p0: 청구취지 및 청구원인
 
-hwp find document.hwpx "청구취지" --json
+hwpilot find document.hwpx "청구취지" --json
 # {"matches":[{"ref":"s0.p3","text":"청구취지","container":"paragraph"},...]}
 ```
 
@@ -107,13 +107,13 @@ hwp find document.hwpx "청구취지" --json
 참조 위치의 텍스트를 교체합니다. 파일을 직접 수정합니다.
 
 ```bash
-hwp edit text <file> <ref> <text> [--pretty]
+hwpilot edit text <file> <ref> <text> [--pretty]
 ```
 
 ```bash
-hwp edit text report.hwpx s0.p0 "새 제목"
-hwp edit text report.hwpx s0.t0.r0.c0 "셀 값"
-hwp edit text report.hwpx s0.tb0.p0 "텍스트 박스 내용"
+hwpilot edit text report.hwpx s0.p0 "새 제목"
+hwpilot edit text report.hwpx s0.t0.r0.c0 "셀 값"
+hwpilot edit text report.hwpx s0.tb0.p0 "텍스트 박스 내용"
 ```
 
 ### edit format
@@ -121,7 +121,7 @@ hwp edit text report.hwpx s0.tb0.p0 "텍스트 박스 내용"
 참조 위치의 글자 서식을 변경합니다.
 
 ```bash
-hwp edit format <file> <ref> [options] [--pretty]
+hwpilot edit format <file> <ref> [options] [--pretty]
 ```
 
 | 플래그 | 효과 |
@@ -134,8 +134,8 @@ hwp edit format <file> <ref> [options] [--pretty]
 | `--color <hex>` | 글자 색상 설정 (예: `#FF0000`) |
 
 ```bash
-hwp edit format report.hwpx s0.p0 --bold --size 16 --font "맑은 고딕"
-hwp edit format report.hwpx s0.p1 --italic --color "#0000FF"
+hwpilot edit format report.hwpx s0.p0 --bold --size 16 --font "맑은 고딕"
+hwpilot edit format report.hwpx s0.p1 --italic --color "#0000FF"
 ```
 
 ### table read
@@ -143,7 +143,7 @@ hwp edit format report.hwpx s0.p1 --italic --color "#0000FF"
 표 구조(행, 셀, 텍스트)를 읽습니다.
 
 ```bash
-hwp table read <file> <ref> [--pretty]
+hwpilot table read <file> <ref> [--pretty]
 ```
 
 ### table edit
@@ -151,12 +151,12 @@ hwp table read <file> <ref> [--pretty]
 표 셀의 텍스트를 편집합니다.
 
 ```bash
-hwp table edit <file> <ref> <text> [--pretty]
+hwpilot table edit <file> <ref> <text> [--pretty]
 ```
 
 ```bash
-hwp table edit report.hwpx s0.t0.r0.c0 "이름"
-hwp table edit report.hwpx s0.t0.r0.c1 "날짜"
+hwpilot table edit report.hwpx s0.t0.r0.c0 "이름"
+hwpilot table edit report.hwpx s0.t0.r0.c1 "날짜"
 ```
 
 ### table list
@@ -164,16 +164,16 @@ hwp table edit report.hwpx s0.t0.r0.c1 "날짜"
 문서의 모든 표를 나열합니다.
 
 ```bash
-hwp table list <file> [--pretty]
+hwpilot table list <file> [--pretty]
 ```
 
 ### image list / extract / insert / replace
 
 ```bash
-hwp image list <file>                            # 모든 이미지 나열
-hwp image extract <file> <ref> <output-path>     # 이미지 추출
-hwp image insert <file> <image-path>             # 이미지 삽입
-hwp image replace <file> <ref> <image-path>      # 이미지 교체
+hwpilot image list <file>                            # 모든 이미지 나열
+hwpilot image extract <file> <ref> <output-path>     # 이미지 추출
+hwpilot image insert <file> <image-path>             # 이미지 삽입
+hwpilot image replace <file> <ref> <image-path>      # 이미지 교체
 ```
 
 > 이미지 삽입/교체/추출은 HWPX 포맷에서만 가능합니다. `image list`는 두 포맷 모두 지원합니다.
@@ -183,11 +183,11 @@ hwp image replace <file> <ref> <image-path>      # 이미지 교체
 빈 HWPX 문서를 생성합니다.
 
 ```bash
-hwp create <file> [--title <text>] [--font <name>] [--size <pt>] [--pretty]
+hwpilot create <file> [--title <text>] [--font <name>] [--size <pt>] [--pretty]
 ```
 
 ```bash
-hwp create report.hwpx --title "월간 보고서" --font "바탕" --size 12
+hwpilot create report.hwpx --title "월간 보고서" --font "바탕" --size 12
 ```
 
 ### convert
@@ -195,7 +195,7 @@ hwp create report.hwpx --title "월간 보고서" --font "바탕" --size 12
 HWP 5.0을 HWPX로 변환합니다.
 
 ```bash
-hwp convert <input> <output> [--force] [--pretty]
+hwpilot convert <input> <output> [--force] [--pretty]
 ```
 
 ## 포맷 지원
@@ -214,7 +214,7 @@ hwp convert <input> <output> [--force] [--pretty]
 | 이미지 삽입/교체/추출 | ✓ | ✗ |
 | 새 문서 생성 | ✓ | ✗ |
 
-HWP 5.0 파일에서 이미지 작업이 필요하면 먼저 변환하세요: `hwp convert file.hwp file.hwpx`
+HWP 5.0 파일에서 이미지 작업이 필요하면 먼저 변환하세요: `hwpilot convert file.hwp file.hwpx`
 
 ## 제한 사항
 

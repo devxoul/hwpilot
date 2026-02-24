@@ -63,8 +63,8 @@ function sleep(ms: number): Promise<void> {
 describe('daemon lifecycle', () => {
   test('daemon auto-starts on first CLI call', async () => {
     const result = await runCliWithEnv(['read', hwpxFile, 's0'], {
-      HWPCLI_NO_DAEMON: undefined,
-      HWPCLI_DAEMON_IDLE_MS: '30000',
+      HWPILOT_NO_DAEMON: undefined,
+      HWPILOT_DAEMON_IDLE_MS: '30000',
     })
     expect(result.exitCode).toBe(0)
 
@@ -76,8 +76,8 @@ describe('daemon lifecycle', () => {
 
   test('daemon shuts down after idle timeout', async () => {
     await runCliWithEnv(['read', hwpxFile, 's0'], {
-      HWPCLI_NO_DAEMON: undefined,
-      HWPCLI_DAEMON_IDLE_MS: '500',
+      HWPILOT_NO_DAEMON: undefined,
+      HWPILOT_DAEMON_IDLE_MS: '500',
     })
 
     const state = readStateFile(hwpxFile)
@@ -95,8 +95,8 @@ describe('daemon lifecycle', () => {
   test('recovers from crashed daemon', async () => {
     // Start daemon
     await runCliWithEnv(['read', hwpxFile, 's0'], {
-      HWPCLI_NO_DAEMON: undefined,
-      HWPCLI_DAEMON_IDLE_MS: '30000',
+      HWPILOT_NO_DAEMON: undefined,
+      HWPILOT_DAEMON_IDLE_MS: '30000',
     })
     const state = readStateFile(hwpxFile)!
     expect(state).not.toBeNull()
@@ -107,8 +107,8 @@ describe('daemon lifecycle', () => {
 
     // Run another command — should spawn new daemon
     const result = await runCliWithEnv(['read', hwpxFile, 's0'], {
-      HWPCLI_NO_DAEMON: undefined,
-      HWPCLI_DAEMON_IDLE_MS: '30000',
+      HWPILOT_NO_DAEMON: undefined,
+      HWPILOT_DAEMON_IDLE_MS: '30000',
     })
     expect(result.exitCode).toBe(0)
 
@@ -122,9 +122,9 @@ describe('daemon lifecycle', () => {
   test('edits persist after daemon flush', async () => {
     // Edit via daemon with fast flush
     const editResult = await runCliWithEnv(['edit', 'text', hwpxFile, 's0.p0', 'LIFECYCLE-TEST'], {
-      HWPCLI_NO_DAEMON: undefined,
-      HWPCLI_DAEMON_IDLE_MS: '30000',
-      HWPCLI_DAEMON_FLUSH_MS: '50',
+      HWPILOT_NO_DAEMON: undefined,
+      HWPILOT_DAEMON_IDLE_MS: '30000',
+      HWPILOT_DAEMON_FLUSH_MS: '50',
     })
     expect(editResult.exitCode).toBe(0)
 
@@ -135,7 +135,7 @@ describe('daemon lifecycle', () => {
     await killDaemon(hwpxFile)
 
     // Read file directly (no daemon) — edit should be persisted on disk
-    const result = await runCliWithEnv(['text', hwpxFile, 's0.p0'], { HWPCLI_NO_DAEMON: '1' })
+    const result = await runCliWithEnv(['text', hwpxFile, 's0.p0'], { HWPILOT_NO_DAEMON: '1' })
     expect(result.exitCode).toBe(0)
     const data = JSON.parse(result.stdout) as { text: string }
     expect(data.text).toBe('LIFECYCLE-TEST')
@@ -144,9 +144,9 @@ describe('daemon lifecycle', () => {
   test('graceful shutdown flushes and cleans state file', async () => {
     // Edit via daemon with long flush interval — SIGTERM should trigger immediate flush
     const editResult = await runCliWithEnv(['edit', 'text', hwpxFile, 's0.p0', 'GRACEFUL-SHUTDOWN'], {
-      HWPCLI_NO_DAEMON: undefined,
-      HWPCLI_DAEMON_IDLE_MS: '30000',
-      HWPCLI_DAEMON_FLUSH_MS: '5000',
+      HWPILOT_NO_DAEMON: undefined,
+      HWPILOT_DAEMON_IDLE_MS: '30000',
+      HWPILOT_DAEMON_FLUSH_MS: '5000',
     })
     expect(editResult.exitCode).toBe(0)
 
@@ -162,7 +162,7 @@ describe('daemon lifecycle', () => {
     expect(isProcessAlive(state.pid)).toBe(false)
 
     // Edit should be persisted (SIGTERM triggers immediate flush)
-    const result = await runCliWithEnv(['text', hwpxFile, 's0.p0'], { HWPCLI_NO_DAEMON: '1' })
+    const result = await runCliWithEnv(['text', hwpxFile, 's0.p0'], { HWPILOT_NO_DAEMON: '1' })
     expect(result.exitCode).toBe(0)
     const data = JSON.parse(result.stdout) as { text: string }
     expect(data.text).toBe('GRACEFUL-SHUTDOWN')

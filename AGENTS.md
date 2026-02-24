@@ -1,8 +1,8 @@
-# hwpcli — Development Guide
+# hwpilot — Development Guide
 
 ## Overview
 
-hwpcli is a native HWP/HWPX document editor CLI for AI agents. It provides programmatic access to read and write Korean word processor documents.
+hwpilot is a native HWP/HWPX document editor CLI for AI agents. It provides programmatic access to read and write Korean word processor documents.
 
 ## TypeScript Execution Model
 
@@ -54,7 +54,7 @@ scripts/
 ├── postbuild.ts           # Post-build shebang replacement
 └── prepublish.ts          # Pre-publish bin path rewriting
 
-skills/hwp/                # Claude skill definition
+skills/hwpilot/                # Claude skill definition
 └── SKILL.md
 
 .claude-plugin/            # Claude plugin metadata

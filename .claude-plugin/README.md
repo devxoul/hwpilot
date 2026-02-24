@@ -6,17 +6,17 @@ Native HWP/HWPX document editor CLI for AI agents. Read and write Korean word pr
 
 ```bash
 # Add the marketplace
-claude plugin marketplace add devxoul/hwpcli
+claude plugin marketplace add devxoul/hwpilot
 
 # Install the plugin
-claude plugin install hwp
+claude plugin install hwpilot
 ```
 
 Or within Claude Code:
 
 ```
-/plugin marketplace add devxoul/hwpcli
-/plugin install hwp
+/plugin marketplace add devxoul/hwpilot
+/plugin install hwpilot
 ```
 
 ## What it does
@@ -57,25 +57,25 @@ All commands output JSON by default for easy AI consumption. Use `--pretty` for 
 
 ```bash
 # Read a document
-hwp read document.hwpx
+hwpilot read document.hwpx
 
 # Extract text
-hwp text document.hwpx
+hwpilot text document.hwpx
 
 # Edit paragraph text
-hwp edit text document.hwpx s0.p0 "New paragraph content"
+hwpilot edit text document.hwpx s0.p0 "New paragraph content"
 
 # Read a table
-hwp table read document.hwpx s0.t0
+hwpilot table read document.hwpx s0.t0
 
 # Create a new document
-hwp create new-document.hwpx
+hwpilot create new-document.hwpx
 
 # Convert HWP to HWPX
-hwp convert document.hwp --to hwpx --output document.hwpx
+hwpilot convert document.hwp --to hwpx --output document.hwpx
 ```
 
 ## More Information
 
-- [GitHub Repository](https://github.com/devxoul/hwpcli)
-- [HWP Skill Documentation](https://github.com/devxoul/hwpcli/blob/main/skills/hwp/SKILL.md)
+- [GitHub Repository](https://github.com/devxoul/hwpilot)
+- [HWP Skill Documentation](https://github.com/devxoul/hwpilot/blob/main/skills/hwpilot/SKILL.md)

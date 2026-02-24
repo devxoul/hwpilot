@@ -10,7 +10,7 @@ This file tracks interface limitations and known issues discovered during E2E te
 **Detection method**: HWP Viewer corruption check (`checkViewerCorruption` in `e2e/helpers.ts`)
 
 ### Symptom
-When `hwpcli edit text <file> s0.p0 <new-text>` is applied to these fixtures, the official Hancom HWP Viewer shows:
+When `hwpilot edit text <file> s0.p0 <new-text>` is applied to these fixtures, the official Hancom HWP Viewer shows:
 > 파일이 손상되었습니다. (The file is corrupted.)
 
 Affected fixtures:
@@ -32,7 +32,7 @@ Affected fixtures:
  Table cell edits (`table edit` command)
 
 ### Root cause
-Unknown. HWP binary format integrity checks in the viewer appear stricter than what `hwpcli`'s binary writer produces for certain paragraph configurations. The `crossValidate` round-trip (HWP→HWPX conversion + XML check) passes for all these fixtures, meaning the content is written correctly, but the binary-level structure may violate an HWP 5.0 format constraint that the official viewer enforces.
+Unknown. HWP binary format integrity checks in the viewer appear stricter than what `hwpilot`'s binary writer produces for certain paragraph configurations. The `crossValidate` round-trip (HWP→HWPX conversion + XML check) passes for all these fixtures, meaning the content is written correctly, but the binary-level structure may violate an HWP 5.0 format constraint that the official viewer enforces.
 
 Candidates:
  Incorrect record size/offset after paragraph rewrite

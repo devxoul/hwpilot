@@ -1,4 +1,4 @@
-# hwpcli
+# hwpilot
 
 [![한국어](https://img.shields.io/badge/lang-한국어-blue)](./README.md)
 
@@ -9,29 +9,29 @@ All commands output JSON. All edits happen in-place.
 ## Install
 
 ```bash
-npm install -g hwpcli
+npm install -g hwpilot
 ```
 
 ## Usage
 
 ```bash
 # Read first 20 paragraphs
-hwp read document.hwpx --limit 20
+hwpilot read document.hwpx --limit 20
 
 # Search for text
-hwp find document.hwpx "청구취지"
+hwpilot find document.hwpx "청구취지"
 
 # Edit a paragraph
-hwp edit text document.hwpx s0.p0 "New content"
+hwpilot edit text document.hwpx s0.p0 "New content"
 
 # Edit a table cell
-hwp table edit document.hwpx s0.t0.r0.c0 "Cell value"
+hwpilot table edit document.hwpx s0.t0.r0.c0 "Cell value"
 
 # Bold + resize
-hwp edit format document.hwpx s0.p0 --bold --size 16
+hwpilot edit format document.hwpx s0.p0 --bold --size 16
 
 # Convert HWP 5.0 → HWPX
-hwp convert legacy.hwp output.hwpx
+hwpilot convert legacy.hwp output.hwpx
 ```
 
 ## Reference System
@@ -62,13 +62,13 @@ Examples:
 Read document structure. Use `--offset` and `--limit` to paginate.
 
 ```bash
-hwp read <file> [ref] [--offset <n>] [--limit <n>] [--pretty]
+hwpilot read <file> [ref] [--offset <n>] [--limit <n>] [--pretty]
 ```
 
 ```bash
-hwp read report.hwpx --limit 20          # first 20 paragraphs
-hwp read report.hwpx --offset 20 --limit 20  # next 20
-hwp read report.hwpx s0.t0               # a specific table
+hwpilot read report.hwpx --limit 20          # first 20 paragraphs
+hwpilot read report.hwpx --offset 20 --limit 20  # next 20
+hwpilot read report.hwpx s0.t0               # a specific table
 ```
 
 ### text
@@ -76,13 +76,13 @@ hwp read report.hwpx s0.t0               # a specific table
 Extract plain text.
 
 ```bash
-hwp text <file> [ref] [--offset <n>] [--limit <n>] [--pretty]
+hwpilot text <file> [ref] [--offset <n>] [--limit <n>] [--pretty]
 ```
 
 ```bash
-hwp text report.hwpx                     # all text
-hwp text report.hwpx s0.p0               # one paragraph
-hwp text report.hwpx s0.t0.r0.c0         # a table cell
+hwpilot text report.hwpx                     # all text
+hwpilot text report.hwpx s0.p0               # one paragraph
+hwpilot text report.hwpx s0.t0.r0.c0         # a table cell
 ```
 
 ### find
@@ -90,15 +90,15 @@ hwp text report.hwpx s0.t0.r0.c0         # a table cell
 Search text across all containers (paragraphs, tables, text boxes). Case-insensitive.
 
 ```bash
-hwp find <file> <query> [--json]
+hwpilot find <file> <query> [--json]
 ```
 
 ```bash
-hwp find document.hwpx "청구취지"
+hwpilot find document.hwpx "청구취지"
 # s0.p3: 청구취지
 # s0.tb0.p0: 청구취지 및 청구원인
 
-hwp find document.hwpx "청구취지" --json
+hwpilot find document.hwpx "청구취지" --json
 # {"matches":[{"ref":"s0.p3","text":"청구취지","container":"paragraph"},...]}
 ```
 
@@ -107,13 +107,13 @@ hwp find document.hwpx "청구취지" --json
 Replace text at a ref. Modifies the file in-place.
 
 ```bash
-hwp edit text <file> <ref> <text> [--pretty]
+hwpilot edit text <file> <ref> <text> [--pretty]
 ```
 
 ```bash
-hwp edit text report.hwpx s0.p0 "New Title"
-hwp edit text report.hwpx s0.t0.r0.c0 "Cell value"
-hwp edit text report.hwpx s0.tb0.p0 "Text box content"
+hwpilot edit text report.hwpx s0.p0 "New Title"
+hwpilot edit text report.hwpx s0.t0.r0.c0 "Cell value"
+hwpilot edit text report.hwpx s0.tb0.p0 "Text box content"
 ```
 
 ### edit format
@@ -121,7 +121,7 @@ hwp edit text report.hwpx s0.tb0.p0 "Text box content"
 Change character formatting at a ref.
 
 ```bash
-hwp edit format <file> <ref> [options] [--pretty]
+hwpilot edit format <file> <ref> [options] [--pretty]
 ```
 
 | Flag | Effect |
@@ -134,8 +134,8 @@ hwp edit format <file> <ref> [options] [--pretty]
 | `--color <hex>` | Set text color (e.g. `#FF0000`) |
 
 ```bash
-hwp edit format report.hwpx s0.p0 --bold --size 16 --font "맑은 고딕"
-hwp edit format report.hwpx s0.p1 --italic --color "#0000FF"
+hwpilot edit format report.hwpx s0.p0 --bold --size 16 --font "맑은 고딕"
+hwpilot edit format report.hwpx s0.p1 --italic --color "#0000FF"
 ```
 
 ### table read
@@ -143,7 +143,7 @@ hwp edit format report.hwpx s0.p1 --italic --color "#0000FF"
 Read a table's structure (rows, cells, text).
 
 ```bash
-hwp table read <file> <ref> [--pretty]
+hwpilot table read <file> <ref> [--pretty]
 ```
 
 ### table edit
@@ -151,12 +151,12 @@ hwp table read <file> <ref> [--pretty]
 Edit text in a table cell.
 
 ```bash
-hwp table edit <file> <ref> <text> [--pretty]
+hwpilot table edit <file> <ref> <text> [--pretty]
 ```
 
 ```bash
-hwp table edit report.hwpx s0.t0.r0.c0 "Name"
-hwp table edit report.hwpx s0.t0.r0.c1 "Date"
+hwpilot table edit report.hwpx s0.t0.r0.c0 "Name"
+hwpilot table edit report.hwpx s0.t0.r0.c1 "Date"
 ```
 
 ### table list
@@ -164,16 +164,16 @@ hwp table edit report.hwpx s0.t0.r0.c1 "Date"
 List all tables in the document.
 
 ```bash
-hwp table list <file> [--pretty]
+hwpilot table list <file> [--pretty]
 ```
 
 ### image list / extract / insert / replace
 
 ```bash
-hwp image list <file>                            # list all images
-hwp image extract <file> <ref> <output-path>     # extract to file
-hwp image insert <file> <image-path>             # insert image
-hwp image replace <file> <ref> <image-path>      # replace image
+hwpilot image list <file>                            # list all images
+hwpilot image extract <file> <ref> <output-path>     # extract to file
+hwpilot image insert <file> <image-path>             # insert image
+hwpilot image replace <file> <ref> <image-path>      # replace image
 ```
 
 > Image insert/replace/extract require HWPX format. `image list` works on both.
@@ -183,11 +183,11 @@ hwp image replace <file> <ref> <image-path>      # replace image
 Create a new blank HWPX document.
 
 ```bash
-hwp create <file> [--title <text>] [--font <name>] [--size <pt>] [--pretty]
+hwpilot create <file> [--title <text>] [--font <name>] [--size <pt>] [--pretty]
 ```
 
 ```bash
-hwp create report.hwpx --title "Monthly Report" --font "바탕" --size 12
+hwpilot create report.hwpx --title "Monthly Report" --font "바탕" --size 12
 ```
 
 ### convert
@@ -195,7 +195,7 @@ hwp create report.hwpx --title "Monthly Report" --font "바탕" --size 12
 Convert HWP 5.0 to HWPX.
 
 ```bash
-hwp convert <input> <output> [--force] [--pretty]
+hwpilot convert <input> <output> [--force] [--pretty]
 ```
 
 ## Format Support
@@ -214,7 +214,7 @@ Format is detected by file content (magic bytes), not by file extension.
 | Image insert / replace / extract | ✓ | ✗ |
 | Create new document | ✓ | ✗ |
 
-For image operations on HWP 5.0 files, convert first: `hwp convert file.hwp file.hwpx`
+For image operations on HWP 5.0 files, convert first: `hwpilot convert file.hwp file.hwpx`
 
 ## Limitations
 

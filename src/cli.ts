@@ -12,9 +12,9 @@ import { textCommand } from '@/commands/text'
 
 const program = new Command()
 
-program.name('hwp').description('Native HWP/HWPX document editor CLI for AI agents').version('0.1.0')
+program.name('hwpilot').description('HWP Copilot').version('0.1.0')
 
-// hwp read <file> [ref]
+// hwpilot read <file> [ref]
 program
   .command('read <file> [ref]')
   .description('Read document structure or a specific element')
@@ -31,7 +31,7 @@ program
     },
   )
 
-// hwp text <file> [ref]
+// hwpilot text <file> [ref]
 program
   .command('text <file> [ref]')
   .description('Extract text from document or a specific element')
@@ -48,7 +48,7 @@ program
     },
   )
 
-// hwp find <file> <query>
+// hwpilot find <file> <query>
 program
   .command('find <file> <query>')
   .description('Search text in document and return matching refs')
@@ -57,10 +57,10 @@ program
     await findCommand(file, query, options)
   })
 
-// hwp edit
+// hwpilot edit
 const editCmd = program.command('edit').description('Edit document content')
 
-// hwp edit text <file> <ref> <text>
+// hwpilot edit text <file> <ref> <text>
 editCmd
   .command('text <file> <ref> <text>')
   .description('Edit text at a specific reference')
@@ -69,7 +69,7 @@ editCmd
     await editTextCommand(file, ref, text, options)
   })
 
-// hwp edit format <file> <ref>
+// hwpilot edit format <file> <ref>
 editCmd
   .command('format <file> <ref>')
   .description('Edit character formatting at a specific reference')
@@ -95,10 +95,10 @@ editCmd
     })
   })
 
-// hwp table
+// hwpilot table
 const tableCmd = program.command('table').description('Work with tables')
 
-// hwp table read <file> <ref>
+// hwpilot table read <file> <ref>
 tableCmd
   .command('read <file> <ref>')
   .description('Read table structure')
@@ -107,7 +107,7 @@ tableCmd
     await tableReadCommand(file, ref, options)
   })
 
-// hwp table edit <file> <ref> <text>
+// hwpilot table edit <file> <ref> <text>
 tableCmd
   .command('edit <file> <ref> <text>')
   .description('Edit text in a table cell')
@@ -116,7 +116,7 @@ tableCmd
     await tableEditCommand(file, ref, text, options)
   })
 
-// hwp table list <file>
+// hwpilot table list <file>
 tableCmd
   .command('list <file>')
   .description('List all tables in the document')
@@ -125,10 +125,10 @@ tableCmd
     await tableListCommand(file, options)
   })
 
-// hwp image
+// hwpilot image
 const imageCmd = program.command('image').description('Work with images')
 
-// hwp image list <file>
+// hwpilot image list <file>
 imageCmd
   .command('list <file>')
   .description('List all images in the document')
@@ -137,7 +137,7 @@ imageCmd
     await imageListCommand(file, options)
   })
 
-// hwp image extract <file> <ref> <output>
+// hwpilot image extract <file> <ref> <output>
 imageCmd
   .command('extract <file> <ref> <output>')
   .description('Extract an image to a file')
@@ -146,7 +146,7 @@ imageCmd
     await imageExtractCommand(file, ref, output, options)
   })
 
-// hwp image insert <file> <path>
+// hwpilot image insert <file> <path>
 imageCmd
   .command('insert <file> <path>')
   .description('Insert an image into the document')
@@ -155,7 +155,7 @@ imageCmd
     await imageInsertCommand(file, path, options)
   })
 
-// hwp image replace <file> <ref> <path>
+// hwpilot image replace <file> <ref> <path>
 imageCmd
   .command('replace <file> <ref> <path>')
   .description('Replace an existing image')
@@ -164,7 +164,7 @@ imageCmd
     await imageReplaceCommand(file, ref, path, options)
   })
 
-// hwp create <file>
+// hwpilot create <file>
 program
   .command('create <file>')
   .description('Create a new blank HWPX document')
@@ -176,7 +176,7 @@ program
     await createCommand(file, options)
   })
 
-// hwp convert <input> <output>
+// hwpilot convert <input> <output>
 program
   .command('convert <input> <output>')
   .description('Convert HWP 5.0 file to HWPX format')

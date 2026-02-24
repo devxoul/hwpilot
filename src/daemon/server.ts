@@ -30,14 +30,14 @@ export async function startDaemonServer(filePath: string): Promise<void> {
   const holder: DaemonHolder = format === 'hwp' ? new HwpHolder(resolvedPath) : new HwpxHolder(resolvedPath)
   await holder.load()
 
-  const flushMs = parseEnvMs('HWPCLI_DAEMON_FLUSH_MS', DEFAULT_FLUSH_MS)
+  const flushMs = parseEnvMs('HWPILOT_DAEMON_FLUSH_MS', DEFAULT_FLUSH_MS)
   const scheduler = createFlushScheduler(() => holder.flush(), flushMs)
 
   const token = generateToken()
   const version = getVersion()
 
   let requestQueue: Promise<void> = Promise.resolve()
-  const idleMs = parseEnvMs('HWPCLI_DAEMON_IDLE_MS', DEFAULT_IDLE_MS)
+  const idleMs = parseEnvMs('HWPILOT_DAEMON_IDLE_MS', DEFAULT_IDLE_MS)
   let idleTimer: ReturnType<typeof setTimeout> | null = null
 
   const server = createServer((socket) => {

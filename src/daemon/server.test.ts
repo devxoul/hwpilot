@@ -34,8 +34,8 @@ describe('daemon server', () => {
   test('starts and handles read request with valid token', async () => {
     const filePath = await createTempHwpxFile(['Hello daemon'])
     const daemon = await startTestDaemon(filePath, {
-      HWPCLI_DAEMON_IDLE_MS: '5000',
-      HWPCLI_DAEMON_FLUSH_MS: '100',
+      HWPILOT_DAEMON_IDLE_MS: '5000',
+      HWPILOT_DAEMON_FLUSH_MS: '100',
     })
 
     const response = await sendRequest(daemon.port, daemon.token, {
@@ -55,8 +55,8 @@ describe('daemon server', () => {
   test('rejects invalid token', async () => {
     const filePath = await createTempHwpxFile(['Token check'])
     const daemon = await startTestDaemon(filePath, {
-      HWPCLI_DAEMON_IDLE_MS: '5000',
-      HWPCLI_DAEMON_FLUSH_MS: '100',
+      HWPILOT_DAEMON_IDLE_MS: '5000',
+      HWPILOT_DAEMON_FLUSH_MS: '100',
     })
 
     const response = await sendRequest(daemon.port, 'invalid-token', {
@@ -73,8 +73,8 @@ describe('daemon server', () => {
   test('shuts down after idle timeout', async () => {
     const filePath = await createTempHwpxFile(['Idle timeout'])
     const daemon = await startTestDaemon(filePath, {
-      HWPCLI_DAEMON_IDLE_MS: '250',
-      HWPCLI_DAEMON_FLUSH_MS: '100',
+      HWPILOT_DAEMON_IDLE_MS: '250',
+      HWPILOT_DAEMON_FLUSH_MS: '100',
     })
 
     const exitCode = await waitForExit(daemon.child, 4000)
@@ -87,8 +87,8 @@ describe('daemon server', () => {
   test('persists edit changes after flush', async () => {
     const filePath = await createTempHwpxFile(['Before'])
     const daemon = await startTestDaemon(filePath, {
-      HWPCLI_DAEMON_IDLE_MS: '10000',
-      HWPCLI_DAEMON_FLUSH_MS: '50',
+      HWPILOT_DAEMON_IDLE_MS: '10000',
+      HWPILOT_DAEMON_FLUSH_MS: '50',
     })
 
     const response = await sendRequest(daemon.port, daemon.token, {

@@ -52,9 +52,9 @@ describe('state-file', () => {
       expect(path).toContain(tmpdir())
     })
 
-    it('includes hwpclid prefix', () => {
+    it('includes hwpilotd prefix', () => {
       const path = getStateFilePath('/tmp/test.hwpx')
-      expect(path).toContain('hwpclid-')
+      expect(path).toContain('hwpilotd-')
     })
 
     it('ends with .json', () => {

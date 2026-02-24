@@ -1,5 +1,5 @@
 {
-  "name": "hwp",
+  "name": "hwpilot",
   "version": "0.1.0",
   "description": "Read and edit HWP/HWPX Korean document files natively. AI agents can read document structure, extract and edit text, formatting, tables, and images in-place without format conversion.",
   "author": {
@@ -17,9 +17,9 @@
     "cli",
     "office"
   ],
-  "homepage": "https://github.com/devxoul/hwpcli",
-  "repository": "https://github.com/devxoul/hwpcli",
+  "homepage": "https://github.com/devxoul/hwpilot",
+  "repository": "https://github.com/devxoul/hwpilot",
   "skills": [
-    "./skills/hwp"
+    "./skills/hwpilot"
   ]
 }

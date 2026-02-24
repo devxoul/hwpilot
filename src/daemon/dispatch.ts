@@ -8,7 +8,7 @@ export async function dispatchViaDaemon(
   command: string,
   args: Record<string, unknown>,
 ): Promise<DaemonResponse | null> {
-  if (process.env.HWPCLI_NO_DAEMON === '1') {
+  if (process.env.HWPILOT_NO_DAEMON === '1') {
     return null
   }
 

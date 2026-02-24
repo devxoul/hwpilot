@@ -64,8 +64,8 @@ describe('daemon stress tests', () => {
     const results = await Promise.all(
       Array.from({ length: 5 }, () =>
         runCliWithEnv(['read', hwpxFile, 's0'], {
-          HWPCLI_NO_DAEMON: undefined,
-          HWPCLI_DAEMON_IDLE_MS: '30000',
+          HWPILOT_NO_DAEMON: undefined,
+          HWPILOT_DAEMON_IDLE_MS: '30000',
         }),
       ),
     )
@@ -84,17 +84,17 @@ describe('daemon stress tests', () => {
   test('10 rapid sequential edits all succeed', async () => {
     for (let i = 0; i < 10; i++) {
       const result = await runCliWithEnv(['edit', 'text', hwpxFile, 's0.p0', `Edit ${i}`], {
-        HWPCLI_NO_DAEMON: undefined,
-        HWPCLI_DAEMON_IDLE_MS: '30000',
-        HWPCLI_DAEMON_FLUSH_MS: '5000',
+        HWPILOT_NO_DAEMON: undefined,
+        HWPILOT_DAEMON_IDLE_MS: '30000',
+        HWPILOT_DAEMON_FLUSH_MS: '5000',
       })
       expect(result.exitCode).toBe(0)
     }
 
     // Final state should be last edit
     const result = await runCliWithEnv(['text', hwpxFile, 's0.p0'], {
-      HWPCLI_NO_DAEMON: undefined,
-      HWPCLI_DAEMON_IDLE_MS: '30000',
+      HWPILOT_NO_DAEMON: undefined,
+      HWPILOT_DAEMON_IDLE_MS: '30000',
     })
     expect(result.exitCode).toBe(0)
     const data = JSON.parse(result.stdout) as { text: string }
@@ -104,9 +104,9 @@ describe('daemon stress tests', () => {
   test('interleaved reads and writes return consistent state', async () => {
     // Write then read, verify consistency
     const writeResult = await runCliWithEnv(['edit', 'text', hwpxFile, 's0.p0', 'MIXED-TEST'], {
-      HWPCLI_NO_DAEMON: undefined,
-      HWPCLI_DAEMON_IDLE_MS: '30000',
-      HWPCLI_DAEMON_FLUSH_MS: '5000',
+      HWPILOT_NO_DAEMON: undefined,
+      HWPILOT_DAEMON_IDLE_MS: '30000',
+      HWPILOT_DAEMON_FLUSH_MS: '5000',
     })
     expect(writeResult.exitCode).toBe(0)
 
@@ -114,8 +114,8 @@ describe('daemon stress tests', () => {
     const reads = await Promise.all(
       Array.from({ length: 3 }, () =>
         runCliWithEnv(['text', hwpxFile, 's0.p0'], {
-          HWPCLI_NO_DAEMON: undefined,
-          HWPCLI_DAEMON_IDLE_MS: '30000',
+          HWPILOT_NO_DAEMON: undefined,
+          HWPILOT_DAEMON_IDLE_MS: '30000',
         }),
       ),
     )
@@ -131,9 +131,9 @@ describe('daemon stress tests', () => {
     // Make 5 rapid edits with fast flush
     for (let i = 0; i < 5; i++) {
       const result = await runCliWithEnv(['edit', 'text', hwpxFile, 's0.p0', `Rapid ${i}`], {
-        HWPCLI_NO_DAEMON: undefined,
-        HWPCLI_DAEMON_IDLE_MS: '30000',
-        HWPCLI_DAEMON_FLUSH_MS: '200',
+        HWPILOT_NO_DAEMON: undefined,
+        HWPILOT_DAEMON_IDLE_MS: '30000',
+        HWPILOT_DAEMON_FLUSH_MS: '200',
       })
       expect(result.exitCode).toBe(0)
     }
@@ -143,7 +143,7 @@ describe('daemon stress tests', () => {
 
     // Kill daemon and read directly — should have last edit
     await killDaemon(hwpxFile)
-    const result = await runCliWithEnv(['text', hwpxFile, 's0.p0'], { HWPCLI_NO_DAEMON: '1' })
+    const result = await runCliWithEnv(['text', hwpxFile, 's0.p0'], { HWPILOT_NO_DAEMON: '1' })
     expect(result.exitCode).toBe(0)
     const data = JSON.parse(result.stdout) as { text: string }
     expect(data.text).toBe('Rapid 4')

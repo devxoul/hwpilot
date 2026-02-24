@@ -11,7 +11,7 @@ const tempDirs: string[] = []
 const daemonFiles = new Set<string>()
 
 afterEach(async () => {
-  delete process.env.HWPCLI_NO_DAEMON
+  delete process.env.HWPILOT_NO_DAEMON
 
   for (const filePath of daemonFiles) {
     try {
@@ -27,8 +27,8 @@ afterEach(async () => {
 })
 
 describe('dispatchViaDaemon', () => {
-  test('returns null when HWPCLI_NO_DAEMON=1', async () => {
-    process.env.HWPCLI_NO_DAEMON = '1'
+  test('returns null when HWPILOT_NO_DAEMON=1', async () => {
+    process.env.HWPILOT_NO_DAEMON = '1'
 
     const filePath = await createTempHwpxFile(['No daemon'])
 

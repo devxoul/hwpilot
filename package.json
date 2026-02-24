@@ -1,16 +1,16 @@
 {
-  "name": "hwp",
+  "name": "hwpilot",
   "version": "0.1.0",
-  "description": "Native HWP/HWPX document editor CLI for AI agents",
+  "description": "HWP Copilot",
   "repository": {
     "type": "git",
-    "url": "https://github.com/devxoul/hwpcli"
+    "url": "https://github.com/devxoul/hwpilot"
   },
   "type": "module",
   "module": "dist/src/cli.js",
   "main": "dist/src/cli.js",
   "bin": {
-    "hwp": "./src/cli.ts"
+    "hwpilot": "./src/cli.ts"
   },
   "files": ["dist/", "skills/", ".claude-plugin/"],
   "scripts": {

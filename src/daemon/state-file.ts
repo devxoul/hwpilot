@@ -22,7 +22,7 @@ export function getStateFilePath(filePath: string): string {
   }
 
   const hash = createHash('sha256').update(realPath).digest('hex').slice(0, 16)
-  return `${tmpdir()}/hwpclid-${hash}.json`
+  return `${tmpdir()}/hwpilotd-${hash}.json`
 }
 
 export function writeStateFile(filePath: string, data: StateFileData): void {

@@ -29,11 +29,11 @@ function restoreOutput() {
 afterEach(restoreOutput)
 
 beforeAll(() => {
-  process.env.HWPCLI_NO_DAEMON = '1'
+  process.env.HWPILOT_NO_DAEMON = '1'
 })
 
 afterAll(() => {
-  delete process.env.HWPCLI_NO_DAEMON
+  delete process.env.HWPILOT_NO_DAEMON
 })
 
 describe('tableReadCommand', () => {

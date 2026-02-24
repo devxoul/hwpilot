@@ -15,7 +15,7 @@ const origError = console.error
 const origExit = process.exit
 
 beforeAll(async () => {
-  process.env.HWPCLI_NO_DAEMON = '1'
+  process.env.HWPILOT_NO_DAEMON = '1'
 
   const buffer = await createTestHwpx({ paragraphs: ['Hello', 'World'] })
   await Bun.write(TEST_FILE, buffer)
@@ -58,7 +58,7 @@ beforeAll(async () => {
 })
 
 afterAll(() => {
-  delete process.env.HWPCLI_NO_DAEMON
+  delete process.env.HWPILOT_NO_DAEMON
 })
 
 function captureOutput() {

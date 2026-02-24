@@ -167,13 +167,13 @@ async function copyToTemp(sourceFile: string, suffix: string): Promise<string> {
 }
 
 async function runCliDirect(args: string[]): Promise<CliResult> {
-  return runCliWithEnv(args, { HWPCLI_NO_DAEMON: '1' })
+  return runCliWithEnv(args, { HWPILOT_NO_DAEMON: '1' })
 }
 
 async function runCliDaemon(args: string[]): Promise<CliResult> {
   return runCliWithEnv(args, {
-    HWPCLI_NO_DAEMON: undefined,
-    HWPCLI_DAEMON_FLUSH_MS: '50',
+    HWPILOT_NO_DAEMON: undefined,
+    HWPILOT_DAEMON_FLUSH_MS: '50',
   })
 }
 
