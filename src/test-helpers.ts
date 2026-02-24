@@ -215,36 +215,44 @@ function escapeXml(text: string): string {
 }
 
 function buildDocInfoStream(): Buffer {
-  const idMappings = Buffer.alloc(4 * 4)
-  idMappings.writeUInt32LE(1, 0)
-  idMappings.writeUInt32LE(1, 4)
-  idMappings.writeUInt32LE(1, 8)
-  idMappings.writeUInt32LE(1, 12)
+  // HWP 5.0 ID_MAPPINGS: binData, faceNames×7, borderFill, charShape, tabDef, numbering, bullet, paraShape, style
+  const idMappings = Buffer.alloc(4 * 15)
+  idMappings.writeUInt32LE(0, 0) // binData
+  idMappings.writeUInt32LE(1, 4) // hangul faceName
+  idMappings.writeUInt32LE(1, 8) // english faceName
+  idMappings.writeUInt32LE(1, 12) // hanja faceName
+  idMappings.writeUInt32LE(1, 16) // japanese faceName
+  idMappings.writeUInt32LE(1, 20) // other faceName
+  idMappings.writeUInt32LE(1, 24) // symbol faceName
+  idMappings.writeUInt32LE(1, 28) // user faceName
+  idMappings.writeUInt32LE(0, 32) // borderFill
+  idMappings.writeUInt32LE(1, 36) // charShape
+  idMappings.writeUInt32LE(0, 40) // tabDef
+  idMappings.writeUInt32LE(0, 44) // numbering
+  idMappings.writeUInt32LE(0, 48) // bullet
+  idMappings.writeUInt32LE(1, 52) // paraShape
+  idMappings.writeUInt32LE(1, 56) // style
 
   const faceName = encodeLengthPrefixedUtf16('맑은 고딕')
-
   const charShape = Buffer.alloc(74)
   charShape.writeUInt16LE(0, 0)
   charShape.writeUInt16LE(0, 2)
   charShape.writeUInt32LE(1000, 42)
   charShape.writeUInt32LE(0, 46)
   charShape.writeUInt32LE(0, 52)
-
   const paraShape = Buffer.alloc(4)
   paraShape.writeUInt32LE(0, 0)
-
   const styleName = encodeLengthPrefixedUtf16('Normal')
   const style = Buffer.alloc(styleName.length + 6)
   styleName.copy(style, 0)
   style.writeUInt16LE(0, styleName.length + 2)
   style.writeUInt16LE(0, styleName.length + 4)
-
   return Buffer.concat([
     buildRecord(TAG.ID_MAPPINGS, 0, idMappings),
-    buildRecord(TAG.FACE_NAME, 0, faceName),
-    buildRecord(TAG.CHAR_SHAPE, 0, charShape),
-    buildRecord(TAG.PARA_SHAPE, 0, paraShape),
-    buildRecord(TAG.STYLE, 0, style),
+    ...Array.from({ length: 7 }, () => buildRecord(TAG.FACE_NAME, 1, faceName)),
+    buildRecord(TAG.CHAR_SHAPE, 1, charShape),
+    buildRecord(TAG.PARA_SHAPE, 1, paraShape),
+    buildRecord(TAG.STYLE, 1, style),
   ])
 }
 

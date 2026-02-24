@@ -339,7 +339,16 @@ describe('editHwp', () => {
   it('setTableCell edits correct cell when PARA_HEADER is at same level as LIST_HEADER', async () => {
     const filePath = tmpPath('writer-table-same-level-para')
     TMP_FILES.push(filePath)
-    const fixture = await createTestHwpBinaryWithSection0(buildSameLevelTable([['A', 'B'], ['C', 'D']], 2, 2))
+    const fixture = await createTestHwpBinaryWithSection0(
+      buildSameLevelTable(
+        [
+          ['A', 'B'],
+          ['C', 'D'],
+        ],
+        2,
+        2,
+      ),
+    )
     await Bun.write(filePath, fixture)
 
     await editHwp(filePath, [{ type: 'setTableCell', ref: 's0.t0.r1.c0', text: 'EDITED' }])
@@ -354,7 +363,16 @@ describe('editHwp', () => {
   it('setTableCell edits each cell independently in same-level PARA_HEADER table', async () => {
     const filePath = tmpPath('writer-table-same-level-multi-edit')
     TMP_FILES.push(filePath)
-    const fixture = await createTestHwpBinaryWithSection0(buildSameLevelTable([['X', 'Y'], ['Z', 'W']], 2, 2))
+    const fixture = await createTestHwpBinaryWithSection0(
+      buildSameLevelTable(
+        [
+          ['X', 'Y'],
+          ['Z', 'W'],
+        ],
+        2,
+        2,
+      ),
+    )
     await Bun.write(filePath, fixture)
 
     await editHwp(filePath, [
@@ -416,10 +434,11 @@ async function getDocInfoBuffer(filePath: string): Promise<Buffer> {
 function readIdMappingsCharShapeCount(docInfo: Buffer): number {
   for (const { header, data } of iterateRecords(docInfo)) {
     if (header.tagId === TAG.ID_MAPPINGS) {
-      if (data.length < 8) {
+      if (data.length < 40) {
         throw new Error('ID_MAPPINGS record too small')
       }
-      return data.readUInt32LE(4)
+      // HWP5 ID_MAPPINGS field order: binData, faceNames×7, borderFill, charShape (index 9, offset 36)
+      return data.readUInt32LE(36)
     }
   }
 

@@ -430,11 +430,19 @@ function applySetFormat(
     throw new Error('ID_MAPPINGS record not found or malformed')
   }
 
-  const currentCharShapeCount = idMappings.data.readUInt32LE(4)
-  const nextCharShapeCount = Buffer.from(idMappings.data)
-  nextCharShapeCount.writeUInt32LE(currentCharShapeCount + 1, 4)
-  docInfoStream = replaceRecordData(docInfoStream, idMappings.offset, nextCharShapeCount)
-  docInfoStream = Buffer.concat([docInfoStream, buildRecord(TAG.CHAR_SHAPE, 0, clonedCharShape)])
+  const charShapeCountOffset = findCharShapeCountOffset(idMappings.data, charShapeRecords.length)
+  const currentCharShapeCount = idMappings.data.readUInt32LE(charShapeCountOffset)
+  const patchedIdMappings = Buffer.from(idMappings.data)
+  patchedIdMappings.writeUInt32LE(currentCharShapeCount + 1, charShapeCountOffset)
+  docInfoStream = replaceRecordData(docInfoStream, idMappings.offset, patchedIdMappings)
+
+  const insertionOffset = findLastCharShapeRecordEnd(docInfoStream)
+  const newRecord = buildRecord(TAG.CHAR_SHAPE, 1, clonedCharShape)
+  docInfoStream = Buffer.concat([
+    docInfoStream.subarray(0, insertionOffset),
+    newRecord,
+    docInfoStream.subarray(insertionOffset),
+  ])
 
   const patchedParaCharShape = writeParagraphCharShapeRef(paraCharShapeMatch.data, currentCharShapeCount)
   sectionStream = replaceRecordData(sectionStream, paraCharShapeMatch.offset, patchedParaCharShape)
@@ -549,6 +557,34 @@ function findIdMappingsRecord(stream: Buffer): { data: Buffer; offset: number } 
     }
   }
   return null
+}
+
+// HWP 5.0 ID_MAPPINGS: binData(1) + faceNames(7) + borderFill(1) = 9 fields before charShape
+const HWP5_CHAR_SHAPE_FIELD_INDEX = 9
+const HWP5_CHAR_SHAPE_BYTE_OFFSET = HWP5_CHAR_SHAPE_FIELD_INDEX * 4
+
+function findCharShapeCountOffset(idMappingsData: Buffer, actualCharShapeCount: number): number {
+  if (idMappingsData.length >= HWP5_CHAR_SHAPE_BYTE_OFFSET + 4) {
+    return HWP5_CHAR_SHAPE_BYTE_OFFSET
+  }
+
+  for (let offset = 0; offset + 4 <= idMappingsData.length; offset += 4) {
+    if (idMappingsData.readUInt32LE(offset) === actualCharShapeCount) {
+      return offset
+    }
+  }
+
+  throw new Error('Cannot locate charShape count in ID_MAPPINGS')
+}
+
+function findLastCharShapeRecordEnd(stream: Buffer): number {
+  let lastEnd = stream.length
+  for (const { header, offset } of iterateRecords(stream)) {
+    if (header.tagId === TAG.CHAR_SHAPE) {
+      lastEnd = offset + header.headerSize + header.size
+    }
+  }
+  return lastEnd
 }
 
 function applyFormatToCharShape(charShape: Buffer, format: FormatOptions): void {
