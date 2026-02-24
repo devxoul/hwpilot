@@ -1,5 +1,16 @@
 import { afterEach, describe, expect, it } from 'bun:test'
-import { cleanupFiles, crossValidate, FIXTURES, parseOutput, runCli, tempCopy } from './helpers'
+import {
+  checkViewerCorruption,
+  cleanupFiles,
+  crossValidate,
+  FIXTURES,
+  isHwpViewerAvailable,
+  parseOutput,
+  runCli,
+  tempCopy,
+} from './helpers'
+
+const isViewerAvailable = await isHwpViewerAvailable()
 
 const FIXTURE = FIXTURES.employmentContract
 const tempFiles: string[] = []
@@ -87,7 +98,7 @@ describe('Table Cell Edit (표 셀 편집)', () => {
       // given — read original row 1 and row 2 values
       const beforeResult = await runCli(['table', 'read', FIXTURE, 's0.t8'])
       const beforeTable = parseOutput(beforeResult) as any
-      const originalR0C1 = beforeTable.rows[0].cells[1].text
+      const _originalR0C1 = beforeTable.rows[0].cells[1].text
       const originalR1C1 = beforeTable.rows[1].cells[1]?.text
 
       // when — edit row 0, cell 1
@@ -133,4 +144,15 @@ describe('Table Cell Edit (표 셀 편집)', () => {
       expect(afterTable.rows[0].cells[1].text).toBe(koreanText)
     })
   })
+})
+
+describe.skipIf(!isViewerAvailable)('Z. Viewer Corruption Check', () => {
+  it('edited file passes HWP Viewer corruption check', async () => {
+    const temp = await tempCopy(FIXTURE)
+    tempFiles.push(temp)
+    await runCli(['table', 'edit', temp, 's0.t6.r0.c1', 'viewer-corruption-test'])
+    const result = await checkViewerCorruption(temp)
+    expect(result.corrupted).toBe(false)
+    expect(result.skipped).toBe(false)
+  }, 15_000)
 })

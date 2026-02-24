@@ -1,7 +1,18 @@
 import { afterEach, describe, expect, it } from 'bun:test'
 import { readFile, rm } from 'node:fs/promises'
 import JSZip from 'jszip'
-import { cleanupFiles, crossValidate, FIXTURES, parseOutput, runCli, tempCopy } from './helpers'
+import {
+  checkViewerCorruption,
+  cleanupFiles,
+  crossValidate,
+  FIXTURES,
+  isHwpViewerAvailable,
+  parseOutput,
+  runCli,
+  tempCopy,
+} from './helpers'
+
+const isViewerAvailable = await isHwpViewerAvailable()
 
 const FIXTURE = FIXTURES.employmentRules
 const tempFiles: string[] = []
@@ -267,4 +278,15 @@ describe('Employment Rules (개정 표준취업규칙)', () => {
       }
     })
   })
+})
+
+describe.skipIf(!isViewerAvailable)('Z. Viewer Corruption Check', () => {
+  it('edited file passes HWP Viewer corruption check', async () => {
+    const temp = await tempCopy(FIXTURE)
+    tempFiles.push(temp)
+    await runCli(['edit', 'text', temp, 's0.p0', 'viewer-corruption-test'])
+    const result = await checkViewerCorruption(temp)
+    expect(result.corrupted).toBe(false)
+    expect(result.skipped).toBe(false)
+  }, 15_000)
 })
