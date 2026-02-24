@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it } from 'bun:test'
+import { afterEach, describe, expect, it } from 'bun:test'
 import {
   checkViewerCorruption,
   cleanupFiles,
@@ -11,11 +11,7 @@ import {
 } from './helpers'
 
 const tempFiles: string[] = []
-let isViewerAvailable: boolean
-
-beforeAll(async () => {
-  isViewerAvailable = await isHwpViewerAvailable()
-})
+const isViewerAvailable = await isHwpViewerAvailable()
 
 afterEach(async () => {
   await cleanupFiles(tempFiles)

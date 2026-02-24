@@ -152,14 +152,15 @@ const VIEWER_ALERT_TIMEOUT_MS = 3000
 /** Check if HWP Viewer is available on the system (macOS only) */
 export async function isHwpViewerAvailable(): Promise<boolean> {
   if (process.platform !== 'darwin') return false
-  // Use mdfind to check by bundle ID (works even if app is in non-standard location)
-  const proc = Bun.spawn(['mdfind', 'kMDItemCFBundleIdentifier == "com.hancom.office.hwp.viewer"'], {
+  const proc = Bun.spawn(['mdfind', 'kMDItemCFBundleIdentifier == "com.haansoft.HancomOfficeViewer.Mac"'], {
     stdout: 'pipe',
     stderr: 'pipe',
   })
   const out = await new Response(proc.stdout).text()
   await proc.exited
-  return out.trim().length > 0
+  if (out.trim().length > 0) return true
+  const { existsSync } = await import('node:fs')
+  return existsSync('/Applications/Hancom Office HWP Viewer.app')
 }
 
 /** Check if HWP Viewer corrupts a file when opening it */
