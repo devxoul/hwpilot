@@ -183,12 +183,12 @@ function patchParagraphText(stream: Buffer, operation: SectionTextOperation): Bu
 
     if (waitingForTargetText && header.tagId === TAG.PARA_TEXT) {
       const patchedData = buildPatchedParaText(data, operation.text)
-      const newStream = replaceRecordData(stream, offset, patchedData)
+      let newStream = replaceRecordData(stream, offset, patchedData)
       updateParaHeaderNChars(newStream, paraHeaderDataOffset, paraHeaderDataSize, patchedData.length / 2)
+      newStream = resetParagraphCharShape(newStream, operation.paragraph ?? 0)
       return newStream
     }
   }
-
   throw new Error(`Paragraph not found for reference: ${operation.ref}`)
 }
 
@@ -524,6 +524,19 @@ function findParagraphCharShapeRecord(stream: Buffer, paragraphIndex: number): {
   return null
 }
 
+function resetParagraphCharShape(stream: Buffer, paragraphIndex: number): Buffer {
+  const match = findParagraphCharShapeRecord(stream, paragraphIndex)
+  if (!match) return stream
+
+  const charShapeId = readParagraphCharShapeRef(match.data)
+  const newData = Buffer.alloc(12)
+  newData.writeUInt32LE(1, 0)
+  newData.writeUInt32LE(0, 4)
+  newData.writeUInt32LE(charShapeId, 8)
+
+  return replaceRecordData(stream, match.offset, newData)
+}
+
 function readParagraphCharShapeRef(data: Buffer): number {
   if (data.length >= 12) {
     const count = data.readUInt32LE(0)
@@ -541,15 +554,16 @@ function readParagraphCharShapeRef(data: Buffer): number {
 
 function writeParagraphCharShapeRef(data: Buffer, charShapeRef: number): Buffer {
   const next = Buffer.from(data)
-
   if (next.length >= 12) {
     const count = next.readUInt32LE(0)
-    if (count > 0) {
-      next.writeUInt32LE(charShapeRef, 8)
-      return next
+    for (let i = 0; i < count; i++) {
+      const idOffset = 4 + i * 8 + 4
+      if (idOffset + 4 <= next.length) {
+        next.writeUInt32LE(charShapeRef, idOffset)
+      }
     }
+    return next
   }
-
   if (next.length >= 6) {
     next.writeUInt16LE(charShapeRef & 0xffff, 4)
   }

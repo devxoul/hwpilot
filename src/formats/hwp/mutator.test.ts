@@ -5,6 +5,8 @@ import { join } from 'node:path'
 import CFB from 'cfb'
 import { getEntryBuffer, mutateHwpCfb } from './mutator'
 import { loadHwp } from './reader'
+import { iterateRecords } from './record-parser'
+import { TAG } from './tag-ids'
 import { getCompressionFlag } from './stream-util'
 
 const fixture = 'e2e/fixtures/임금 등 청구의 소.hwp'
@@ -60,6 +62,75 @@ describe('mutateHwpCfb', () => {
       expect(secondText).toBe(origSecondText)
     } finally {
       await unlink(outPath)
+    }
+  })
+
+  it('resets PARA_CHAR_SHAPE to single entry after setText', async () => {
+    const buf = await readFile(fixture)
+    const cfb = CFB.read(buf, { type: 'buffer' })
+    const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+    mutateHwpCfb(cfb, [{ type: 'setText', ref: 's0.p0', text: 'REPLACED' }], compressed)
+
+    let sectionStream = getEntryBuffer(cfb, '/BodyText/Section0')
+    if (compressed) {
+      const { decompressStream } = await import('./stream-util')
+      sectionStream = decompressStream(sectionStream)
+    }
+
+    let paragraphIndex = -1
+    let charShapeData: Buffer | null = null
+    for (const { header, data } of iterateRecords(sectionStream)) {
+      if (header.tagId === TAG.PARA_HEADER && header.level === 0) {
+        paragraphIndex += 1
+        charShapeData = null
+        continue
+      }
+      if (paragraphIndex === 0 && header.tagId === TAG.PARA_CHAR_SHAPE) {
+        charShapeData = data
+        break
+      }
+    }
+
+    expect(charShapeData).not.toBeNull()
+    expect(charShapeData!.readUInt32LE(0)).toBe(1)
+    expect(charShapeData!.readUInt32LE(4)).toBe(0)
+    expect(charShapeData!.length).toBe(12)
+  })
+
+  it('setFormat updates all PARA_CHAR_SHAPE entries', async () => {
+    const buf = await readFile(fixture)
+    const cfb = CFB.read(buf, { type: 'buffer' })
+    const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+    mutateHwpCfb(cfb, [{ type: 'setFormat', ref: 's0.p0', format: { bold: true } }], compressed)
+
+    let sectionStream = getEntryBuffer(cfb, '/BodyText/Section0')
+    if (compressed) {
+      const { decompressStream } = await import('./stream-util')
+      sectionStream = decompressStream(sectionStream)
+    }
+
+    let paragraphIndex = -1
+    let charShapeData: Buffer | null = null
+    for (const { header, data } of iterateRecords(sectionStream)) {
+      if (header.tagId === TAG.PARA_HEADER && header.level === 0) {
+        paragraphIndex += 1
+        charShapeData = null
+        continue
+      }
+      if (paragraphIndex === 0 && header.tagId === TAG.PARA_CHAR_SHAPE) {
+        charShapeData = data
+        break
+      }
+    }
+
+    expect(charShapeData).not.toBeNull()
+    const count = charShapeData!.readUInt32LE(0)
+    const firstId = charShapeData!.readUInt32LE(8)
+    for (let i = 1; i < count; i++) {
+      const idOffset = 4 + i * 8 + 4
+      expect(charShapeData!.readUInt32LE(idOffset)).toBe(firstId)
     }
   })
 })
