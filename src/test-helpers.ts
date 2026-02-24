@@ -233,7 +233,7 @@ function buildDocInfoStream(): Buffer {
   idMappings.writeUInt32LE(1, 52) // paraShape
   idMappings.writeUInt32LE(1, 56) // style
 
-  const faceName = encodeLengthPrefixedUtf16('맑은 고딕')
+  const faceName = Buffer.concat([Buffer.from([0x00]), encodeLengthPrefixedUtf16('맑은 고딕')])
   const charShape = Buffer.alloc(74)
   charShape.writeUInt16LE(0, 0)
   charShape.writeUInt16LE(0, 2)
