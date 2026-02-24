@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import CFB from 'cfb'
-import { buildMergedTable, createTestHwpBinary, createTestHwpCfb } from '../../test-helpers'
+import { buildCellListHeaderData, buildMergedTable, createTestHwpBinary, createTestHwpCfb } from '../../test-helpers'
 import { controlIdBuffer } from './control-id'
 import { loadHwp } from './reader'
 import { iterateRecords } from './record-parser'
@@ -335,6 +335,39 @@ describe('editHwp', () => {
     expect(joinRuns(doc.sections[0].textBoxes[0].paragraphs[0].runs)).toBe('first textbox')
     expect(joinRuns(doc.sections[0].textBoxes[1].paragraphs[0].runs)).toBe('second changed')
   })
+
+  it('setTableCell edits correct cell when PARA_HEADER is at same level as LIST_HEADER', async () => {
+    const filePath = tmpPath('writer-table-same-level-para')
+    TMP_FILES.push(filePath)
+    const fixture = await createTestHwpBinaryWithSection0(buildSameLevelTable([['A', 'B'], ['C', 'D']], 2, 2))
+    await Bun.write(filePath, fixture)
+
+    await editHwp(filePath, [{ type: 'setTableCell', ref: 's0.t0.r1.c0', text: 'EDITED' }])
+
+    const doc = await loadHwp(filePath)
+    expect(doc.sections[0].tables[0].rows[0].cells[0].paragraphs[0].runs[0].text).toBe('A')
+    expect(doc.sections[0].tables[0].rows[0].cells[1].paragraphs[0].runs[0].text).toBe('B')
+    expect(doc.sections[0].tables[0].rows[1].cells[0].paragraphs[0].runs[0].text).toBe('EDITED')
+    expect(doc.sections[0].tables[0].rows[1].cells[1].paragraphs[0].runs[0].text).toBe('D')
+  })
+
+  it('setTableCell edits each cell independently in same-level PARA_HEADER table', async () => {
+    const filePath = tmpPath('writer-table-same-level-multi-edit')
+    TMP_FILES.push(filePath)
+    const fixture = await createTestHwpBinaryWithSection0(buildSameLevelTable([['X', 'Y'], ['Z', 'W']], 2, 2))
+    await Bun.write(filePath, fixture)
+
+    await editHwp(filePath, [
+      { type: 'setTableCell', ref: 's0.t0.r0.c0', text: '1st' },
+      { type: 'setTableCell', ref: 's0.t0.r1.c1', text: '4th' },
+    ])
+
+    const doc = await loadHwp(filePath)
+    expect(doc.sections[0].tables[0].rows[0].cells[0].paragraphs[0].runs[0].text).toBe('1st')
+    expect(doc.sections[0].tables[0].rows[0].cells[1].paragraphs[0].runs[0].text).toBe('Y')
+    expect(doc.sections[0].tables[0].rows[1].cells[0].paragraphs[0].runs[0].text).toBe('Z')
+    expect(doc.sections[0].tables[0].rows[1].cells[1].paragraphs[0].runs[0].text).toBe('4th')
+  })
 })
 
 function tmpPath(name: string): string {
@@ -489,6 +522,37 @@ function buildTableWithEmptyListHeaders(cells: string[]): Buffer {
   }
 
   return Buffer.concat(records)
+}
+
+function buildSameLevelTable(rows: string[][], colCount: number, rowCount: number): Buffer {
+  const records: Buffer[] = []
+
+  records.push(buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)))
+  records.push(buildRecord(TAG.PARA_TEXT, 1, Buffer.from([0x0b, 0x00])))
+  records.push(buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')))
+  records.push(buildRecord(TAG.TABLE, 2, buildTableDataLocal(rowCount, colCount)))
+
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+    for (let colIndex = 0; colIndex < rows[rowIndex].length; colIndex++) {
+      const cellText = rows[rowIndex][colIndex]
+      const cellTextData = Buffer.from(cellText, 'utf16le')
+      const cellParaHeader = Buffer.alloc(24)
+      cellParaHeader.writeUInt32LE((0x80000000 | (cellTextData.length / 2)) >>> 0, 0)
+      // Same level as LIST_HEADER (level 2) — mimics real HWP binary pattern
+      records.push(buildRecord(TAG.LIST_HEADER, 2, buildCellListHeaderData(colIndex, rowIndex, 1, 1)))
+      records.push(buildRecord(TAG.PARA_HEADER, 2, cellParaHeader))
+      records.push(buildRecord(TAG.PARA_TEXT, 3, cellTextData))
+    }
+  }
+
+  return Buffer.concat(records)
+}
+
+function buildTableDataLocal(rowCount: number, colCount: number): Buffer {
+  const table = Buffer.alloc(8)
+  table.writeUInt16LE(rowCount, 4)
+  table.writeUInt16LE(colCount, 6)
+  return table
 }
 
 function collectTableCellTexts(stream: Buffer): Array<{ col: number | null; row: number | null; text: string }> {

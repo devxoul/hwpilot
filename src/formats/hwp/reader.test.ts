@@ -81,6 +81,46 @@ describe('loadHwp', () => {
     expect(paragraphTexts).not.toContain('B2')
   })
 
+  it('assigns correct cell refs when PARA_HEADER is at same level as LIST_HEADER', async () => {
+    const filePath = '/tmp/test-hwp-table-same-level-para.hwp'
+    TMP_FILES.push(filePath)
+
+    // Real HWP files have PARA_HEADER at the same level as LIST_HEADER,
+    // not level+1 like the cellRecord helper creates.
+    const sameLevelCellRecord = (level: number, text: string, col: number, row: number): Buffer =>
+      Buffer.concat([
+        buildRecord(TAG.LIST_HEADER, level, buildCellListHeaderData(col, row)),
+        paragraphRecord(level, text),
+      ])
+
+    const sectionRecords = Buffer.concat([
+      buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)),
+      buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x000b, 0x0000])),
+      buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')),
+      buildRecord(TAG.TABLE, 2, tableData(2, 2)),
+      sameLevelCellRecord(2, 'A1', 0, 0),
+      sameLevelCellRecord(2, 'A2', 1, 0),
+      sameLevelCellRecord(2, 'B1', 0, 1),
+      sameLevelCellRecord(2, 'B2', 1, 1),
+      paragraphRecord(0, 'After table'),
+    ])
+
+    const buffer = createHwpCfbBufferWithRecords(0, Buffer.alloc(0), sectionRecords)
+    await Bun.write(filePath, buffer)
+
+    const doc = await loadHwp(filePath)
+    const table = doc.sections[0].tables[0]
+
+    expect(table.rows[0].cells[0].ref).toBe('s0.t0.r0.c0')
+    expect(table.rows[0].cells[0].paragraphs[0].runs[0].text).toBe('A1')
+    expect(table.rows[0].cells[1].ref).toBe('s0.t0.r0.c1')
+    expect(table.rows[0].cells[1].paragraphs[0].runs[0].text).toBe('A2')
+    expect(table.rows[1].cells[0].ref).toBe('s0.t0.r1.c0')
+    expect(table.rows[1].cells[0].paragraphs[0].runs[0].text).toBe('B1')
+    expect(table.rows[1].cells[1].ref).toBe('s0.t0.r1.c1')
+    expect(table.rows[1].cells[1].paragraphs[0].runs[0].text).toBe('B2')
+  })
+
   it('parses merged cell with colSpan from LIST_HEADER data', async () => {
     const filePath = '/tmp/test-hwp-table-merged-colspan.hwp'
     TMP_FILES.push(filePath)

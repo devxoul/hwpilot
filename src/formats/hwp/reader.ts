@@ -465,6 +465,7 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
     }
 
     if (header.tagId === TAG.LIST_HEADER && activeTable && header.level === activeTable.level) {
+      flushParagraphLevel(header.level)
       activeTable.nextCellIndex += 1
       const parsed = parseCellAddress(data)
       const fallbackCellIndex = activeTable.nextCellIndex - 1
