@@ -6,8 +6,8 @@ import CFB from 'cfb'
 import { getEntryBuffer, mutateHwpCfb } from './mutator'
 import { loadHwp } from './reader'
 import { iterateRecords } from './record-parser'
-import { TAG } from './tag-ids'
 import { getCompressionFlag } from './stream-util'
+import { TAG } from './tag-ids'
 
 const fixture = 'e2e/fixtures/임금 등 청구의 소.hwp'
 const tmpPath = (name: string) => join(tmpdir(), `${name}-${Date.now()}-${Math.random().toString(36).slice(2)}.hwp`)
