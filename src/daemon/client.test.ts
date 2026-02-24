@@ -81,15 +81,13 @@ describe('sendRequest', () => {
   })
 
   test('throws on ECONNREFUSED for unused port', async () => {
-    // Port 1 is almost certainly not listening
     const unusedPort = 1
     await expect(sendRequest(unusedPort, 'token', { command: 'read', args: {} })).rejects.toThrow(/ECONNREFUSED/)
   })
 
   test('throws on response timeout', async () => {
-    // Server that accepts but never responds
     const server: Server = createServer((_socket) => {
-      // intentionally do nothing — no response
+      // intentional no-op: simulate unresponsive daemon
     })
 
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
