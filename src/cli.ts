@@ -167,7 +167,7 @@ imageCmd
 // hwpilot create <file>
 program
   .command('create <file>')
-  .description('Create a new blank HWPX document')
+  .description('Create a new blank document')
   .option('--title <text>', 'Set initial paragraph text')
   .option('--font <name>', 'Set default font name', '맑은 고딕')
   .option('--size <pt>', 'Set default font size', '10')

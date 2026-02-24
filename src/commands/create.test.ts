@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, mock } from 'bun:test'
 import { unlink } from 'node:fs/promises'
 import { loadHwpx } from '@/formats/hwpx/loader'
+import { loadHwp } from '@/formats/hwp/reader'
 import { parseSections } from '@/formats/hwpx/section-parser'
 import { createCommand } from './create'
 
@@ -14,6 +15,12 @@ const tempFiles: string[] = []
 
 function tempPath(suffix = ''): string {
   const path = `/tmp/test-create-${Date.now()}-${Math.random().toString(36).slice(2)}${suffix}.hwpx`
+  tempFiles.push(path)
+  return path
+}
+
+function tempHwpPath(suffix = ''): string {
+  const path = `/tmp/test-create-${Date.now()}-${Math.random().toString(36).slice(2)}${suffix}.hwp`
   tempFiles.push(path)
   return path
 }
@@ -88,13 +95,45 @@ describe('createCommand', () => {
     expect(output.error).toContain('File already exists')
   })
 
-  it('errors for .hwp extension', async () => {
+  it('creates a valid .hwp file', async () => {
+    const file = tempHwpPath()
+
     captureOutput()
-    await expect(createCommand('/tmp/test.hwp', {})).rejects.toThrow('process.exit')
+    await createCommand(file, { title: '테스트' })
     restoreOutput()
 
+    const output = JSON.parse(logs[0])
+    expect(output).toEqual({ file, success: true })
+
+    const doc = await loadHwp(file)
+    expect(doc.sections).toHaveLength(1)
+    expect(doc.sections[0].paragraphs[0].runs[0].text).toBe('테스트')
+  })
+
+  it('creates .hwp with custom font and size', async () => {
+    const file = tempHwpPath('-font')
+
+    captureOutput()
+    await createCommand(file, { title: '제목', font: '바탕', size: '12' })
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.success).toBe(true)
+
+    const doc = await loadHwp(file)
+    expect(doc.header.fonts[0].name).toBe('바탕')
+    expect(doc.header.charShapes[0].fontSize).toBe(12)
+  })
+
+  it('rejects existing .hwp file', async () => {
+    const file = tempHwpPath('-exists')
+    await Bun.write(file, 'placeholder')
+
+    captureOutput()
+    await expect(createCommand(file, {})).rejects.toThrow('process.exit')
+    restoreOutput()
     const output = JSON.parse(errors[0])
-    expect(output.error).toBe('Cannot create HWP 5.0 files')
+    expect(output.error).toContain('File already exists')
   })
 
   it('outputs pretty JSON when --pretty', async () => {

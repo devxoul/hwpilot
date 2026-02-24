@@ -2,6 +2,7 @@ import { access, writeFile } from 'node:fs/promises'
 import { handleError } from '@/shared/error-handler'
 import { formatOutput } from '@/shared/output'
 import { createTestHwpx } from '@/test-helpers'
+import { createHwp } from '@/formats/hwp/creator'
 
 type CreateOptions = {
   title?: string
@@ -15,7 +16,18 @@ export async function createCommand(file: string, options: CreateOptions): Promi
     const ext = file.split('.').pop()?.toLowerCase()
 
     if (ext === 'hwp') {
-      throw new Error('Cannot create HWP 5.0 files')
+      try {
+        await access(file)
+        throw new Error(`File already exists: ${file}`)
+      } catch (e) {
+        if (e instanceof Error && e.message.startsWith('File already exists')) throw e
+      }
+      const paragraphs = options.title ? [options.title] : ['']
+      const fontSize = options.size ? Number(options.size) * 100 : undefined
+      const buffer = await createHwp({ paragraphs, font: options.font, fontSize })
+      await writeFile(file, buffer)
+      console.log(formatOutput({ file, success: true }, options.pretty))
+      return
     }
 
     if (ext !== 'hwpx') {
