@@ -1,7 +1,21 @@
-import { afterEach, describe, expect, it } from 'bun:test'
-import { cleanupFiles, crossValidate, FIXTURES, parseOutput, runCli, tempCopy } from './helpers'
+import { afterEach, beforeAll, describe, expect, it } from 'bun:test'
+import {
+  checkViewerCorruption,
+  cleanupFiles,
+  crossValidate,
+  FIXTURES,
+  isHwpViewerAvailable,
+  parseOutput,
+  runCli,
+  tempCopy,
+} from './helpers'
 
 const tempFiles: string[] = []
+let isViewerAvailable: boolean
+
+beforeAll(async () => {
+  isViewerAvailable = await isHwpViewerAvailable()
+})
 
 afterEach(async () => {
   await cleanupFiles(tempFiles)
@@ -54,5 +68,30 @@ describe('crossValidate', () => {
     await runCli(['edit', 'text', temp, 's0.p0', 'CROSSVAL_UNIQUE_MARKER'])
     const found = await crossValidate(temp, 'CROSSVAL_UNIQUE_MARKER')
     expect(found).toBe(true)
+  })
+})
+
+describe('viewer corruption check', () => {
+  it('isHwpViewerAvailable returns a boolean', async () => {
+    const result = await isHwpViewerAvailable()
+    expect(typeof result).toBe('boolean')
+  })
+
+  describe.skipIf(isViewerAvailable)('when viewer is NOT available', () => {
+    it('checkViewerCorruption returns skipped=true', async () => {
+      const result = await checkViewerCorruption(FIXTURES.assaultComplaint)
+      expect(result.skipped).toBe(true)
+      expect(result.corrupted).toBe(false)
+    })
+  })
+
+  describe.skipIf(!isViewerAvailable)('when viewer IS available', () => {
+    it('unmodified fixture passes corruption check', async () => {
+      const temp = await tempCopy(FIXTURES.assaultComplaint)
+      tempFiles.push(temp)
+      const result = await checkViewerCorruption(temp)
+      expect(result.corrupted).toBe(false)
+      expect(result.skipped).toBe(false)
+    }, 15_000)
   })
 })
