@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, mock } from 'bun:test'
 import { unlink } from 'node:fs/promises'
-import { loadHwpx } from '@/formats/hwpx/loader'
 import { loadHwp } from '@/formats/hwp/reader'
+import { loadHwpx } from '@/formats/hwpx/loader'
 import { parseSections } from '@/formats/hwpx/section-parser'
 import { createCommand } from './create'
 
