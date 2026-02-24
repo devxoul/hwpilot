@@ -464,28 +464,18 @@ function updateParaHeaderNChars(
   }
 }
 
+const PARA_END_MARKER = Buffer.from([0x0d, 0x00])
 function buildPatchedParaText(originalData: Buffer, nextText: string): Buffer {
   const nextTextData = Buffer.from(nextText, 'utf16le')
-  const trailingControls = extractControlChars(originalData)
-  if (trailingControls.length === 0) {
-    return nextTextData
+  if (hasTrailingParaEnd(originalData)) {
+    return Buffer.concat([nextTextData, PARA_END_MARKER])
   }
-
-  return Buffer.concat([nextTextData, ...trailingControls])
+  return nextTextData
 }
 
-function extractControlChars(data: Buffer): Buffer[] {
-  const controls: Buffer[] = []
-
-  for (let offset = 0; offset + 1 < data.length; offset += 2) {
-    const lowByte = data[offset]
-    const highByte = data[offset + 1]
-    if (highByte === 0 && lowByte < 32) {
-      controls.push(Buffer.from(data.subarray(offset, offset + 2)))
-    }
-  }
-
-  return controls
+function hasTrailingParaEnd(data: Buffer): boolean {
+  if (data.length < 2) return false
+  return data[data.length - 2] === 0x0d && data[data.length - 1] === 0x00
 }
 
 function findParagraphCharShapeRecord(stream: Buffer, paragraphIndex: number): { data: Buffer; offset: number } | null {
