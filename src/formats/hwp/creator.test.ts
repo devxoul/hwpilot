@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it } from 'bun:test'
+import { readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import JSZip from 'jszip'
+import { convertCommand } from '../../commands/convert'
 import { createTestHwpBinary } from '../../test-helpers'
 import { createHwp } from './creator'
 import { loadHwp } from './reader'
@@ -89,5 +92,35 @@ describe('createHwp', () => {
 
     const doc = await loadHwp(filePath)
     expect(doc.sections[0]?.paragraphs[0]?.runs[0]?.text).toBe('안녕하세요')
+  })
+
+  describe('cross-validation', () => {
+    it('created HWP survives HWP→HWPX cross-validation', async () => {
+      const hwpPath = createTempFilePath()
+      const hwpxPath = join(tmpdir(), `hwp-creator-${Date.now()}-${Math.random().toString(16).slice(2)}.hwpx`)
+      TMP_FILES.push(hwpxPath)
+
+      const fixture = await createHwp({
+        paragraphs: ['Cross validation test'],
+        font: '바탕',
+        fontSize: 1200,
+      })
+      await Bun.write(hwpPath, fixture)
+
+      await convertCommand(hwpPath, hwpxPath, { force: true })
+
+      const data = await readFile(hwpxPath)
+      const zip = await JSZip.loadAsync(data)
+
+      const sectionXml = zip.file('Contents/section0.xml')
+      expect(sectionXml).toBeDefined()
+      const sectionContent = await sectionXml!.async('string')
+      expect(sectionContent).toContain('Cross validation test')
+
+      const headerXml = zip.file('Contents/header.xml')
+      expect(headerXml).toBeDefined()
+      const headerContent = await headerXml!.async('string')
+      expect(headerContent).toContain('바탕')
+    })
   })
 })
