@@ -212,7 +212,7 @@ hwpilot convert <input> <output> [--force] [--pretty]
 | 텍스트 검색 | ✓ | ✓ |
 | 이미지 목록 | ✓ | ✓ |
 | 이미지 삽입/교체/추출 | ✓ | ✗ |
-| 새 문서 생성 | ✓ | ✗ |
+| 새 문서 생성 | ✓ | ✓ |
 
 HWP 5.0 파일에서 이미지 작업이 필요하면 먼저 변환하세요: `hwpilot convert file.hwp file.hwpx`
 
