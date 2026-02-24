@@ -146,11 +146,6 @@ describe('createCommand', () => {
     const output = JSON.parse(logs[0])
     expect(output.success).toBe(true)
 
-    // Read the raw FileHeader to verify compression flag (bit 0 at offset 36)
-    const buffer = Buffer.from(await Bun.file(file).arrayBuffer())
-    // CFB structure: FileHeader stream starts after CFB header
-    // The compression flag is in the HWP FileHeader at offset 36 (UInt32LE, bit 0 = compressed)
-    // We verify by loading with loadHwp() which only succeeds if compression is handled correctly
     const doc = await loadHwp(file)
     expect(doc.sections).toHaveLength(1)
     // The file was created with compressed=true (default), verify it reads back correctly
