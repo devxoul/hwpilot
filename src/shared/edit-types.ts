@@ -9,7 +9,7 @@ export type FormatOptions = {
 
 export type EditOperation =
   | { type: 'setText'; ref: string; text: string }
-  | { type: 'setFormat'; ref: string; format: FormatOptions }
+  | { type: 'setFormat'; ref: string; format: FormatOptions; start?: number; end?: number }
   | { type: 'setTableCell'; ref: string; text: string }
   | { type: 'addTable'; ref: string; rows: number; cols: number; data?: string[][] }
   | { type: 'addParagraph'; ref: string; text: string; position: 'before' | 'after' | 'end'; format?: FormatOptions }

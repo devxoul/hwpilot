@@ -113,6 +113,51 @@ describe('editFormatCommand', () => {
     const output = JSON.parse(errors[0])
     expect(output.error).toContain('Invalid reference')
   })
+
+  it('errors when --start without --end', async () => {
+    captureOutput()
+    await expect(editFormatCommand(testFile, 's0.p0', { bold: true, start: 0 })).rejects.toThrow('process.exit')
+    restoreOutput()
+
+    const output = JSON.parse(errors[0])
+    expect(output.error).toBe('Both --start and --end must be specified together')
+  })
+
+  it('errors when --end without --start', async () => {
+    captureOutput()
+    await expect(editFormatCommand(testFile, 's0.p0', { bold: true, end: 5 })).rejects.toThrow('process.exit')
+    restoreOutput()
+
+    const output = JSON.parse(errors[0])
+    expect(output.error).toBe('Both --start and --end must be specified together')
+  })
+
+  it('errors when start >= end', async () => {
+    captureOutput()
+    await expect(editFormatCommand(testFile, 's0.p0', { bold: true, start: 5, end: 3 })).rejects.toThrow('process.exit')
+    restoreOutput()
+
+    const output = JSON.parse(errors[0])
+    expect(output.error).toBe('--start must be less than --end')
+  })
+
+  it('errors when start is negative', async () => {
+    captureOutput()
+    await expect(editFormatCommand(testFile, 's0.p0', { bold: true, start: -1, end: 5 })).rejects.toThrow('process.exit')
+    restoreOutput()
+
+    const output = JSON.parse(errors[0])
+    expect(output.error).toBe('--start must be non-negative')
+  })
+
+  it('accepts valid start and end', async () => {
+    captureOutput()
+    await editFormatCommand(testFile, 's0.p0', { bold: true, start: 0, end: 5 })
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output).toEqual({ ref: 's0.p0', format: { bold: true }, success: true })
+  })
 })
 
 describe('editFormatCommand HWP', () => {

@@ -83,6 +83,8 @@ editCmd
   .option('--font <name>', 'Set font name')
   .option('--size <pt>', 'Set font size in points')
   .option('--color <hex>', 'Set text color (hex, e.g. #FF0000)')
+  .option('--start <n>', 'Start character offset for inline formatting (requires --end)', parseInt)
+  .option('--end <n>', 'End character offset for inline formatting (requires --start)', parseInt)
   .option('--pretty', 'Pretty-print JSON output')
   .action(async (file: string, ref: string, options: Record<string, unknown>) => {
     await editFormatCommand(file, ref, {
@@ -92,6 +94,8 @@ editCmd
       font: options.font as string | undefined,
       size: options.size ? Number(options.size) : undefined,
       color: options.color as string | undefined,
+      start: options.start as number | undefined,
+      end: options.end as number | undefined,
       pretty: options.pretty as boolean | undefined,
     })
   })

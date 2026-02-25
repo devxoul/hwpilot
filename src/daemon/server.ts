@@ -251,7 +251,9 @@ async function handleRequest(
       case 'edit-format': {
         const ref = stringArg(msg.args.ref, 'ref')
         const format = formatArg(msg.args.format)
-        await holder.applyOperations([{ type: 'setFormat', ref, format }])
+        const start = typeof msg.args.start === 'number' ? msg.args.start : undefined
+        const end = typeof msg.args.end === 'number' ? msg.args.end : undefined
+        await holder.applyOperations([{ type: 'setFormat', ref, format, start, end }])
         await scheduler.flushNow()
         return { success: true, data: { ref, format, success: true } }
       }

@@ -15,11 +15,24 @@ type FormatCommandOptions = {
   font?: string
   size?: number
   color?: string
+  start?: number
+  end?: number
   pretty?: boolean
 }
 
 export async function editFormatCommand(file: string, ref: string, options: FormatCommandOptions): Promise<void> {
   try {
+    // Validate start/end
+    if ((options.start !== undefined) !== (options.end !== undefined)) {
+      throw new Error('Both --start and --end must be specified together')
+    }
+    if (options.start !== undefined && options.end !== undefined && options.start >= options.end) {
+      throw new Error('--start must be less than --end')
+    }
+    if (options.start !== undefined && options.start < 0) {
+      throw new Error('--start must be non-negative')
+    }
+
     const daemonResult = await dispatchViaDaemon(file, 'edit-format', {
       ref,
       format: {
@@ -30,6 +43,8 @@ export async function editFormatCommand(file: string, ref: string, options: Form
         fontSize: options.size,
         color: options.color,
       },
+      start: options.start,
+      end: options.end,
     })
     if (daemonResult !== null) {
       if (!daemonResult.success) {
@@ -66,9 +81,9 @@ export async function editFormatCommand(file: string, ref: string, options: Form
     }
 
     if (fileFormat === 'hwp') {
-      await editHwp(file, [{ type: 'setFormat', ref, format }])
+      await editHwp(file, [{ type: 'setFormat', ref, format, start: options.start, end: options.end }])
     } else {
-      await editHwpx(file, [{ type: 'setFormat', ref, format }])
+      await editHwpx(file, [{ type: 'setFormat', ref, format, start: options.start, end: options.end }])
     }
 
     console.log(formatOutput({ ref, format, success: true }, options.pretty))
