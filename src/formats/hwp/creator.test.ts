@@ -44,14 +44,14 @@ describe('createHwp', () => {
     expect(buffer.subarray(0, 4).toString('hex')).toBe('d0cf11e0')
   })
 
-  it('creates a paragraph that round-trips through loadHwp', async () => {
+  it('creates a blank document with one empty paragraph', async () => {
     const filePath = createTempFilePath()
 
-    const fixture = await createHwp({ paragraphs: ['Hello'] })
+    const fixture = await createHwp()
     await Bun.write(filePath, fixture)
 
     const doc = await loadHwp(filePath)
-    expect(doc.sections[0]?.paragraphs[0]?.runs[0]?.text).toBe('Hello')
+    expect(doc.sections[0]?.paragraphs).toHaveLength(1)
   })
 
   it('writes configured font name into document header', async () => {
@@ -84,16 +84,6 @@ describe('createHwp', () => {
     expect(doc.sections.length).toBeGreaterThanOrEqual(1)
   })
 
-  it('round-trips Korean paragraph text', async () => {
-    const filePath = createTempFilePath()
-
-    const fixture = await createHwp({ paragraphs: ['안녕하세요'] })
-    await Bun.write(filePath, fixture)
-
-    const doc = await loadHwp(filePath)
-    expect(doc.sections[0]?.paragraphs[0]?.runs[0]?.text).toBe('안녕하세요')
-  })
-
   describe('cross-validation', () => {
     it('created HWP survives HWP→HWPX cross-validation', async () => {
       const hwpPath = createTempFilePath()
@@ -101,7 +91,6 @@ describe('createHwp', () => {
       TMP_FILES.push(hwpxPath)
 
       const fixture = await createHwp({
-        paragraphs: ['Cross validation test'],
         font: '바탕',
         fontSize: 1200,
       })
@@ -114,8 +103,6 @@ describe('createHwp', () => {
 
       const sectionXml = zip.file('Contents/section0.xml')
       expect(sectionXml).toBeDefined()
-      const sectionContent = await sectionXml!.async('string')
-      expect(sectionContent).toContain('Cross validation test')
 
       const headerXml = zip.file('Contents/header.xml')
       expect(headerXml).toBeDefined()

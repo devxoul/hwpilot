@@ -7,61 +7,28 @@ import { buildRecord } from './record-serializer'
 import { compressStream, decompressStream, getCompressionFlag } from './stream-util'
 import { TAG } from './tag-ids'
 
-export type ParagraphInput =
-  | string
-  | {
-      text: string
-      bold?: boolean
-      fontSize?: number
-    }
 export type CreateHwpOptions = {
-  paragraphs?: ParagraphInput[]
   font?: string
   fontSize?: number
   compressed?: boolean
 }
 
 export async function createHwp(options: CreateHwpOptions = {}): Promise<Buffer> {
-  const rawParagraphs = options.paragraphs ?? []
   const font = options.font
   const baseFontSize = options.fontSize
   const compressed = options.compressed ?? true
-  const normalized = rawParagraphs.map((p) => (typeof p === 'string' ? { text: p } : p))
   const templateBuffer = await loadTemplate()
   const cfb = CFB.read(templateBuffer, { type: 'buffer' })
   const templateCompressed = readCompressionFlag(cfb)
   const sectionDef = extractSectionDefinition(cfb, templateCompressed)
   CFB.utils.cfb_del(cfb, '/FileHeader')
   CFB.utils.cfb_add(cfb, '/FileHeader', createHwpFileHeader(compressed))
-  // Collect unique per-paragraph charShape variants (bold/fontSize overrides)
-  const charShapeMap = new Map<string, number>()
-  const charShapeVariants: { bold: boolean; fontSize: number | undefined }[] = []
 
-  const paraCharShapeRefs: number[] = []
-  for (const para of normalized) {
-    const bold = para.bold ?? false
-    const fontSize = para.fontSize !== undefined ? para.fontSize * 100 : baseFontSize
-    const key = `${bold}:${fontSize ?? 'default'}`
-
-    if (key === 'false:default' || key === `false:${baseFontSize ?? 'default'}`) {
-      paraCharShapeRefs.push(0)
-    } else {
-      if (!charShapeMap.has(key)) {
-        charShapeMap.set(key, charShapeVariants.length)
-        charShapeVariants.push({ bold, fontSize })
-      }
-      paraCharShapeRefs.push(-1 - charShapeMap.get(key)!)
-    }
-  }
-
-  const { docInfo, baseCharShapeCount } = patchDocInfo(cfb, templateCompressed, font, baseFontSize, charShapeVariants)
+  const { docInfo } = patchDocInfo(cfb, templateCompressed, font, baseFontSize)
   CFB.utils.cfb_del(cfb, '/DocInfo')
   CFB.utils.cfb_add(cfb, '/DocInfo', compressed ? compressStream(docInfo) : docInfo)
 
-  // Resolve negative refs to actual charShape indices
-  const resolvedRefs = paraCharShapeRefs.map((ref) => (ref < 0 ? baseCharShapeCount + (-1 - ref) : ref))
-
-  const section0 = buildSection0Stream(normalized, sectionDef, resolvedRefs)
+  const section0 = buildSection0Stream(sectionDef)
   CFB.utils.cfb_del(cfb, '/BodyText/Section0')
   CFB.utils.cfb_add(cfb, '/BodyText/Section0', compressed ? compressStream(section0) : section0)
 
@@ -132,8 +99,7 @@ function patchDocInfo(
   templateCompressed: boolean,
   font: string | undefined,
   fontSize: number | undefined,
-  charShapeVariants: { bold: boolean; fontSize: number | undefined }[],
-): { docInfo: Buffer; baseCharShapeCount: number } {
+): { docInfo: Buffer } {
   const docInfoEntry = CFB.find(cfb, '/DocInfo')
   if (!docInfoEntry?.content) throw new Error('Template missing DocInfo')
   let stream = Buffer.from(docInfoEntry.content)
@@ -141,21 +107,8 @@ function patchDocInfo(
   const parts: Buffer[] = []
   let faceNameIndex = 0
   let charShapeIndex = 0
-  let charShapeLevel = 1
-  let baseCharShapeData: Buffer | null = null
-  let lastCharShapePartIndex = -1
   for (const { header, data, offset } of iterateRecords(stream)) {
     const recordBuf = stream.subarray(offset, offset + header.headerSize + header.size)
-    // Update ID_MAPPINGS charShape count when adding variants
-    if (header.tagId === TAG.ID_MAPPINGS && charShapeVariants.length > 0) {
-      const patchedData = Buffer.from(data)
-      if (patchedData.length >= 40) {
-        const currentCount = patchedData.readUInt32LE(36)
-        patchedData.writeUInt32LE(currentCount + charShapeVariants.length, 36)
-      }
-      parts.push(buildRecord(TAG.ID_MAPPINGS, header.level, patchedData))
-      continue
-    }
     if (header.tagId === TAG.FACE_NAME && font) {
       if (faceNameIndex === 0) {
         const newFaceName = Buffer.concat([Buffer.from([0x00]), encodeLengthPrefixedUtf16(font)])
@@ -167,17 +120,14 @@ function patchDocInfo(
       continue
     }
     if (header.tagId === TAG.CHAR_SHAPE) {
-      charShapeLevel = header.level
       if (charShapeIndex === 0) {
         const patched = Buffer.from(data)
         if (font) patched.writeUInt16LE(0, 0)
         if (fontSize) patched.writeUInt32LE(fontSize, 42)
-        baseCharShapeData = patched
         parts.push(buildRecord(TAG.CHAR_SHAPE, header.level, patched))
       } else {
         parts.push(recordBuf)
       }
-      lastCharShapePartIndex = parts.length - 1
       charShapeIndex++
       continue
     }
@@ -185,27 +135,7 @@ function patchDocInfo(
     parts.push(recordBuf)
   }
 
-  const baseCharShapeCount = charShapeIndex
-
-  // Insert new charShape variants right after the last CHAR_SHAPE record
-  if (baseCharShapeData && charShapeVariants.length > 0 && lastCharShapePartIndex >= 0) {
-    const variantRecords: Buffer[] = []
-    for (const variant of charShapeVariants) {
-      const variantData = Buffer.from(baseCharShapeData)
-      if (variant.fontSize !== undefined) {
-        variantData.writeUInt32LE(variant.fontSize, 42)
-      }
-      const currentAttrs = variantData.readUInt32LE(46)
-      if (variant.bold) {
-        variantData.writeUInt32LE(currentAttrs | 0x1, 46)
-      } else {
-        variantData.writeUInt32LE(currentAttrs & ~0x1, 46)
-      }
-      variantRecords.push(buildRecord(TAG.CHAR_SHAPE, charShapeLevel, variantData))
-    }
-    parts.splice(lastCharShapePartIndex + 1, 0, ...variantRecords)
-  }
-  return { docInfo: Buffer.concat(parts), baseCharShapeCount }
+  return { docInfo: Buffer.concat(parts) }
 }
 
 function encodeLengthPrefixedUtf16(text: string): Buffer {
@@ -215,59 +145,22 @@ function encodeLengthPrefixedUtf16(text: string): Buffer {
   return Buffer.concat([length, value])
 }
 
-type NormalizedParagraph = { text: string; bold?: boolean; fontSize?: number }
-
-function buildSection0Stream(paragraphs: NormalizedParagraph[], sectionDef: Buffer, charShapeRefs: number[]): Buffer {
-  const parts: Buffer[] = []
-  if (paragraphs.length === 0) {
-    parts.push(buildFirstParagraph('', sectionDef, true, 0))
-  } else {
-    parts.push(buildFirstParagraph(paragraphs[0].text, sectionDef, paragraphs.length === 1, charShapeRefs[0] ?? 0))
-    for (let i = 1; i < paragraphs.length; i++) {
-      parts.push(buildParagraphRecords(paragraphs[i].text, i === paragraphs.length - 1, charShapeRefs[i] ?? 0))
-    }
-  }
-  return Buffer.concat(parts)
-}
-
-function buildFirstParagraph(text: string, sectionDef: Buffer, isLast: boolean, charShapeRef: number): Buffer {
-  const textBuf = Buffer.from(text, 'utf16le')
-  // Extended control char: 16 bytes = [ctrl_code(2)] [id(4)] [padding(8)] [ctrl_code(2)]
+function buildSection0Stream(sectionDef: Buffer): Buffer {
+  // Single empty paragraph with section definition
   const sectionCtrlChar = Buffer.alloc(16)
   sectionCtrlChar.writeUInt16LE(0x0002, 0)
   sectionCtrlChar.write('dces', 2, 'ascii')
   sectionCtrlChar.writeUInt16LE(0x0002, 14)
-  const paraText = Buffer.concat([sectionCtrlChar, textBuf, Buffer.from([0x0d, 0x00])])
+  const paraText = Buffer.concat([sectionCtrlChar, Buffer.from([0x0d, 0x00])])
   const nChars = paraText.length / 2
-  // First paragraph must have controlMask bit for section-def (0x0004 at offset 4)
-  const paraHeader = buildParaHeader(nChars, isLast)
+  const paraHeader = buildParaHeader(nChars, true)
   paraHeader.writeUInt32LE(0x00080004, 4)
   return Buffer.concat([
     buildRecord(TAG.PARA_HEADER, 0, paraHeader),
     buildRecord(TAG.PARA_TEXT, 1, paraText),
-    buildRecord(TAG.PARA_CHAR_SHAPE, 1, buildParaCharShape(charShapeRef, nChars)),
+    buildRecord(TAG.PARA_CHAR_SHAPE, 1, buildParaCharShape(0, nChars)),
     buildRecord(TAG.PARA_LINE_SEG, 1, buildParaLineSeg()),
     sectionDef,
-  ])
-}
-
-function buildParagraphRecords(text: string, isLast: boolean, charShapeRef: number): Buffer {
-  if (text.length === 0) {
-    const parts = [
-      buildRecord(TAG.PARA_HEADER, 0, buildParaHeader(1, isLast)),
-      buildRecord(TAG.PARA_CHAR_SHAPE, 1, buildParaCharShape(charShapeRef)),
-      buildRecord(TAG.PARA_LINE_SEG, 1, buildParaLineSeg()),
-    ]
-    return Buffer.concat(parts)
-  }
-  const textBuf = Buffer.from(text, 'utf16le')
-  const paraText = Buffer.concat([textBuf, Buffer.from([0x0d, 0x00])])
-  const nChars = paraText.length / 2
-  return Buffer.concat([
-    buildRecord(TAG.PARA_HEADER, 0, buildParaHeader(nChars, isLast)),
-    buildRecord(TAG.PARA_TEXT, 1, paraText),
-    buildRecord(TAG.PARA_CHAR_SHAPE, 1, buildParaCharShape(charShapeRef)),
-    buildRecord(TAG.PARA_LINE_SEG, 1, buildParaLineSeg()),
   ])
 }
 
