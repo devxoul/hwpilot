@@ -10,6 +10,7 @@ import { paragraphAddCommand } from '@/commands/paragraph'
 import { readCommand } from '@/commands/read'
 import { tableAddCommand, tableEditCommand, tableListCommand, tableReadCommand } from '@/commands/table'
 import { textCommand } from '@/commands/text'
+import { validateCommand } from '@/commands/validate'
 
 const program = new Command()
 
@@ -235,5 +236,16 @@ program
   .action(async (input: string, output: string, options: { pretty?: boolean; force?: boolean }) => {
     await convertCommand(input, output, options)
   })
+
+// hwpilot validate <file>
+program
+  .command('validate <file>')
+  .description('Validate HWP file structural integrity')
+  .option('--pretty', 'Pretty-print JSON output')
+  .action(async (file: string, options: { pretty?: boolean }) => {
+    await validateCommand(file, options)
+  })
+
+program.parse(process.argv)
 
 program.parse(process.argv)
