@@ -1,7 +1,17 @@
 ---
 name: hwpilot
 description: "Read and edit HWP/HWPX Korean document files in-place. Use when user asks to read, edit, create, or convert Korean word processor documents (.hwp, .hwpx). Triggers: 'hwp', 'hwpx', 'Korean document', 'hangul document', '한글 문서', '한글 파일', 'HWP 파일', '문서 편집', '문서 읽기'."
+version: 0.1.0
 allowed-tools: Bash(hwpilot:*)
+metadata:
+  openclaw:
+    requires:
+      bins:
+        - hwpilot
+    install:
+      - kind: node
+        package: hwpilot
+        bins: [hwpilot]
 ---
 
 # hwpilot
@@ -247,6 +257,19 @@ The ref must point to a table cell (e.g. `s0.t0.r0.c0`).
 ```bash
 hwpilot table edit report.hwpx s0.t0.r0.c0 "Updated cell"
 hwpilot table edit report.hwpx s0.t0.r1.c2 "3,500"
+```
+
+
+### `hwpilot table list` ... List all tables
+
+```bash
+hwpilot table list <file> [--pretty]
+```
+
+Returns all tables in the document with their refs, dimensions (rows × columns), and cell text preview.
+
+```bash
+hwpilot table list report.hwpx
 ```
 
 ### `hwpilot image list` ... List all images
