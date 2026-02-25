@@ -63,20 +63,31 @@ export async function mutateHwpxZip(zip: JSZip, archive: HwpxArchive, operations
         continue
       }
 
-      if (!headerTree) {
-        headerTree = parseXml(await archive.getHeaderXml())
+      if (op.type === 'setFormat') {
+        if (!headerTree) {
+          headerTree = parseXml(await archive.getHeaderXml())
+        }
+
+        if (op.start !== undefined && op.end !== undefined) {
+          applyInlineFormat(sectionTree, headerTree, ref, op.format, op.start, op.end)
+          headerChanged = true
+          continue
+        }
+
+        const runNodes = findRunNodesForRef(sectionTree, ref)
+        if (runNodes.length === 0) {
+          throw new Error(`Run not found for reference: ${op.ref}`)
+        }
+
+        const newCharPrId = appendFormattedCharPr(headerTree, runNodes[0], op.format)
+        for (const runNode of runNodes) {
+          setAttr(runNode, 'charPrIDRef', String(newCharPrId), 'hp:charPrIDRef')
+        }
+        headerChanged = true
+        continue
       }
 
-      const runNodes = findRunNodesForRef(sectionTree, ref)
-      if (runNodes.length === 0) {
-        throw new Error(`Run not found for reference: ${op.ref}`)
-      }
-
-      const newCharPrId = appendFormattedCharPr(headerTree, runNodes[0], op.format)
-      for (const runNode of runNodes) {
-        setAttr(runNode, 'charPrIDRef', String(newCharPrId), 'hp:charPrIDRef')
-      }
-      headerChanged = true
+      throw new Error(`Unsupported operation: ${(op as { type: string }).type}`)
     }
 
     zip.file(sectionPath(sectionIndex), buildXml(sectionTree))
@@ -288,6 +299,104 @@ function setRunText(runNode: XmlNode, text: string): void {
   }
 
   textNode['hp:t'] = [{ '#text': text }]
+}
+
+function applyInlineFormat(
+  sectionTree: XmlNode[],
+  headerTree: XmlNode[],
+  ref: ParsedRef,
+  format: FormatOptions,
+  start: number,
+  end: number,
+): void {
+  if (ref.paragraph === undefined) {
+    throw new Error(`Inline format requires paragraph reference: s${ref.section}`)
+  }
+
+  const paragraphNode = getSectionParagraphNode(sectionTree, ref.paragraph)
+  const runs = getRunNodesFromParagraph(paragraphNode)
+  const totalLength = runs.reduce((sum, run) => sum + getRunText(run).length, 0)
+
+  if (start < 0 || end > totalLength || start >= end) {
+    throw new Error(`Offset out of range: start=${start}, end=${end}, length=${totalLength}`)
+  }
+
+  const newRuns: XmlNode[] = []
+  let charOffset = 0
+
+  for (const run of runs) {
+    const text = getRunText(run)
+    const runStart = charOffset
+    const runEnd = charOffset + text.length
+
+    if (runEnd <= start || runStart >= end) {
+      newRuns.push(run)
+    } else if (runStart >= start && runEnd <= end) {
+      const formattedRun = deepCloneRun(run)
+      const newCharPrId = appendFormattedCharPr(headerTree, formattedRun, format)
+      setAttr(formattedRun, 'charPrIDRef', String(newCharPrId), 'hp:charPrIDRef')
+      newRuns.push(formattedRun)
+    } else {
+      const overlapStart = Math.max(start, runStart) - runStart
+      const overlapEnd = Math.min(end, runEnd) - runStart
+
+      if (overlapStart > 0) {
+        const beforeRun = deepCloneRun(run)
+        setRunText(beforeRun, text.slice(0, overlapStart))
+        newRuns.push(beforeRun)
+      }
+
+      const middleRun = deepCloneRun(run)
+      setRunText(middleRun, text.slice(overlapStart, overlapEnd))
+      const newCharPrId = appendFormattedCharPr(headerTree, middleRun, format)
+      setAttr(middleRun, 'charPrIDRef', String(newCharPrId), 'hp:charPrIDRef')
+      newRuns.push(middleRun)
+
+      if (overlapEnd < text.length) {
+        const afterRun = deepCloneRun(run)
+        setRunText(afterRun, text.slice(overlapEnd))
+        newRuns.push(afterRun)
+      }
+    }
+
+    charOffset += text.length
+  }
+
+  replaceRunsInParagraph(paragraphNode, newRuns)
+}
+
+function getRunText(runNode: XmlNode): string {
+  const runChildren = getElementChildren(runNode, 'hp:run')
+  const textNode = runChildren.find((child) => hasElement(child, 'hp:t'))
+  if (!textNode) {
+    return ''
+  }
+
+  const textChildren = getElementChildren(textNode, 'hp:t')
+  const textContent = textChildren.find((child) => Object.hasOwn(child, '#text'))
+  return textContent ? String(textContent['#text']) : ''
+}
+
+function deepCloneRun(runNode: XmlNode): XmlNode {
+  return deepClone(runNode)
+}
+
+function replaceRunsInParagraph(paragraphNode: XmlNode, newRuns: XmlNode[]): void {
+  const children = getElementChildren(paragraphNode, 'hp:p')
+  const runIndices: number[] = []
+
+  for (let i = 0; i < children.length; i++) {
+    if (hasElement(children[i], 'hp:run')) {
+      runIndices.push(i)
+    }
+  }
+
+  for (let i = runIndices.length - 1; i >= 0; i--) {
+    children.splice(runIndices[i], 1)
+  }
+
+  const insertAt = runIndices[0] ?? children.length
+  children.splice(insertAt, 0, ...newRuns)
 }
 
 function findRunNodesForRef(sectionTree: XmlNode[], ref: ParsedRef): XmlNode[] {

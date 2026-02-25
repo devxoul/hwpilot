@@ -9,6 +9,20 @@ import { parseSections } from './section-parser'
 
 const tmpPath = (name: string) => join(tmpdir(), `${name}-${Date.now()}-${Math.random().toString(36).slice(2)}.hwpx`)
 
+function rewriteParagraphRuns(sectionXml: string, runTexts: string[]): string {
+  const runMarkup = runTexts.map((text) => `<hp:run hp:charPrIDRef="0"><hp:t>${text}</hp:t></hp:run>`).join('')
+
+  return sectionXml.replace(/<hp:run hp:charPrIDRef="0"><hp:t>[\s\S]*?<\/hp:t><\/hp:run>/, runMarkup)
+}
+
+async function setFirstParagraphRuns(filePath: string, runTexts: string[]): Promise<void> {
+  const archive = await loadHwpx(filePath)
+  const zip = archive.getZip()
+  const sectionXml = await zip.file('Contents/section0.xml')!.async('string')
+  zip.file('Contents/section0.xml', rewriteParagraphRuns(sectionXml, runTexts))
+  await Bun.write(filePath, await zip.generateAsync({ type: 'nodebuffer' }))
+}
+
 describe('mutateHwpxZip', () => {
   it('applies setText to a paragraph in-memory', async () => {
     const filePath = tmpPath('mutator-setText')
@@ -320,6 +334,138 @@ describe('mutateHwpxZip', () => {
       const texts = sections[0].paragraphs.map((p) => p.runs.map((r) => r.text).join(''))
       expect(texts[0]).toBe('First')
       expect(texts[2]).toBe('Second')
+
+      await unlink(outPath)
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('applies setFormat to inline range with run splitting', async () => {
+    const filePath = tmpPath('mutator-inline-split')
+    const fixture = await createTestHwpx({ paragraphs: ['HelloWorld'] })
+    await Bun.write(filePath, fixture)
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await mutateHwpxZip(zip, archive, [{ type: 'setFormat', ref: 's0.p0', format: { bold: true }, start: 0, end: 5 }])
+
+      const outPath = tmpPath('mutator-inline-split-out')
+      await writeFile(outPath, await zip.generateAsync({ type: 'nodebuffer' }))
+
+      const sections = await parseSections(await loadHwpx(outPath))
+      const runs = sections[0].paragraphs[0].runs
+      expect(runs.map((run) => run.text)).toEqual(['Hello', 'World'])
+      expect(runs[0].charShapeRef).toBeGreaterThan(0)
+      expect(runs[1].charShapeRef).toBe(0)
+
+      await unlink(outPath)
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('keeps setFormat backward compatibility without offsets', async () => {
+    const filePath = tmpPath('mutator-inline-backward')
+    const fixture = await createTestHwpx({ paragraphs: ['HelloWorld'] })
+    await Bun.write(filePath, fixture)
+    await setFirstParagraphRuns(filePath, ['Hello', 'World'])
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await mutateHwpxZip(zip, archive, [{ type: 'setFormat', ref: 's0.p0', format: { bold: true } }])
+
+      const outPath = tmpPath('mutator-inline-backward-out')
+      await writeFile(outPath, await zip.generateAsync({ type: 'nodebuffer' }))
+
+      const sections = await parseSections(await loadHwpx(outPath))
+      const runs = sections[0].paragraphs[0].runs
+      expect(runs).toHaveLength(2)
+      expect(runs.map((run) => run.text)).toEqual(['Hello', 'World'])
+      expect(runs.every((run) => run.charShapeRef > 0)).toBe(true)
+
+      await unlink(outPath)
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('throws on out-of-range inline offsets', async () => {
+    const filePath = tmpPath('mutator-inline-range-error')
+    const fixture = await createTestHwpx({ paragraphs: ['Hello'] })
+    await Bun.write(filePath, fixture)
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await expect(
+        mutateHwpxZip(zip, archive, [{ type: 'setFormat', ref: 's0.p0', format: { bold: true }, start: 0, end: 6 }]),
+      ).rejects.toThrow('Offset out of range')
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('formats exact run range without splitting', async () => {
+    const filePath = tmpPath('mutator-inline-exact-run')
+    const fixture = await createTestHwpx({ paragraphs: ['HelloWorld'] })
+    await Bun.write(filePath, fixture)
+    await setFirstParagraphRuns(filePath, ['Hello', 'World'])
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await mutateHwpxZip(zip, archive, [
+        { type: 'setFormat', ref: 's0.p0', format: { italic: true }, start: 0, end: 5 },
+      ])
+
+      const outPath = tmpPath('mutator-inline-exact-run-out')
+      await writeFile(outPath, await zip.generateAsync({ type: 'nodebuffer' }))
+
+      const sections = await parseSections(await loadHwpx(outPath))
+      const runs = sections[0].paragraphs[0].runs
+      expect(runs).toHaveLength(2)
+      expect(runs.map((run) => run.text)).toEqual(['Hello', 'World'])
+      expect(runs[0].charShapeRef).toBeGreaterThan(0)
+      expect(runs[1].charShapeRef).toBe(0)
+
+      await unlink(outPath)
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('formats ranges spanning multiple runs', async () => {
+    const filePath = tmpPath('mutator-inline-multi-run')
+    const fixture = await createTestHwpx({ paragraphs: ['HelloWorld'] })
+    await Bun.write(filePath, fixture)
+    await setFirstParagraphRuns(filePath, ['Hello', 'World'])
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await mutateHwpxZip(zip, archive, [
+        { type: 'setFormat', ref: 's0.p0', format: { underline: true }, start: 3, end: 7 },
+      ])
+
+      const outPath = tmpPath('mutator-inline-multi-run-out')
+      await writeFile(outPath, await zip.generateAsync({ type: 'nodebuffer' }))
+
+      const sections = await parseSections(await loadHwpx(outPath))
+      const runs = sections[0].paragraphs[0].runs
+      expect(runs.map((run) => run.text).join('')).toBe('HelloWorld')
+      expect(runs.map((run) => run.text)).toEqual(['Hel', 'lo', 'Wo', 'rld'])
+      expect(runs[0].charShapeRef).toBe(0)
+      expect(runs[1].charShapeRef).toBeGreaterThan(0)
+      expect(runs[2].charShapeRef).toBeGreaterThan(0)
+      expect(runs[3].charShapeRef).toBe(0)
 
       await unlink(outPath)
     } finally {
