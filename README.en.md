@@ -36,6 +36,12 @@ hwpilot table add document.hwpx 2 2 --data '[["A","B"],["C","D"]]'
 # Bold + resize
 hwpilot edit format document.hwpx s0.p0 --bold --size 16
 
+# Inline formatting (bold only first 5 characters)
+hwpilot edit format document.hwpx s0.p0 --bold --start 0 --end 5
+
+# Add a new paragraph
+hwpilot paragraph add document.hwpx s0 "New paragraph" --position end
+
 # Convert HWP 5.0 → HWPX
 hwpilot convert legacy.hwp output.hwpx
 ```
@@ -240,7 +246,7 @@ For image operations on HWP 5.0 files, convert first: `hwpilot convert file.hwp 
 - **No encrypted files** — password/DRM protected documents can't be opened
 - **No macros, equations, charts, OLE objects**
 - **No paragraph-level formatting** — only character formatting (bold, italic, underline, font, size, color)
-- **Limited structural edits** — table add is supported, but adding new paragraphs, rows, or sections is not
+- **Limited structural edits** — table add and paragraph add are supported, but adding new rows or sections is not
 - **No grouped shapes** — only individual text boxes are supported
 
 ## Error Handling

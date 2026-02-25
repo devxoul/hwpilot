@@ -23,6 +23,8 @@ HWP는 여전히 한국에서 가장 많이 사용되는 문서 포맷입니다.
 - **읽기 & 검색** — 문단, 표, 텍스트 박스, 이미지를 읽고 검색
 - **텍스트 편집** — 문단, 표 셀, 텍스트 박스의 텍스트를 직접 수정
 - **서식 편집** — 굵게, 기울임, 밑줄, 글꼴, 크기, 색상 변경
+- **인라인 서식** — 문단 내 특정 문자 범위에만 서식 적용 (--start/--end)
+- **문단 추가** — 문서에 새 문단을 추가하고 위치 지정 (before/after/end)
 - **이미지** — 조회, 추출, 삽입, 교체 (HWPX)
 - **새 문서 생성** — 빈 문서를 만들고 내용 채우기
 - **포맷 변환** — HWP 5.0 → HWPX 변환
@@ -84,6 +86,8 @@ hwpilot table edit document.hwpx s0.t0.r0.c0 "값"   # 표 셀 편집
 hwpilot table add document.hwpx 3 4                 # 3×4 표 추가
 hwpilot table add document.hwpx 2 2 --data '[["A","B"],["C","D"]]'  # 데이터와 함께 표 추가
 hwpilot edit format document.hwpx s0.p0 --bold --size 16  # 서식 변경
+hwpilot edit format document.hwpx s0.p0 --bold --start 0 --end 5  # 인라인 서식
+hwpilot paragraph add document.hwpx s0 "새 문단" --position end  # 문단 추가
 hwpilot image insert document.hwpx ./photo.jpg      # 이미지 삽입
 hwpilot create new.hwpx                              # 새 문서 생성
 hwpilot convert legacy.hwp output.hwpx              # HWP 5.0 → HWPX 변환
@@ -109,7 +113,7 @@ HWP 5.0에서 이미지 작업이 필요하면 먼저 HWPX로 변환하세요: `
 ## 제한 사항
 
 - **암호화/DRM 문서** — 열 수 없음
-- **구조 변경 제한** — 표 추가는 가능하지만 문단, 행, 섹션 추가는 미지원
+- **구조 변경 제한** — 표 추가와 문단 추가는 가능하지만 행, 섹션 추가는 미지원
 - **글자 서식만 지원** — 문단 정렬, 줄간격 등 문단 서식은 미지원
 - **매크로, 수식, 차트, OLE** — 미지원
 - **그룹화된 도형** — 개별 텍스트 박스만 지원
