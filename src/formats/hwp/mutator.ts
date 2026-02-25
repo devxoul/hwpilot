@@ -279,13 +279,13 @@ function appendParagraphRecords(
 
   const paraHeaderData = Buffer.alloc(24)
   paraHeaderData.writeUInt32LE(nChars & 0x7fffffff, 0)
+  paraHeaderData.writeUInt32LE(1, 16)
 
   const paraTextData = Buffer.concat([textData, Buffer.from([0x0d, 0x00])])
 
-  const paraCharShapeData = Buffer.alloc(12)
-  paraCharShapeData.writeUInt32LE(1, 0)
+  const paraCharShapeData = Buffer.alloc(8)
+  paraCharShapeData.writeUInt32LE(0, 0)
   paraCharShapeData.writeUInt32LE(0, 4)
-  paraCharShapeData.writeUInt32LE(0, 8)
 
   const paraLineSegData = buildParaLineSegData()
 
@@ -669,11 +669,10 @@ function applySetFormat(
       entries.push({ pos: end, ref: sourceCharShapeId })
     }
 
-    patchedParaCharShape = Buffer.alloc(4 + entries.length * 8)
-    patchedParaCharShape.writeUInt32LE(entries.length, 0)
+    patchedParaCharShape = Buffer.alloc(entries.length * 8)
     for (let i = 0; i < entries.length; i++) {
-      patchedParaCharShape.writeUInt32LE(entries[i].pos, 4 + i * 8)
-      patchedParaCharShape.writeUInt32LE(entries[i].ref, 4 + i * 8 + 4)
+      patchedParaCharShape.writeUInt32LE(entries[i].pos, i * 8)
+      patchedParaCharShape.writeUInt32LE(entries[i].ref, i * 8 + 4)
     }
   } else {
     patchedParaCharShape = writeParagraphCharShapeRef(paraCharShapeMatch.data, currentCharShapeCount)
@@ -797,45 +796,38 @@ function resetParagraphCharShape(stream: Buffer, paragraphIndex: number): Buffer
   if (!match) return stream
 
   const charShapeId = readParagraphCharShapeRef(match.data)
-  const newData = Buffer.alloc(12)
-  newData.writeUInt32LE(1, 0)
-  newData.writeUInt32LE(0, 4)
-  newData.writeUInt32LE(charShapeId, 8)
+  const newData = Buffer.alloc(8)
+  newData.writeUInt32LE(0, 0)
+  newData.writeUInt32LE(charShapeId, 4)
 
   return replaceRecordData(stream, match.offset, newData)
 }
 
 function readParagraphCharShapeRef(data: Buffer): number {
-  if (data.length >= 12) {
-    const count = data.readUInt32LE(0)
-    if (count > 0) {
-      return data.readUInt32LE(8)
-    }
+  // Standard format: array of (pos: uint32, ref: uint32) pairs
+  if (data.length >= 8 && data.length % 8 === 0) {
+    return data.readUInt32LE(4)
   }
-
+  // Legacy short format: 6 bytes with charShapeRef as uint16 at offset 4
   if (data.length >= 6) {
     return data.readUInt16LE(4)
   }
-
   return 0
 }
-
 function writeParagraphCharShapeRef(data: Buffer, charShapeRef: number): Buffer {
   const next = Buffer.from(data)
-  if (next.length >= 12) {
-    const count = next.readUInt32LE(0)
-    for (let i = 0; i < count; i++) {
-      const idOffset = 4 + i * 8 + 4
-      if (idOffset + 4 <= next.length) {
-        next.writeUInt32LE(charShapeRef, idOffset)
-      }
+  // Standard format: array of (pos: uint32, ref: uint32) pairs
+  if (data.length >= 8 && data.length % 8 === 0) {
+    const entryCount = data.length / 8
+    for (let i = 0; i < entryCount; i++) {
+      next.writeUInt32LE(charShapeRef, i * 8 + 4)
     }
     return next
   }
+  // Legacy short format: charShapeRef as uint16 at offset 4
   if (next.length >= 6) {
     next.writeUInt16LE(charShapeRef & 0xffff, 4)
   }
-
   return next
 }
 

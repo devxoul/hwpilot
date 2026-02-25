@@ -120,9 +120,8 @@ describe('mutateHwpCfb', () => {
     }
 
     expect(charShapeData).not.toBeNull()
-    expect(charShapeData!.readUInt32LE(0)).toBe(1)
-    expect(charShapeData!.readUInt32LE(4)).toBe(0)
-    expect(charShapeData!.length).toBe(12)
+    expect(charShapeData!.length).toBe(8)
+    expect(charShapeData!.readUInt32LE(0)).toBe(0)
   })
 
   it('setFormat updates all PARA_CHAR_SHAPE entries', async () => {
@@ -153,11 +152,11 @@ describe('mutateHwpCfb', () => {
     }
 
     expect(charShapeData).not.toBeNull()
-    const count = charShapeData!.readUInt32LE(0)
-    const firstId = charShapeData!.readUInt32LE(8)
-    for (let i = 1; i < count; i++) {
-      const idOffset = 4 + i * 8 + 4
-      expect(charShapeData!.readUInt32LE(idOffset)).toBe(firstId)
+    const entryCount = Math.floor(charShapeData!.length / 8)
+    expect(entryCount).toBeGreaterThan(0)
+    const firstRef = charShapeData!.readUInt32LE(4)
+    for (let i = 1; i < entryCount; i++) {
+      expect(charShapeData!.readUInt32LE(i * 8 + 4)).toBe(firstRef)
     }
   })
 
@@ -170,9 +169,9 @@ describe('mutateHwpCfb', () => {
 
     const charShapeData = await getParagraphCharShapeData(cfb, compressed, 0)
     expect(charShapeData).not.toBeNull()
-    expect(charShapeData!.readUInt32LE(0)).toBe(2)
-    expect(charShapeData!.readUInt32LE(4)).toBe(0)
-    expect(charShapeData!.readUInt32LE(12)).toBe(5)
+    expect(charShapeData!.length).toBe(16)
+    expect(charShapeData!.readUInt32LE(0)).toBe(0)
+    expect(charShapeData!.readUInt32LE(8)).toBe(5)
 
     const outPath = tmpPath('mutator-setFormat-inline-head')
     await writeFile(outPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
@@ -236,10 +235,10 @@ describe('mutateHwpCfb', () => {
 
     const charShapeData = await getParagraphCharShapeData(cfb, compressed, 0)
     expect(charShapeData).not.toBeNull()
-    expect(charShapeData!.readUInt32LE(0)).toBe(3)
-    expect(charShapeData!.readUInt32LE(4)).toBe(0)
-    expect(charShapeData!.readUInt32LE(12)).toBe(6)
-    expect(charShapeData!.readUInt32LE(20)).toBe(11)
+    expect(charShapeData!.length).toBe(24)
+    expect(charShapeData!.readUInt32LE(0)).toBe(0)
+    expect(charShapeData!.readUInt32LE(8)).toBe(6)
+    expect(charShapeData!.readUInt32LE(16)).toBe(11)
 
     const outPath = tmpPath('mutator-setFormat-inline-middle')
     await writeFile(outPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
