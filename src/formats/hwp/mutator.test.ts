@@ -3,6 +3,7 @@ import { readFile, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import CFB from 'cfb'
+import { createTestHwpBinary } from '../../test-helpers'
 import { getEntryBuffer, mutateHwpCfb } from './mutator'
 import { loadHwp } from './reader'
 import { iterateRecords } from './record-parser'
@@ -131,6 +132,88 @@ describe('mutateHwpCfb', () => {
     for (let i = 1; i < count; i++) {
       const idOffset = 4 + i * 8 + 4
       expect(charShapeData!.readUInt32LE(idOffset)).toBe(firstId)
+    }
+  })
+})
+
+describe('mutateHwpCfb addTable', () => {
+  it('adds table and re-reads correctly', async () => {
+    const fixture = await createTestHwpBinary({ paragraphs: ['Hello'] })
+    const cfb = CFB.read(fixture, { type: 'buffer' })
+    const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+    mutateHwpCfb(
+      cfb,
+      [
+        {
+          type: 'addTable',
+          ref: 's0',
+          rows: 2,
+          cols: 2,
+          data: [
+            ['A', 'B'],
+            ['C', 'D'],
+          ],
+        },
+      ],
+      compressed,
+    )
+
+    const outPath = tmpPath('mutator-addTable')
+    await writeFile(outPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
+
+    try {
+      const doc = await loadHwp(outPath)
+      expect(doc.sections[0].tables).toHaveLength(1)
+      expect(doc.sections[0].tables[0].rows).toHaveLength(2)
+      expect(doc.sections[0].tables[0].rows[0].cells[0].paragraphs[0].runs[0].text).toBe('A')
+      expect(doc.sections[0].tables[0].rows[0].cells[1].paragraphs[0].runs[0].text).toBe('B')
+      expect(doc.sections[0].tables[0].rows[1].cells[0].paragraphs[0].runs[0].text).toBe('C')
+      expect(doc.sections[0].tables[0].rows[1].cells[1].paragraphs[0].runs[0].text).toBe('D')
+    } finally {
+      await unlink(outPath)
+    }
+  })
+
+  it('adds table with empty cells', async () => {
+    const fixture = await createTestHwpBinary({ paragraphs: ['Hello'] })
+    const cfb = CFB.read(fixture, { type: 'buffer' })
+    const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+    mutateHwpCfb(cfb, [{ type: 'addTable', ref: 's0', rows: 1, cols: 3 }], compressed)
+
+    const outPath = tmpPath('mutator-addTable-empty')
+    await writeFile(outPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
+
+    try {
+      const doc = await loadHwp(outPath)
+      expect(doc.sections[0].tables).toHaveLength(1)
+      expect(doc.sections[0].tables[0].rows).toHaveLength(1)
+      expect(doc.sections[0].tables[0].rows[0].cells).toHaveLength(3)
+      const cellText = doc.sections[0].tables[0].rows[0].cells[0].paragraphs[0].runs.map((r) => r.text).join('')
+      expect(cellText).toBe('')
+    } finally {
+      await unlink(outPath)
+    }
+  })
+
+  it('preserves existing content when adding table', async () => {
+    const fixture = await createTestHwpBinary({ paragraphs: ['Hello'] })
+    const cfb = CFB.read(fixture, { type: 'buffer' })
+    const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+    mutateHwpCfb(cfb, [{ type: 'addTable', ref: 's0', rows: 1, cols: 1, data: [['Cell']] }], compressed)
+
+    const outPath = tmpPath('mutator-addTable-preserve')
+    await writeFile(outPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
+
+    try {
+      const doc = await loadHwp(outPath)
+      const firstParaText = doc.sections[0].paragraphs[0].runs.map((r) => r.text).join('')
+      expect(firstParaText).toBe('Hello')
+      expect(doc.sections[0].tables).toHaveLength(1)
+    } finally {
+      await unlink(outPath)
     }
   })
 })

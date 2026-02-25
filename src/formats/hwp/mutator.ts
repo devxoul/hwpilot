@@ -1,9 +1,9 @@
 import CFB from 'cfb'
 import { type EditOperation, type FormatOptions } from '@/shared/edit-types'
 import { parseRef } from '@/shared/refs'
-import { readControlId } from './control-id'
+import { controlIdBuffer, readControlId } from './control-id'
 import { iterateRecords } from './record-parser'
-import { buildRecord, replaceRecordData } from './record-serializer'
+import { buildCellListHeaderData, buildRecord, buildTableData, replaceRecordData } from './record-serializer'
 import { compressStream, decompressStream } from './stream-util'
 import { TAG } from './tag-ids'
 
@@ -33,7 +33,19 @@ type SectionFormatOperation = {
   ref: string
 }
 
-type SectionOperation = SectionTextOperation | SectionTableCellOperation | SectionFormatOperation
+type SectionAddTableOperation = {
+  type: 'addTable'
+  rows: number
+  cols: number
+  data?: string[][]
+  ref: string
+}
+
+type SectionOperation =
+  | SectionTextOperation
+  | SectionTableCellOperation
+  | SectionFormatOperation
+  | SectionAddTableOperation
 
 export function mutateHwpCfb(cfb: CFB.CFB$Container, operations: EditOperation[], compressed: boolean): void {
   if (operations.length === 0) return
@@ -70,6 +82,11 @@ export function mutateHwpCfb(cfb: CFB.CFB$Container, operations: EditOperation[]
         if (compressed) {
           stream = decompressStream(stream)
         }
+        continue
+      }
+
+      if (operation.type === 'addTable') {
+        stream = appendTableRecords(stream, operation)
         continue
       }
 
@@ -158,10 +175,47 @@ function groupOperationsBySection(operations: EditOperation[]): Map<number, Sect
       continue
     }
 
+    if (operation.type === 'addTable') {
+      const ref = parseRef(operation.ref)
+      const sectionOperations = grouped.get(ref.section) ?? []
+      sectionOperations.push({
+        type: 'addTable',
+        rows: operation.rows,
+        cols: operation.cols,
+        data: operation.data,
+        ref: operation.ref,
+      })
+      grouped.set(ref.section, sectionOperations)
+      continue
+    }
+
     throw new Error('Unsupported HWP edit operation')
   }
 
   return grouped
+}
+
+function appendTableRecords(stream: Buffer, op: SectionAddTableOperation): Buffer {
+  const records: Buffer[] = [stream]
+
+  records.push(buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)))
+  records.push(buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x000b])))
+  records.push(buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')))
+  records.push(buildRecord(TAG.TABLE, 2, buildTableData(op.rows, op.cols)))
+
+  for (let row = 0; row < op.rows; row++) {
+    for (let col = 0; col < op.cols; col++) {
+      const cellText = op.data?.[row]?.[col] ?? ''
+      const cellTextData = Buffer.from(cellText, 'utf16le')
+      const cellParaHeader = Buffer.alloc(24)
+      cellParaHeader.writeUInt32LE((0x80000000 | (cellTextData.length / 2)) >>> 0, 0)
+      records.push(buildRecord(TAG.LIST_HEADER, 2, buildCellListHeaderData(col, row, 1, 1)))
+      records.push(buildRecord(TAG.PARA_HEADER, 3, cellParaHeader))
+      records.push(buildRecord(TAG.PARA_TEXT, 3, cellTextData))
+    }
+  }
+
+  return Buffer.concat(records)
 }
 
 function patchParagraphText(stream: Buffer, operation: SectionTextOperation): Buffer {
@@ -665,6 +719,14 @@ function parseHexColor(hexColor: string): number {
   const gg = Number.parseInt(normalized.slice(2, 4), 16)
   const bb = Number.parseInt(normalized.slice(4, 6), 16)
   return (bb << 16) | (gg << 8) | rr
+}
+
+function encodeUint16(values: number[]): Buffer {
+  const output = Buffer.alloc(values.length * 2)
+  for (const [index, value] of values.entries()) {
+    output.writeUInt16LE(value, index * 2)
+  }
+  return output
 }
 
 export function getEntryBuffer(cfb: CFB.CFB$Container, path: string): Buffer {
