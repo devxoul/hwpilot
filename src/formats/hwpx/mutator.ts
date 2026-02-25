@@ -39,6 +39,11 @@ export async function mutateHwpxZip(zip: JSZip, archive: HwpxArchive, operations
     const sectionTree = parseXml(sectionXml)
 
     for (const { op, ref } of ops) {
+      if (op.type === 'addTable') {
+        addTableToSection(sectionTree, op.rows, op.cols, op.data)
+        continue
+      }
+
       if (op.type === 'setText') {
         setTextInRef(sectionTree, ref, op.text)
         continue
@@ -77,6 +82,14 @@ function groupOperationsBySection(operations: EditOperation[]): Map<number, Sect
   const grouped = new Map<number, SectionOperation[]>()
 
   for (const op of operations) {
+    if (op.type === 'addTable') {
+      const ref = parseRef(op.ref)
+      const list = grouped.get(ref.section) ?? []
+      list.push({ op, ref })
+      grouped.set(ref.section, list)
+      continue
+    }
+
     const ref = parseRef(op.ref)
     const list = grouped.get(ref.section) ?? []
     list.push({ op, ref })
@@ -125,6 +138,68 @@ function setTextInTableCell(sectionTree: XmlNode[], ref: ParsedRef, text: string
   paragraphs.forEach((paragraph, index) => {
     setParagraphText(paragraph, index === 0 ? text : '')
   })
+}
+
+function addTableToSection(sectionTree: XmlNode[], rows: number, cols: number, data?: string[][]): void {
+  const sectionRoot = getSectionRootNode(sectionTree)
+  const elementName = getElementName(sectionRoot)
+  const sectionChildren = getElementChildren(sectionRoot, elementName)
+
+  const tableRows: XmlNode[] = Array.from({ length: rows }, (_, ri) => {
+    const rowCells: XmlNode[] = Array.from({ length: cols }, (_, ci) => {
+      const cellText = data?.[ri]?.[ci] ?? ''
+
+      const cellAddr: XmlNode = {
+        'hp:cellAddr': [],
+        ':@': {
+          'hp:colAddr': String(ci),
+          'hp:rowAddr': String(ri),
+        },
+      }
+
+      const cellSpan: XmlNode = {
+        'hp:cellSpan': [],
+        ':@': {
+          'hp:colSpan': '1',
+          'hp:rowSpan': '1',
+        },
+      }
+
+      const textNode: XmlNode = {
+        'hp:t': [{ '#text': cellText }],
+      }
+
+      const runNode: XmlNode = {
+        'hp:run': [textNode],
+        ':@': {
+          'hp:charPrIDRef': '0',
+        },
+      }
+
+      const paragraphNode: XmlNode = {
+        'hp:p': [runNode],
+        ':@': {
+          'hp:id': '0',
+          'hp:paraPrIDRef': '0',
+          'hp:styleIDRef': '0',
+        },
+      }
+
+      return {
+        'hp:tc': [cellAddr, cellSpan, paragraphNode],
+      }
+    })
+
+    return {
+      'hp:tr': rowCells,
+    }
+  })
+
+  const tableNode: XmlNode = {
+    'hp:tbl': tableRows,
+  }
+
+  sectionChildren.push(tableNode)
 }
 
 function setParagraphText(paragraphNode: XmlNode, text: string): void {

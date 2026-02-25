@@ -96,4 +96,102 @@ describe('mutateHwpxZip', () => {
       await unlink(filePath)
     }
   })
+
+  it('applies addTable in-memory', async () => {
+    const filePath = tmpPath('mutator-addTable')
+    const fixture = await createTestHwpx({ paragraphs: ['Hello'] })
+    await Bun.write(filePath, fixture)
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await mutateHwpxZip(zip, archive, [
+        {
+          type: 'addTable',
+          ref: 's0',
+          rows: 2,
+          cols: 2,
+          data: [
+            ['A', 'B'],
+            ['C', 'D'],
+          ],
+        },
+      ])
+
+      const sectionXml = await zip.file('Contents/section0.xml')!.async('string')
+      expect(sectionXml).toContain('hp:tbl')
+      expect(sectionXml).toContain('A')
+      expect(sectionXml).toContain('D')
+      expect(sectionXml).toContain('Hello')
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('addTable roundtrip — re-read via parseSections', async () => {
+    const filePath = tmpPath('mutator-addTable-roundtrip')
+    const fixture = await createTestHwpx({ paragraphs: ['Intro'] })
+    await Bun.write(filePath, fixture)
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await mutateHwpxZip(zip, archive, [
+        {
+          type: 'addTable',
+          ref: 's0',
+          rows: 2,
+          cols: 3,
+          data: [
+            ['a', 'b', 'c'],
+            ['d', 'e', 'f'],
+          ],
+        },
+      ])
+
+      const outPath = tmpPath('mutator-addTable-roundtrip-out')
+      const buffer = await zip.generateAsync({ type: 'nodebuffer' })
+      await writeFile(outPath, buffer)
+
+      const archive2 = await loadHwpx(outPath)
+      const sections = await parseSections(archive2)
+      expect(sections[0].tables).toHaveLength(1)
+      expect(sections[0].tables[0].rows).toHaveLength(2)
+      expect(sections[0].tables[0].rows[0].cells).toHaveLength(3)
+      expect(sections[0].tables[0].rows[0].cells[0].paragraphs[0].runs[0].text).toBe('a')
+      expect(sections[0].tables[0].rows[1].cells[2].paragraphs[0].runs[0].text).toBe('f')
+
+      await unlink(outPath)
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('addTable with empty data creates empty cells', async () => {
+    const filePath = tmpPath('mutator-addTable-empty')
+    const fixture = await createTestHwpx({ paragraphs: ['Intro'] })
+    await Bun.write(filePath, fixture)
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await mutateHwpxZip(zip, archive, [{ type: 'addTable', ref: 's0', rows: 1, cols: 2 }])
+
+      const outPath = tmpPath('mutator-addTable-empty-out')
+      const buffer = await zip.generateAsync({ type: 'nodebuffer' })
+      await writeFile(outPath, buffer)
+
+      const archive2 = await loadHwpx(outPath)
+      const sections = await parseSections(archive2)
+      expect(sections[0].tables).toHaveLength(1)
+      expect(sections[0].tables[0].rows[0].cells[0].paragraphs[0].runs[0].text).toBe('')
+
+      await unlink(outPath)
+    } finally {
+      await unlink(filePath)
+    }
+  })
 })
