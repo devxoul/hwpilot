@@ -183,11 +183,11 @@ hwpilot image replace <file> <ref> <image-path>      # replace image
 Create a new blank HWPX document.
 
 ```bash
-hwpilot create <file> [--title <text>] [--font <name>] [--size <pt>] [--pretty]
+hwpilot create <file> [--font <name>] [--size <pt>] [--pretty]
 ```
 
 ```bash
-hwpilot create report.hwpx --title "Monthly Report" --font "바탕" --size 12
+hwpilot create report.hwpx --font "바탕" --size 12
 ```
 
 ### convert

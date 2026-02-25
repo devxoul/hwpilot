@@ -317,14 +317,14 @@ hwpilot image replace report.hwpx s0.img0 ./new-logo.png
 ### `hwpilot create` ... Create a new document
 
 ```bash
-hwpilot create <file> [--title <text>] [--font <name>] [--size <pt>] [--pretty]
+hwpilot create <file> [--font <name>] [--size <pt>] [--pretty]
 ```
 
-Creates a new blank HWPX document. Defaults: font "맑은 고딕", size 10pt.
+Creates a new blank document. Defaults: font "맑은 고딕", size 10pt. Use `edit text` to populate content afterwards.
 
 ```bash
 hwpilot create new-doc.hwpx
-hwpilot create report.hwpx --title "Monthly Report" --font "바탕" --size 12
+hwpilot create report.hwpx --font "바탕" --size 12
 ```
 
 ### `hwpilot convert` ... Convert HWP to HWPX
@@ -439,7 +439,7 @@ hwpilot convert legacy.hwp editable.hwpx
 Create a blank document, then populate it.
 
 ```bash
-hwpilot create report.hwpx --title "Quarterly Report" --font "맑은 고딕" --size 11
+hwpilot create report.hwpx --font "맑은 고딕" --size 11
 hwpilot edit text report.hwpx s0.p0 "Q4 2025 Quarterly Report"
 hwpilot edit format report.hwpx s0.p0 --bold --size 18
 ```

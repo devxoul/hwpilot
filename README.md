@@ -83,7 +83,7 @@ hwpilot edit text document.hwpx s0.p0 "새 내용"     # 문단 편집
 hwpilot table edit document.hwpx s0.t0.r0.c0 "값"   # 표 셀 편집
 hwpilot edit format document.hwpx s0.p0 --bold --size 16  # 서식 변경
 hwpilot image insert document.hwpx ./photo.jpg      # 이미지 삽입
-hwpilot create new.hwpx --title "보고서"             # 새 문서 생성
+hwpilot create new.hwpx                              # 새 문서 생성
 hwpilot convert legacy.hwp output.hwpx              # HWP 5.0 → HWPX 변환
 ```
 
