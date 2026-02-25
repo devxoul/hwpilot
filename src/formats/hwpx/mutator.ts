@@ -55,7 +55,12 @@ export async function mutateHwpxZip(zip: JSZip, archive: HwpxArchive, operations
       }
 
       if (op.type === 'addParagraph') {
-        throw new Error('addParagraph operation not yet implemented for HWPX')
+        if (!headerTree) {
+          headerTree = parseXml(await archive.getHeaderXml())
+        }
+        addParagraphToSection(sectionTree, headerTree, op.text, op.position, ref, op.format)
+        if (op.format) headerChanged = true
+        continue
       }
 
       if (!headerTree) {
@@ -204,6 +209,62 @@ function addTableToSection(sectionTree: XmlNode[], rows: number, cols: number, d
   }
 
   sectionChildren.push(tableNode)
+}
+
+function addParagraphToSection(
+  sectionTree: XmlNode[],
+  headerTree: XmlNode[],
+  text: string,
+  position: 'before' | 'after' | 'end',
+  ref: ParsedRef,
+  format?: FormatOptions,
+): void {
+  const sectionRoot = getSectionRootNode(sectionTree)
+  const elementName = getElementName(sectionRoot)
+  const sectionChildren = getElementChildren(sectionRoot, elementName)
+
+  const textNode: XmlNode = { 'hp:t': [{ '#text': text }] }
+  const runNode: XmlNode = {
+    'hp:run': [textNode],
+    ':@': { 'hp:charPrIDRef': '0' },
+  }
+  const paraNode: XmlNode = {
+    'hp:p': [runNode],
+    ':@': { 'hp:id': '0', 'hp:paraPrIDRef': '0', 'hp:styleIDRef': '0' },
+  }
+
+  if (format) {
+    const newCharPrId = appendFormattedCharPr(headerTree, runNode, format)
+    setAttr(runNode, 'charPrIDRef', String(newCharPrId), 'hp:charPrIDRef')
+  }
+
+  if (position === 'end') {
+    sectionChildren.push(paraNode)
+    return
+  }
+
+  if (ref.paragraph === undefined) {
+    throw new Error(`addParagraph with position '${position}' requires a paragraph reference`)
+  }
+
+  let paragraphCount = -1
+  let targetIndex = -1
+  for (let i = 0; i < sectionChildren.length; i++) {
+    if (hasElement(sectionChildren[i], 'hp:p')) {
+      paragraphCount++
+      if (paragraphCount === ref.paragraph) {
+        targetIndex = i
+        break
+      }
+    }
+  }
+
+  if (targetIndex === -1) {
+    throw new Error(`Paragraph not found: index ${ref.paragraph}`)
+  }
+
+  const insertIndex = position === 'before' ? targetIndex : targetIndex + 1
+  sectionChildren.splice(insertIndex, 0, paraNode)
 }
 
 function setParagraphText(paragraphNode: XmlNode, text: string): void {

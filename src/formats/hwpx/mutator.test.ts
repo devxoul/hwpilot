@@ -194,4 +194,136 @@ describe('mutateHwpxZip', () => {
       await unlink(filePath)
     }
   })
+
+  it('addParagraph appends to end', async () => {
+    const filePath = tmpPath('mutator-addParagraph-end')
+    const fixture = await createTestHwpx({ paragraphs: ['First', 'Second'] })
+    await Bun.write(filePath, fixture)
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await mutateHwpxZip(zip, archive, [{ type: 'addParagraph', ref: 's0', text: 'Third', position: 'end' }])
+
+      const outPath = tmpPath('mutator-addParagraph-end-out')
+      const buffer = await zip.generateAsync({ type: 'nodebuffer' })
+      await writeFile(outPath, buffer)
+
+      const archive2 = await loadHwpx(outPath)
+      const sections = await parseSections(archive2)
+      expect(sections[0].paragraphs).toHaveLength(3)
+      expect(sections[0].paragraphs[2].runs.map((r) => r.text).join('')).toBe('Third')
+
+      await unlink(outPath)
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('addParagraph inserts before target paragraph', async () => {
+    const filePath = tmpPath('mutator-addParagraph-before')
+    const fixture = await createTestHwpx({ paragraphs: ['First', 'Second'] })
+    await Bun.write(filePath, fixture)
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await mutateHwpxZip(zip, archive, [{ type: 'addParagraph', ref: 's0.p1', text: 'Inserted', position: 'before' }])
+
+      const outPath = tmpPath('mutator-addParagraph-before-out')
+      const buffer = await zip.generateAsync({ type: 'nodebuffer' })
+      await writeFile(outPath, buffer)
+
+      const archive2 = await loadHwpx(outPath)
+      const sections = await parseSections(archive2)
+      const texts = sections[0].paragraphs.map((p) => p.runs.map((r) => r.text).join(''))
+      expect(texts).toEqual(['First', 'Inserted', 'Second'])
+
+      await unlink(outPath)
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('addParagraph inserts after target paragraph', async () => {
+    const filePath = tmpPath('mutator-addParagraph-after')
+    const fixture = await createTestHwpx({ paragraphs: ['First', 'Second'] })
+    await Bun.write(filePath, fixture)
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await mutateHwpxZip(zip, archive, [{ type: 'addParagraph', ref: 's0.p0', text: 'Inserted', position: 'after' }])
+
+      const outPath = tmpPath('mutator-addParagraph-after-out')
+      const buffer = await zip.generateAsync({ type: 'nodebuffer' })
+      await writeFile(outPath, buffer)
+
+      const archive2 = await loadHwpx(outPath)
+      const sections = await parseSections(archive2)
+      const texts = sections[0].paragraphs.map((p) => p.runs.map((r) => r.text).join(''))
+      expect(texts).toEqual(['First', 'Inserted', 'Second'])
+
+      await unlink(outPath)
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('addParagraph applies format by assigning non-default charPrIDRef', async () => {
+    const filePath = tmpPath('mutator-addParagraph-format')
+    const fixture = await createTestHwpx({ paragraphs: ['First', 'Second'] })
+    await Bun.write(filePath, fixture)
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await mutateHwpxZip(zip, archive, [
+        {
+          type: 'addParagraph',
+          ref: 's0',
+          text: 'Bold Paragraph',
+          position: 'end',
+          format: { bold: true },
+        },
+      ])
+
+      const sectionXml = await zip.file('Contents/section0.xml')!.async('string')
+      expect(sectionXml).toContain('Bold Paragraph')
+      expect(sectionXml).toContain('hp:charPrIDRef="1"')
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('addParagraph keeps existing paragraphs unchanged', async () => {
+    const filePath = tmpPath('mutator-addParagraph-unchanged')
+    const fixture = await createTestHwpx({ paragraphs: ['First', 'Second'] })
+    await Bun.write(filePath, fixture)
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await mutateHwpxZip(zip, archive, [{ type: 'addParagraph', ref: 's0.p1', text: 'Inserted', position: 'before' }])
+
+      const outPath = tmpPath('mutator-addParagraph-unchanged-out')
+      const buffer = await zip.generateAsync({ type: 'nodebuffer' })
+      await writeFile(outPath, buffer)
+
+      const archive2 = await loadHwpx(outPath)
+      const sections = await parseSections(archive2)
+      const texts = sections[0].paragraphs.map((p) => p.runs.map((r) => r.text).join(''))
+      expect(texts[0]).toBe('First')
+      expect(texts[2]).toBe('Second')
+
+      await unlink(outPath)
+    } finally {
+      await unlink(filePath)
+    }
+  })
 })
