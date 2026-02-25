@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test'
 import { createTestHwpBinary, createTestHwpx } from '@/test-helpers'
-import { tableEditCommand, tableListCommand, tableReadCommand } from './table'
+import { tableAddCommand, tableEditCommand, tableListCommand, tableReadCommand } from './table'
 
 const TEST_FILE = '/tmp/test-table.hwpx'
 
@@ -246,5 +246,95 @@ describe('tableEditCommand HWP', () => {
 
     const table = JSON.parse(logs[0])
     expect(table.rows[0].cells[0].text).toBe('Changed')
+  })
+})
+
+describe('tableAddCommand', () => {
+  it('adds empty table to HWPX file', async () => {
+    const buffer = await createTestHwpx({ paragraphs: ['Intro'] })
+    await Bun.write(TEST_FILE, buffer)
+
+    captureOutput()
+    await tableAddCommand(TEST_FILE, 2, 3, {})
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.ref).toBe('s0.t0')
+    expect(output.rows).toBe(2)
+    expect(output.cols).toBe(3)
+    expect(output.success).toBe(true)
+
+    captureOutput()
+    await tableReadCommand(TEST_FILE, 's0.t0', {})
+    restoreOutput()
+
+    const table = JSON.parse(logs[0])
+    expect(table.rows).toHaveLength(2)
+    expect(table.rows[0].cells).toHaveLength(3)
+  })
+
+  it('adds table with data to HWPX file', async () => {
+    const buffer = await createTestHwpx({ paragraphs: ['Intro'] })
+    await Bun.write(TEST_FILE, buffer)
+
+    captureOutput()
+    await tableAddCommand(TEST_FILE, 2, 2, { data: '[["A","B"],["C","D"]]' })
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.ref).toBe('s0.t0')
+
+    captureOutput()
+    await tableReadCommand(TEST_FILE, 's0.t0', {})
+    restoreOutput()
+
+    const table = JSON.parse(logs[0])
+    expect(table.rows[0].cells[0].text).toBe('A')
+    expect(table.rows[0].cells[1].text).toBe('B')
+    expect(table.rows[1].cells[0].text).toBe('C')
+    expect(table.rows[1].cells[1].text).toBe('D')
+  })
+
+  it('adds table to document that already has tables', async () => {
+    const buffer = await createTestHwpx({
+      paragraphs: ['Intro'],
+      tables: [{ rows: [['X']] }],
+    })
+    await Bun.write(TEST_FILE, buffer)
+
+    captureOutput()
+    await tableAddCommand(TEST_FILE, 1, 2, { data: '[["New1","New2"]]' })
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.ref).toBe('s0.t1')
+
+    captureOutput()
+    await tableListCommand(TEST_FILE, {})
+    restoreOutput()
+
+    const tables = JSON.parse(logs[0])
+    expect(tables).toHaveLength(2)
+  })
+
+  it('adds table to HWP file', async () => {
+    const hwpBuffer = await createTestHwpBinary({ paragraphs: ['Intro'] })
+    await Bun.write(TEST_HWP_FILE, hwpBuffer)
+
+    captureOutput()
+    await tableAddCommand(TEST_HWP_FILE, 2, 2, { data: '[["A","B"],["C","D"]]' })
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.ref).toBe('s0.t0')
+    expect(output.success).toBe(true)
+
+    captureOutput()
+    await tableReadCommand(TEST_HWP_FILE, 's0.t0', {})
+    restoreOutput()
+
+    const table = JSON.parse(logs[0])
+    expect(table.rows[0].cells[0].text).toBe('A')
+    expect(table.rows[1].cells[1].text).toBe('D')
   })
 })

@@ -7,7 +7,7 @@ import { editTextCommand } from '@/commands/edit-text'
 import { findCommand } from '@/commands/find'
 import { imageExtractCommand, imageInsertCommand, imageListCommand, imageReplaceCommand } from '@/commands/image'
 import { readCommand } from '@/commands/read'
-import { tableEditCommand, tableListCommand, tableReadCommand } from '@/commands/table'
+import { tableAddCommand, tableEditCommand, tableListCommand, tableReadCommand } from '@/commands/table'
 import { textCommand } from '@/commands/text'
 
 const program = new Command()
@@ -123,6 +123,16 @@ tableCmd
   .option('--pretty', 'Pretty-print JSON output')
   .action(async (file: string, options: { pretty?: boolean }) => {
     await tableListCommand(file, options)
+  })
+
+// hwpilot table add <file> <rows> <cols>
+tableCmd
+  .command('add <file> <rows> <cols>')
+  .description('Add a new table to the document')
+  .option('--data <json>', 'Cell data as JSON array of arrays')
+  .option('--pretty', 'Pretty-print JSON output')
+  .action(async (file: string, rows: string, cols: string, options: { data?: string; pretty?: boolean }) => {
+    await tableAddCommand(file, Number(rows), Number(cols), options)
   })
 
 // hwpilot image

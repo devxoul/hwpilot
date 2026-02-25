@@ -264,6 +264,17 @@ async function handleRequest(
         return { success: true, data: { ref, text, success: true } }
       }
 
+      case 'table-add': {
+        const rows = numberArg(msg.args.rows, 0)
+        const cols = numberArg(msg.args.cols, 0)
+        const data = Array.isArray(msg.args.data) ? (msg.args.data as string[][]) : undefined
+        const tableCount = sections[0]?.tables.length ?? 0
+        await holder.applyOperations([{ type: 'addTable', ref: 's0', rows, cols, data }])
+        await scheduler.flushNow()
+        const newRef = `s0.t${tableCount}`
+        return { success: true, data: { ref: newRef, rows, cols, success: true } }
+      }
+
       default:
         return { success: false, error: `Unknown command: ${msg.command}` }
     }
