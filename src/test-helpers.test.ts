@@ -78,26 +78,26 @@ describe('createTestHwpx', () => {
   })
 })
 
-  it('creates document with multiple paragraphs readable via loader and parser', async () => {
-    const buf = await createTestHwpx({ paragraphs: ['Hello', 'World', 'Test'] })
-    const filePath = `/tmp/test-helpers-hwpx-multi-${Date.now()}.hwpx`
-    await Bun.write(filePath, buf)
+it('creates document with multiple paragraphs readable via loader and parser', async () => {
+  const buf = await createTestHwpx({ paragraphs: ['Hello', 'World', 'Test'] })
+  const filePath = `/tmp/test-helpers-hwpx-multi-${Date.now()}.hwpx`
+  await Bun.write(filePath, buf)
 
-    try {
-      const { loadHwpx } = await import('@/formats/hwpx/loader')
-      const { parseSections } = await import('@/formats/hwpx/section-parser')
-      const archive = await loadHwpx(filePath)
-      const sections = await parseSections(archive)
+  try {
+    const { loadHwpx } = await import('@/formats/hwpx/loader')
+    const { parseSections } = await import('@/formats/hwpx/section-parser')
+    const archive = await loadHwpx(filePath)
+    const sections = await parseSections(archive)
 
-      expect(sections).toHaveLength(1)
-      expect(sections[0].paragraphs).toHaveLength(3)
-      expect(sections[0].paragraphs[0].runs[0]?.text).toBe('Hello')
-      expect(sections[0].paragraphs[1].runs[0]?.text).toBe('World')
-      expect(sections[0].paragraphs[2].runs[0]?.text).toBe('Test')
-    } finally {
-      await Bun.file(filePath).delete()
-    }
-  })
+    expect(sections).toHaveLength(1)
+    expect(sections[0].paragraphs).toHaveLength(3)
+    expect(sections[0].paragraphs[0].runs[0]?.text).toBe('Hello')
+    expect(sections[0].paragraphs[1].runs[0]?.text).toBe('World')
+    expect(sections[0].paragraphs[2].runs[0]?.text).toBe('Test')
+  } finally {
+    await Bun.file(filePath).delete()
+  }
+})
 
 describe('createTestHwpBinary', () => {
   it('creates an HWP fixture with multiple paragraphs loadable by loadHwp()', async () => {

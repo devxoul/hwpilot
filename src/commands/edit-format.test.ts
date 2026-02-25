@@ -143,7 +143,9 @@ describe('editFormatCommand', () => {
 
   it('errors when start is negative', async () => {
     captureOutput()
-    await expect(editFormatCommand(testFile, 's0.p0', { bold: true, start: -1, end: 5 })).rejects.toThrow('process.exit')
+    await expect(editFormatCommand(testFile, 's0.p0', { bold: true, start: -1, end: 5 })).rejects.toThrow(
+      'process.exit',
+    )
     restoreOutput()
 
     const output = JSON.parse(errors[0])

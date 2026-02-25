@@ -6,9 +6,9 @@ import { editFormatCommand } from '@/commands/edit-format'
 import { editTextCommand } from '@/commands/edit-text'
 import { findCommand } from '@/commands/find'
 import { imageExtractCommand, imageInsertCommand, imageListCommand, imageReplaceCommand } from '@/commands/image'
+import { paragraphAddCommand } from '@/commands/paragraph'
 import { readCommand } from '@/commands/read'
 import { tableAddCommand, tableEditCommand, tableListCommand, tableReadCommand } from '@/commands/table'
-import { paragraphAddCommand } from '@/commands/paragraph'
 import { textCommand } from '@/commands/text'
 
 const program = new Command()

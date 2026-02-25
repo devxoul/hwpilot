@@ -282,7 +282,9 @@ async function handleRequest(
         const text = stringArg(msg.args.text, 'text')
         const position = stringArg(msg.args.position, 'position')
         const format = msg.args.format as FormatOptions | undefined
-        await holder.applyOperations([{ type: 'addParagraph', ref, text, position: position as 'before' | 'after' | 'end', format }])
+        await holder.applyOperations([
+          { type: 'addParagraph', ref, text, position: position as 'before' | 'after' | 'end', format },
+        ])
         await scheduler.flushNow()
         return { success: true, data: { ref, text, position, success: true } }
       }
