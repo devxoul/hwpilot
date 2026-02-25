@@ -103,7 +103,7 @@ describe('validateCommand', () => {
   it('handles file not found gracefully', async () => {
     captureOutput()
     let exitCalled = false
-    process.exit = mock((code?: number) => {
+    process.exit = mock((_code?: number) => {
       exitCalled = true
       throw new Error('process.exit')
     }) as never
