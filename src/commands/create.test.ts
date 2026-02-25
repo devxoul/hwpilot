@@ -68,20 +68,6 @@ describe('createCommand', () => {
     expect(sections[0].paragraphs).toHaveLength(1)
   })
 
-  it('creates with title text', async () => {
-    const file = tempPath('-title')
-
-    captureOutput()
-    await createCommand(file, { title: 'Hello World' })
-    restoreOutput()
-
-    const output = JSON.parse(logs[0])
-    expect(output.success).toBe(true)
-
-    const archive = await loadHwpx(file)
-    const sections = await parseSections(archive)
-    expect(sections[0].paragraphs[0].runs[0].text).toBe('Hello World')
-  })
 
   it('errors when file already exists', async () => {
     const file = tempPath('-exists')
@@ -99,7 +85,7 @@ describe('createCommand', () => {
     const file = tempHwpPath()
 
     captureOutput()
-    await createCommand(file, { title: '테스트' })
+    await createCommand(file, {})
     restoreOutput()
 
     const output = JSON.parse(logs[0])
@@ -107,14 +93,14 @@ describe('createCommand', () => {
 
     const doc = await loadHwp(file)
     expect(doc.sections).toHaveLength(1)
-    expect(doc.sections[0].paragraphs[0].runs[0].text).toBe('테스트')
+    expect(doc.sections[0].paragraphs).toHaveLength(1)
   })
 
   it('creates .hwp with custom font and size', async () => {
     const file = tempHwpPath('-font')
 
     captureOutput()
-    await createCommand(file, { title: '제목', font: '바탕', size: '12' })
+    await createCommand(file, { font: '바탕', size: '12' })
     restoreOutput()
 
     const output = JSON.parse(logs[0])

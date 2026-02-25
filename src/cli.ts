@@ -168,11 +168,11 @@ imageCmd
 program
   .command('create <file>')
   .description('Create a new blank document')
-  .option('--title <text>', 'Set initial paragraph text')
+  .option('--font <name>', 'Set default font name', '맑은 고딕')
   .option('--font <name>', 'Set default font name', '맑은 고딕')
   .option('--size <pt>', 'Set default font size', '10')
   .option('--pretty', 'Pretty-print JSON output')
-  .action(async (file: string, options: { title?: string; font?: string; size?: string; pretty?: boolean }) => {
+  .action(async (file: string, options: { font?: string; size?: string; pretty?: boolean }) => {
     await createCommand(file, options)
   })
 

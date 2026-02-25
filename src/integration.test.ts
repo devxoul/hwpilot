@@ -74,10 +74,14 @@ describe('integration: full HWPX lifecycle', () => {
     const file = tempPath('lifecycle')
 
     captureOutput()
-    await createCommand(file, { title: 'Initial Text' })
+    await createCommand(file, {})
     restoreOutput()
     const createOut = JSON.parse(logs[0])
     expect(createOut.success).toBe(true)
+
+    captureOutput()
+    await editTextCommand(file, 's0.p0', 'Initial Text', {})
+    restoreOutput()
 
     captureOutput()
     await readCommand(file, undefined, {})

@@ -5,7 +5,6 @@ import { formatOutput } from '@/shared/output'
 import { createTestHwpx } from '@/test-helpers'
 
 type CreateOptions = {
-  title?: string
   font?: string
   size?: string
   pretty?: boolean
@@ -22,9 +21,8 @@ export async function createCommand(file: string, options: CreateOptions): Promi
       } catch (e) {
         if (e instanceof Error && e.message.startsWith('File already exists')) throw e
       }
-      const paragraphs = options.title ? [options.title] : ['']
       const fontSize = options.size ? Number(options.size) * 100 : undefined
-      const buffer = await createHwp({ paragraphs, font: options.font, fontSize })
+      const buffer = await createHwp({ font: options.font, fontSize })
       await writeFile(file, buffer)
       console.log(formatOutput({ file, success: true }, options.pretty))
       return
@@ -41,10 +39,9 @@ export async function createCommand(file: string, options: CreateOptions): Promi
       if (e instanceof Error && e.message.startsWith('File already exists')) throw e
     }
 
-    const paragraphs = options.title ? [options.title] : ['']
     const font = options.font
     const fontSize = options.size ? Number(options.size) * 100 : undefined
-    const buffer = await createTestHwpx({ paragraphs, font, fontSize })
+    const buffer = await createTestHwpx({ font, fontSize })
 
     await writeFile(file, buffer)
 
