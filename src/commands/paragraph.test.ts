@@ -53,67 +53,60 @@ describe('paragraphAddCommand', () => {
 
   it('accepts position before', async () => {
     captureOutput()
-    await expect(
-      paragraphAddCommand(TEST_FILE, 's0.p0', 'New text', { position: 'before' }),
-    ).rejects.toThrow('process.exit')
+    await paragraphAddCommand(TEST_FILE, 's0.p0', 'New text', { position: 'before' })
     restoreOutput()
 
-    // Command fails because mutator not implemented, but position validation passed
-    expect(errors.length > 0).toBe(true)
+    const output = JSON.parse(logs[0])
+    expect(output.success).toBe(true)
   })
 
   it('accepts position after', async () => {
     captureOutput()
-    await expect(
-      paragraphAddCommand(TEST_FILE, 's0.p0', 'New text', { position: 'after' }),
-    ).rejects.toThrow('process.exit')
+    await paragraphAddCommand(TEST_FILE, 's0.p0', 'New text', { position: 'after' })
     restoreOutput()
 
-    expect(errors.length > 0).toBe(true)
+    const output = JSON.parse(logs[0])
+    expect(output.success).toBe(true)
   })
 
   it('defaults to position end', async () => {
     captureOutput()
-    await expect(
-      paragraphAddCommand(TEST_FILE, 's0', 'New text', {}),
-    ).rejects.toThrow('process.exit')
+    await paragraphAddCommand(TEST_FILE, 's0', 'New text', {})
     restoreOutput()
 
-    expect(errors.length > 0).toBe(true)
+    const output = JSON.parse(logs[0])
+    expect(output.success).toBe(true)
   })
 
   it('assembles format options into format object', async () => {
     captureOutput()
-    await expect(
-      paragraphAddCommand(TEST_FILE, 's0', 'New text', {
-        bold: true,
-        italic: true,
-        font: 'Arial',
-        size: 14,
-      }),
-    ).rejects.toThrow('process.exit')
+    await paragraphAddCommand(TEST_FILE, 's0', 'New text', {
+      bold: true,
+      italic: true,
+      font: 'Arial',
+      size: 14,
+    })
     restoreOutput()
 
-    expect(errors.length > 0).toBe(true)
+    const output = JSON.parse(logs[0])
+    expect(output.success).toBe(true)
   })
 
   it('handles bold option', async () => {
     captureOutput()
-    await expect(
-      paragraphAddCommand(TEST_FILE, 's0', 'New text', { bold: true }),
-    ).rejects.toThrow('process.exit')
+    await paragraphAddCommand(TEST_FILE, 's0', 'New text', { bold: true })
     restoreOutput()
 
-    expect(errors.length > 0).toBe(true)
+    const output = JSON.parse(logs[0])
+    expect(output.success).toBe(true)
   })
 
   it('handles color option', async () => {
     captureOutput()
-    await expect(
-      paragraphAddCommand(TEST_FILE, 's0', 'New text', { color: '#FF0000' }),
-    ).rejects.toThrow('process.exit')
+    await paragraphAddCommand(TEST_FILE, 's0', 'New text', { color: '#FF0000' })
     restoreOutput()
 
-    expect(errors.length > 0).toBe(true)
+    const output = JSON.parse(logs[0])
+    expect(output.success).toBe(true)
   })
 })
