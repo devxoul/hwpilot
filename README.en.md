@@ -27,6 +27,12 @@ hwpilot edit text document.hwpx s0.p0 "New content"
 # Edit a table cell
 hwpilot table edit document.hwpx s0.t0.r0.c0 "Cell value"
 
+# Add a 3×4 table
+hwpilot table add document.hwpx 3 4
+
+# Add a table with data
+hwpilot table add document.hwpx 2 2 --data '[["A","B"],["C","D"]]'
+
 # Bold + resize
 hwpilot edit format document.hwpx s0.p0 --bold --size 16
 
@@ -159,6 +165,18 @@ hwpilot table edit report.hwpx s0.t0.r0.c0 "Name"
 hwpilot table edit report.hwpx s0.t0.r0.c1 "Date"
 ```
 
+### table add
+
+Add a new table to the document.
+
+```bash
+hwpilot table add <file> <rows> <cols> [--data <json>] [--pretty]
+```
+
+```bash
+hwpilot table add report.hwpx 3 4
+hwpilot table add report.hwpx 2 2 --data '[["Name","Date"],["Alice","2025-01-01"]]'
+```
 ### table list
 
 List all tables in the document.
@@ -207,12 +225,12 @@ Format is detected by file content (magic bytes), not by file extension.
 | Read structure / text | ✓ | ✓ |
 | Edit text | ✓ | ✓ |
 | Edit formatting | ✓ | ✓ |
-| Table read / edit | ✓ | ✓ |
+| Table read / edit / add | ✓ | ✓ |
 | Text box read / edit | ✓ | ✓ |
 | Find text | ✓ | ✓ |
 | Image list | ✓ | ✓ |
 | Image insert / replace / extract | ✓ | ✗ |
-| Create new document | ✓ | ✗ |
+| Create new document | ✓ | ✓ |
 
 For image operations on HWP 5.0 files, convert first: `hwpilot convert file.hwp file.hwpx`
 
@@ -222,7 +240,7 @@ For image operations on HWP 5.0 files, convert first: `hwpilot convert file.hwp 
 - **No encrypted files** — password/DRM protected documents can't be opened
 - **No macros, equations, charts, OLE objects**
 - **No paragraph-level formatting** — only character formatting (bold, italic, underline, font, size, color)
-- **No structural edits** — can't add new paragraphs, rows, or sections; only edit existing content
+- **Limited structural edits** — table add is supported, but adding new paragraphs, rows, or sections is not
 - **No grouped shapes** — only individual text boxes are supported
 
 ## Error Handling

@@ -81,6 +81,8 @@ hwpilot read document.hwpx --limit 20              # 문서 읽기
 hwpilot find document.hwpx "청구취지"                # 텍스트 검색
 hwpilot edit text document.hwpx s0.p0 "새 내용"     # 문단 편집
 hwpilot table edit document.hwpx s0.t0.r0.c0 "값"   # 표 셀 편집
+hwpilot table add document.hwpx 3 4                 # 3×4 표 추가
+hwpilot table add document.hwpx 2 2 --data '[["A","B"],["C","D"]]'  # 데이터와 함께 표 추가
 hwpilot edit format document.hwpx s0.p0 --bold --size 16  # 서식 변경
 hwpilot image insert document.hwpx ./photo.jpg      # 이미지 삽입
 hwpilot create new.hwpx                              # 새 문서 생성
@@ -107,7 +109,7 @@ HWP 5.0에서 이미지 작업이 필요하면 먼저 HWPX로 변환하세요: `
 ## 제한 사항
 
 - **암호화/DRM 문서** — 열 수 없음
-- **구조 변경 불가** — 문단, 행, 섹션 추가는 불가하며 기존 내용만 편집 가능
+- **구조 변경 제한** — 표 추가는 가능하지만 문단, 행, 섹션 추가는 미지원
 - **글자 서식만 지원** — 문단 정렬, 줄간격 등 문단 서식은 미지원
 - **매크로, 수식, 차트, OLE** — 미지원
 - **그룹화된 도형** — 개별 텍스트 박스만 지원
