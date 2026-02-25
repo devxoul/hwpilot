@@ -32,3 +32,23 @@ export function replaceRecordData(stream: Buffer, recordOffset: number, newData:
     stream.subarray(recordOffset + oldTotalSize),
   ])
 }
+
+export function buildTableData(rowCount: number, colCount: number): Buffer {
+  const table = Buffer.alloc(8)
+  table.writeUInt16LE(rowCount, 4)
+  table.writeUInt16LE(colCount, 6)
+  return table
+}
+
+export function buildCellListHeaderData(col: number, row: number, colSpan: number, rowSpan: number): Buffer {
+  const buf = Buffer.alloc(32)
+  buf.writeInt32LE(1, 0)
+  buf.writeUInt32LE(0, 4)
+  buf.writeUInt16LE(col, 8)
+  buf.writeUInt16LE(row, 10)
+  buf.writeUInt16LE(colSpan, 12)
+  buf.writeUInt16LE(rowSpan, 14)
+  buf.writeUInt32LE(0, 16)
+  buf.writeUInt32LE(0, 20)
+  return buf
+}

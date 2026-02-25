@@ -1,9 +1,11 @@
 import CFB from 'cfb'
 import JSZip from 'jszip'
 import { controlIdBuffer } from '@/formats/hwp/control-id'
-import { buildRecord } from '@/formats/hwp/record-serializer'
+import { buildCellListHeaderData, buildRecord, buildTableData } from '@/formats/hwp/record-serializer'
 import { compressStream } from '@/formats/hwp/stream-util'
 import { TAG } from '@/formats/hwp/tag-ids'
+
+export { buildCellListHeaderData }
 
 export type TestTable = {
   rows: string[][]
@@ -304,26 +306,6 @@ function buildParagraphRecords(text: string): Buffer {
     buildRecord(TAG.PARA_CHAR_SHAPE, 1, paraCharShape),
     buildRecord(TAG.PARA_TEXT, 1, textData),
   ])
-}
-
-export function buildCellListHeaderData(col: number, row: number, colSpan: number, rowSpan: number): Buffer {
-  const buf = Buffer.alloc(32)
-  buf.writeInt32LE(1, 0)
-  buf.writeUInt32LE(0, 4)
-  buf.writeUInt16LE(col, 8)
-  buf.writeUInt16LE(row, 10)
-  buf.writeUInt16LE(colSpan, 12)
-  buf.writeUInt16LE(rowSpan, 14)
-  buf.writeUInt32LE(0, 16)
-  buf.writeUInt32LE(0, 20)
-  return buf
-}
-
-function buildTableData(rowCount: number, colCount: number): Buffer {
-  const table = Buffer.alloc(8)
-  table.writeUInt16LE(rowCount, 4)
-  table.writeUInt16LE(colCount, 6)
-  return table
 }
 
 export function buildMergedTable(rows: MergedTableRow[], colCount: number, rowCount: number): Buffer {
