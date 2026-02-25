@@ -68,7 +68,6 @@ describe('createCommand', () => {
     expect(sections[0].paragraphs).toHaveLength(1)
   })
 
-
   it('errors when file already exists', async () => {
     const file = tempPath('-exists')
     await Bun.write(file, 'placeholder')
