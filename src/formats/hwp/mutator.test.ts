@@ -217,3 +217,83 @@ describe('mutateHwpCfb addTable', () => {
     }
   })
 })
+
+describe('mutateHwpCfb addParagraph', () => {
+  const readParagraphTexts = async (path: string): Promise<string[]> => {
+    const doc = await loadHwp(path)
+    return doc.sections[0].paragraphs.map((paragraph) => paragraph.runs.map((run) => run.text).join(''))
+  }
+
+  it('appends a paragraph at section end', async () => {
+    const fixture = await createTestHwpBinary({ paragraphs: ['First', 'Second'] })
+    const cfb = CFB.read(fixture, { type: 'buffer' })
+    const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+    mutateHwpCfb(cfb, [{ type: 'addParagraph', ref: 's0', text: 'Third', position: 'end' }], compressed)
+
+    const outPath = tmpPath('mutator-addParagraph-end')
+    await writeFile(outPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
+
+    try {
+      const paragraphTexts = await readParagraphTexts(outPath)
+      expect(paragraphTexts).toEqual(['First', 'Second', 'Third'])
+    } finally {
+      await unlink(outPath)
+    }
+  })
+
+  it('inserts a paragraph before target paragraph', async () => {
+    const fixture = await createTestHwpBinary({ paragraphs: ['First', 'Second'] })
+    const cfb = CFB.read(fixture, { type: 'buffer' })
+    const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+    mutateHwpCfb(cfb, [{ type: 'addParagraph', ref: 's0.p1', text: 'Inserted', position: 'before' }], compressed)
+
+    const outPath = tmpPath('mutator-addParagraph-before')
+    await writeFile(outPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
+
+    try {
+      const paragraphTexts = await readParagraphTexts(outPath)
+      expect(paragraphTexts).toEqual(['First', 'Inserted', 'Second'])
+    } finally {
+      await unlink(outPath)
+    }
+  })
+
+  it('inserts a paragraph after target paragraph', async () => {
+    const fixture = await createTestHwpBinary({ paragraphs: ['First', 'Second'] })
+    const cfb = CFB.read(fixture, { type: 'buffer' })
+    const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+    mutateHwpCfb(cfb, [{ type: 'addParagraph', ref: 's0.p0', text: 'Inserted', position: 'after' }], compressed)
+
+    const outPath = tmpPath('mutator-addParagraph-after')
+    await writeFile(outPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
+
+    try {
+      const paragraphTexts = await readParagraphTexts(outPath)
+      expect(paragraphTexts).toEqual(['First', 'Inserted', 'Second'])
+    } finally {
+      await unlink(outPath)
+    }
+  })
+
+  it('keeps existing paragraph text unchanged when inserting', async () => {
+    const fixture = await createTestHwpBinary({ paragraphs: ['First', 'Second'] })
+    const cfb = CFB.read(fixture, { type: 'buffer' })
+    const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+    mutateHwpCfb(cfb, [{ type: 'addParagraph', ref: 's0.p0', text: 'Middle', position: 'after' }], compressed)
+
+    const outPath = tmpPath('mutator-addParagraph-preserve')
+    await writeFile(outPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
+
+    try {
+      const paragraphTexts = await readParagraphTexts(outPath)
+      expect(paragraphTexts[0]).toBe('First')
+      expect(paragraphTexts[2]).toBe('Second')
+    } finally {
+      await unlink(outPath)
+    }
+  })
+})

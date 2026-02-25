@@ -41,11 +41,21 @@ type SectionAddTableOperation = {
   ref: string
 }
 
+type SectionAddParagraphOperation = {
+  type: 'addParagraph'
+  paragraph?: number
+  text: string
+  position: 'before' | 'after' | 'end'
+  format?: FormatOptions
+  ref: string
+}
+
 type SectionOperation =
   | SectionTextOperation
   | SectionTableCellOperation
   | SectionFormatOperation
   | SectionAddTableOperation
+  | SectionAddParagraphOperation
 
 export function mutateHwpCfb(cfb: CFB.CFB$Container, operations: EditOperation[], compressed: boolean): void {
   if (operations.length === 0) return
@@ -90,6 +100,10 @@ export function mutateHwpCfb(cfb: CFB.CFB$Container, operations: EditOperation[]
         continue
       }
 
+      if (operation.type === 'addParagraph') {
+        stream = appendParagraphRecords(stream, operation, cfb, sectionIndex, compressed)
+        continue
+      }
 
       // At this point, operation must be setTableCell
       const cellOp = operation as SectionTableCellOperation
@@ -193,7 +207,18 @@ function groupOperationsBySection(operations: EditOperation[]): Map<number, Sect
     }
 
     if (operation.type === 'addParagraph') {
-      throw new Error('addParagraph operation not yet implemented for HWP')
+      const ref = parseRef(operation.ref)
+      const sectionOperations = grouped.get(ref.section) ?? []
+      sectionOperations.push({
+        type: 'addParagraph',
+        paragraph: ref.paragraph,
+        text: operation.text,
+        position: operation.position,
+        format: operation.format,
+        ref: operation.ref,
+      })
+      grouped.set(ref.section, sectionOperations)
+      continue
     }
 
     throw new Error('Unsupported HWP edit operation')
@@ -223,6 +248,108 @@ function appendTableRecords(stream: Buffer, op: SectionAddTableOperation): Buffe
   }
 
   return Buffer.concat(records)
+}
+
+function appendParagraphRecords(
+  stream: Buffer,
+  op: SectionAddParagraphOperation,
+  cfb: CFB.CFB$Container,
+  sectionIndex: number,
+  compressed: boolean,
+): Buffer {
+  void cfb
+  void sectionIndex
+  void compressed
+
+  const textData = Buffer.from(op.text, 'utf16le')
+  const nChars = textData.length / 2 + 1
+
+  const paraHeaderData = Buffer.alloc(24)
+  paraHeaderData.writeUInt32LE(nChars & 0x7fffffff, 0)
+
+  const paraTextData = Buffer.concat([textData, Buffer.from([0x0d, 0x00])])
+
+  const paraCharShapeData = Buffer.alloc(12)
+  paraCharShapeData.writeUInt32LE(1, 0)
+  paraCharShapeData.writeUInt32LE(0, 4)
+  paraCharShapeData.writeUInt32LE(0, 8)
+
+  const paraLineSegData = buildParaLineSegData()
+
+  const newRecords = Buffer.concat([
+    buildRecord(TAG.PARA_HEADER, 0, paraHeaderData),
+    buildRecord(TAG.PARA_TEXT, 1, paraTextData),
+    buildRecord(TAG.PARA_CHAR_SHAPE, 1, paraCharShapeData),
+    buildRecord(TAG.PARA_LINE_SEG, 1, paraLineSegData),
+  ])
+
+  if (op.position === 'end') {
+    const result = clearLastParagraphBit(stream)
+    paraHeaderData.writeUInt32LE((0x80000000 | (nChars & 0x7fffffff)) >>> 0, 0)
+    const finalRecords = Buffer.concat([
+      buildRecord(TAG.PARA_HEADER, 0, paraHeaderData),
+      buildRecord(TAG.PARA_TEXT, 1, paraTextData),
+      buildRecord(TAG.PARA_CHAR_SHAPE, 1, paraCharShapeData),
+      buildRecord(TAG.PARA_LINE_SEG, 1, paraLineSegData),
+    ])
+    return Buffer.concat([result, finalRecords])
+  }
+
+  if (op.paragraph === undefined) {
+    throw new Error(`addParagraph with position '${op.position}' requires a paragraph reference: ${op.ref}`)
+  }
+
+  return spliceParagraphRecords(stream, op.paragraph, op.position, newRecords)
+}
+
+function clearLastParagraphBit(stream: Buffer): Buffer {
+  const result = Buffer.from(stream)
+  for (const { header, data, offset } of iterateRecords(result)) {
+    if (header.tagId === TAG.PARA_HEADER && header.level === 0) {
+      const nCharsField = data.readUInt32LE(0)
+      if (nCharsField & 0x80000000) {
+        const dataOffset = offset + header.headerSize
+        result.writeUInt32LE((nCharsField & 0x7fffffff) >>> 0, dataOffset)
+        break
+      }
+    }
+  }
+  return result
+}
+
+function spliceParagraphRecords(
+  stream: Buffer,
+  paragraphIndex: number,
+  position: 'before' | 'after',
+  newRecords: Buffer,
+): Buffer {
+  let currentParagraph = -1
+  let targetStart: number | undefined
+  let targetEnd: number | undefined
+
+  for (const { header, offset } of iterateRecords(stream)) {
+    if (header.tagId === TAG.PARA_HEADER && header.level === 0) {
+      currentParagraph += 1
+      if (currentParagraph === paragraphIndex) {
+        targetStart = offset
+      } else if (currentParagraph === paragraphIndex + 1 && targetStart !== undefined) {
+        targetEnd = offset
+        break
+      }
+    }
+  }
+
+  if (targetStart === undefined) {
+    throw new Error(`Paragraph not found at index ${paragraphIndex}`)
+  }
+
+  if (targetEnd === undefined) {
+    targetEnd = stream.length
+  }
+
+  const insertAt = position === 'before' ? targetStart : targetEnd
+
+  return Buffer.concat([stream.subarray(0, insertAt), newRecords, stream.subarray(insertAt)])
 }
 
 function patchParagraphText(stream: Buffer, operation: SectionTextOperation): Buffer {
@@ -734,6 +861,16 @@ function encodeUint16(values: number[]): Buffer {
     output.writeUInt16LE(value, index * 2)
   }
   return output
+}
+
+function buildParaLineSegData(): Buffer {
+  const buf = Buffer.alloc(36)
+  buf.writeUInt32LE(0x000009a0, 8)
+  buf.writeUInt32LE(0x000009a0, 12)
+  buf.writeUInt32LE(0x000007f8, 16)
+  buf.writeInt32LE(-0x00000690, 20)
+  buf.writeUInt16LE(0x0006, 34)
+  return buf
 }
 
 export function getEntryBuffer(cfb: CFB.CFB$Container, path: string): Buffer {
