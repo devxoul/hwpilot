@@ -78,6 +78,27 @@ describe('createTestHwpx', () => {
   })
 })
 
+  it('creates document with multiple paragraphs readable via loader and parser', async () => {
+    const buf = await createTestHwpx({ paragraphs: ['Hello', 'World', 'Test'] })
+    const filePath = `/tmp/test-helpers-hwpx-multi-${Date.now()}.hwpx`
+    await Bun.write(filePath, buf)
+
+    try {
+      const { loadHwpx } = await import('@/formats/hwpx/loader')
+      const { parseSections } = await import('@/formats/hwpx/section-parser')
+      const archive = await loadHwpx(filePath)
+      const sections = await parseSections(archive)
+
+      expect(sections).toHaveLength(1)
+      expect(sections[0].paragraphs).toHaveLength(3)
+      expect(sections[0].paragraphs[0].runs[0]?.text).toBe('Hello')
+      expect(sections[0].paragraphs[1].runs[0]?.text).toBe('World')
+      expect(sections[0].paragraphs[2].runs[0]?.text).toBe('Test')
+    } finally {
+      await Bun.file(filePath).delete()
+    }
+  })
+
 describe('createTestHwpBinary', () => {
   it('creates an HWP fixture with multiple paragraphs loadable by loadHwp()', async () => {
     const filePath = `/tmp/test-hwp-binary-paragraphs-${Date.now()}.hwp`
@@ -132,6 +153,24 @@ describe('createTestHwpBinary', () => {
       expect(table?.rows[0]?.cells[1]?.paragraphs[0]?.runs[0]?.text).toBe('B')
       expect(table?.rows[1]?.cells[0]?.paragraphs[0]?.runs[0]?.text).toBe('C')
       expect(table?.rows[1]?.cells[1]?.paragraphs[0]?.runs[0]?.text).toBe('D')
+    } finally {
+      await Bun.file(filePath).delete()
+    }
+  })
+
+  it('creates document with multiple paragraphs readable', async () => {
+    const filePath = `/tmp/test-helpers-hwp-multi-${Date.now()}.hwp`
+    const buffer = await createTestHwpBinary({ paragraphs: ['First', 'Second', 'Third'] })
+    await Bun.write(filePath, buffer)
+
+    try {
+      const doc = await loadHwp(filePath)
+
+      expect(doc.sections).toHaveLength(1)
+      expect(doc.sections[0].paragraphs).toHaveLength(3)
+      expect(doc.sections[0].paragraphs[0].runs[0]?.text).toBe('First')
+      expect(doc.sections[0].paragraphs[1].runs[0]?.text).toBe('Second')
+      expect(doc.sections[0].paragraphs[2].runs[0]?.text).toBe('Third')
     } finally {
       await Bun.file(filePath).delete()
     }
