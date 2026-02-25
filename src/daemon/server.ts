@@ -275,6 +275,16 @@ async function handleRequest(
         return { success: true, data: { ref: newRef, rows, cols, success: true } }
       }
 
+      case 'paragraph-add': {
+        const ref = stringArg(msg.args.ref, 'ref')
+        const text = stringArg(msg.args.text, 'text')
+        const position = stringArg(msg.args.position, 'position')
+        const format = msg.args.format as FormatOptions | undefined
+        await holder.applyOperations([{ type: 'addParagraph', ref, text, position: position as 'before' | 'after' | 'end', format }])
+        await scheduler.flushNow()
+        return { success: true, data: { ref, text, position, success: true } }
+      }
+
       default:
         return { success: false, error: `Unknown command: ${msg.command}` }
     }

@@ -90,14 +90,17 @@ export function mutateHwpCfb(cfb: CFB.CFB$Container, operations: EditOperation[]
         continue
       }
 
+
+      // At this point, operation must be setTableCell
+      const cellOp = operation as SectionTableCellOperation
       stream = patchTableCellText(
         stream,
-        operation.table,
-        operation.row,
-        operation.cell,
-        operation.paragraph ?? 0,
-        operation.text,
-        operation.ref,
+        cellOp.table,
+        cellOp.row,
+        cellOp.cell,
+        cellOp.paragraph ?? 0,
+        cellOp.text,
+        cellOp.ref,
       )
     }
 
@@ -187,6 +190,10 @@ function groupOperationsBySection(operations: EditOperation[]): Map<number, Sect
       })
       grouped.set(ref.section, sectionOperations)
       continue
+    }
+
+    if (operation.type === 'addParagraph') {
+      throw new Error('addParagraph operation not yet implemented for HWP')
     }
 
     throw new Error('Unsupported HWP edit operation')

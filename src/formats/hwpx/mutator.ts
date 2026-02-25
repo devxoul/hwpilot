@@ -54,6 +54,10 @@ export async function mutateHwpxZip(zip: JSZip, archive: HwpxArchive, operations
         continue
       }
 
+      if (op.type === 'addParagraph') {
+        throw new Error('addParagraph operation not yet implemented for HWPX')
+      }
+
       if (!headerTree) {
         headerTree = parseXml(await archive.getHeaderXml())
       }
