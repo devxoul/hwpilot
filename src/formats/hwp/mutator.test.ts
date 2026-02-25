@@ -13,6 +13,32 @@ import { TAG } from './tag-ids'
 const fixture = 'e2e/fixtures/임금 등 청구의 소.hwp'
 const tmpPath = (name: string) => join(tmpdir(), `${name}-${Date.now()}-${Math.random().toString(36).slice(2)}.hwp`)
 
+async function getParagraphCharShapeData(
+  cfb: CFB.CFB$Container,
+  compressed: boolean,
+  paragraphTarget: number,
+): Promise<Buffer | null> {
+  let sectionStream = getEntryBuffer(cfb, '/BodyText/Section0')
+  if (compressed) {
+    const { decompressStream } = await import('./stream-util')
+    sectionStream = decompressStream(sectionStream)
+  }
+
+  let paragraphIndex = -1
+  for (const { header, data } of iterateRecords(sectionStream)) {
+    if (header.tagId === TAG.PARA_HEADER && header.level === 0) {
+      paragraphIndex += 1
+      continue
+    }
+
+    if (paragraphIndex === paragraphTarget && header.tagId === TAG.PARA_CHAR_SHAPE) {
+      return data
+    }
+  }
+
+  return null
+}
+
 describe('mutateHwpCfb', () => {
   it('applies setText to first paragraph in-memory', async () => {
     const buf = await readFile(fixture)
@@ -132,6 +158,98 @@ describe('mutateHwpCfb', () => {
     for (let i = 1; i < count; i++) {
       const idOffset = 4 + i * 8 + 4
       expect(charShapeData!.readUInt32LE(idOffset)).toBe(firstId)
+    }
+  })
+
+  it('applies inline setFormat to [0, 5) only and preserves text', async () => {
+    const fixture = await createTestHwpBinary({ paragraphs: ['Hello World'] })
+    const cfb = CFB.read(fixture, { type: 'buffer' })
+    const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+    mutateHwpCfb(cfb, [{ type: 'setFormat', ref: 's0.p0', format: { bold: true }, start: 0, end: 5 }], compressed)
+
+    const charShapeData = await getParagraphCharShapeData(cfb, compressed, 0)
+    expect(charShapeData).not.toBeNull()
+    expect(charShapeData!.readUInt32LE(0)).toBe(2)
+    expect(charShapeData!.readUInt32LE(4)).toBe(0)
+    expect(charShapeData!.readUInt32LE(12)).toBe(5)
+
+    const outPath = tmpPath('mutator-setFormat-inline-head')
+    await writeFile(outPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
+
+    try {
+      const doc = await loadHwp(outPath)
+      const text = doc.sections[0].paragraphs[0].runs.map((r) => r.text).join('')
+      expect(text).toBe('Hello World')
+    } finally {
+      await unlink(outPath)
+    }
+  })
+
+  it('keeps full-paragraph setFormat behavior when start/end are omitted', async () => {
+    const fixture = await createTestHwpBinary({ paragraphs: ['Hello World'] })
+    const cfb = CFB.read(fixture, { type: 'buffer' })
+    const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+    mutateHwpCfb(cfb, [{ type: 'setFormat', ref: 's0.p0', format: { italic: true } }], compressed)
+
+    const charShapeData = await getParagraphCharShapeData(cfb, compressed, 0)
+    expect(charShapeData).not.toBeNull()
+    expect(charShapeData!.length).toBe(6)
+
+    const outPath = tmpPath('mutator-setFormat-whole')
+    await writeFile(outPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
+
+    try {
+      const doc = await loadHwp(outPath)
+      const text = doc.sections[0].paragraphs[0].runs.map((r) => r.text).join('')
+      expect(text).toBe('Hello World')
+    } finally {
+      await unlink(outPath)
+    }
+  })
+
+  it('throws when inline setFormat range exceeds text length', async () => {
+    const fixture = await createTestHwpBinary({ paragraphs: ['Hello World'] })
+    const cfb = CFB.read(fixture, { type: 'buffer' })
+    const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+    expect(() => {
+      mutateHwpCfb(
+        cfb,
+        [{ type: 'setFormat', ref: 's0.p0', format: { underline: true }, start: 0, end: 99 }],
+        compressed,
+      )
+    }).toThrow('Offset out of range')
+  })
+
+  it('applies inline setFormat to middle range and creates three entries', async () => {
+    const fixture = await createTestHwpBinary({ paragraphs: ['Hello World!'] })
+    const cfb = CFB.read(fixture, { type: 'buffer' })
+    const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+    mutateHwpCfb(
+      cfb,
+      [{ type: 'setFormat', ref: 's0.p0', format: { color: '#ff0000' }, start: 6, end: 11 }],
+      compressed,
+    )
+
+    const charShapeData = await getParagraphCharShapeData(cfb, compressed, 0)
+    expect(charShapeData).not.toBeNull()
+    expect(charShapeData!.readUInt32LE(0)).toBe(3)
+    expect(charShapeData!.readUInt32LE(4)).toBe(0)
+    expect(charShapeData!.readUInt32LE(12)).toBe(6)
+    expect(charShapeData!.readUInt32LE(20)).toBe(11)
+
+    const outPath = tmpPath('mutator-setFormat-inline-middle')
+    await writeFile(outPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
+
+    try {
+      const doc = await loadHwp(outPath)
+      const text = doc.sections[0].paragraphs[0].runs.map((r) => r.text).join('')
+      expect(text).toBe('Hello World!')
+    } finally {
+      await unlink(outPath)
     }
   })
 })

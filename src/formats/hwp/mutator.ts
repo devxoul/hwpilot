@@ -30,6 +30,8 @@ type SectionFormatOperation = {
   type: 'setFormat'
   paragraph: number
   format: FormatOptions
+  start?: number
+  end?: number
   ref: string
 }
 
@@ -87,7 +89,16 @@ export function mutateHwpCfb(cfb: CFB.CFB$Container, operations: EditOperation[]
 
       if (operation.type === 'setFormat') {
         CFB.utils.cfb_add(cfb, streamPath, compressed ? compressStream(stream) : stream)
-        applySetFormat(cfb, sectionIndex, operation.paragraph, operation.format, compressed, operation.ref)
+        applySetFormat(
+          cfb,
+          sectionIndex,
+          operation.paragraph,
+          operation.format,
+          compressed,
+          operation.ref,
+          operation.start,
+          operation.end,
+        )
         stream = getEntryBuffer(cfb, streamPath)
         if (compressed) {
           stream = decompressStream(stream)
@@ -186,6 +197,8 @@ function groupOperationsBySection(operations: EditOperation[]): Map<number, Sect
         type: 'setFormat',
         paragraph: ref.paragraph,
         format: operation.format,
+        start: operation.start,
+        end: operation.end,
         ref: operation.ref,
       })
       grouped.set(ref.section, sectionOperations)
@@ -585,6 +598,8 @@ function applySetFormat(
   format: FormatOptions,
   compressed: boolean,
   ref: string,
+  start?: number,
+  end?: number,
 ): void {
   const docInfoPath = '/DocInfo'
   let docInfoStream = getEntryBuffer(cfb, docInfoPath)
@@ -632,11 +647,61 @@ function applySetFormat(
     docInfoStream.subarray(insertionOffset),
   ])
 
-  const patchedParaCharShape = writeParagraphCharShapeRef(paraCharShapeMatch.data, currentCharShapeCount)
+  const hasInlineRange = start !== undefined || end !== undefined
+  if (hasInlineRange && (start === undefined || end === undefined)) {
+    throw new Error(`setFormat range requires both start and end offsets: ${ref}`)
+  }
+
+  let patchedParaCharShape: Buffer
+  if (start !== undefined && end !== undefined) {
+    const paraText = findParagraphTextRecord(sectionStream, paragraphIndex)
+    const textLength = paraText ? countVisibleChars(paraText.data) : 0
+    if (start < 0 || end > textLength || start >= end) {
+      throw new Error(`Offset out of range: start=${start}, end=${end}, length=${textLength}`)
+    }
+
+    const entries: Array<{ pos: number; ref: number }> = []
+    if (start > 0) {
+      entries.push({ pos: 0, ref: sourceCharShapeId })
+    }
+    entries.push({ pos: start, ref: currentCharShapeCount })
+    if (end < textLength) {
+      entries.push({ pos: end, ref: sourceCharShapeId })
+    }
+
+    patchedParaCharShape = Buffer.alloc(4 + entries.length * 8)
+    patchedParaCharShape.writeUInt32LE(entries.length, 0)
+    for (let i = 0; i < entries.length; i++) {
+      patchedParaCharShape.writeUInt32LE(entries[i].pos, 4 + i * 8)
+      patchedParaCharShape.writeUInt32LE(entries[i].ref, 4 + i * 8 + 4)
+    }
+  } else {
+    patchedParaCharShape = writeParagraphCharShapeRef(paraCharShapeMatch.data, currentCharShapeCount)
+  }
+
   sectionStream = replaceRecordData(sectionStream, paraCharShapeMatch.offset, patchedParaCharShape)
 
   CFB.utils.cfb_add(cfb, docInfoPath, compressed ? compressStream(docInfoStream) : docInfoStream)
   CFB.utils.cfb_add(cfb, sectionPath, compressed ? compressStream(sectionStream) : sectionStream)
+}
+
+function findParagraphTextRecord(stream: Buffer, paragraphIndex: number): { data: Buffer; offset: number } | null {
+  let currentParagraph = -1
+  let targetActive = false
+
+  for (const { header, data, offset } of iterateRecords(stream)) {
+    if (header.tagId === TAG.PARA_HEADER && header.level === 0) {
+      currentParagraph += 1
+      targetActive = currentParagraph === paragraphIndex
+      continue
+    }
+
+    if (targetActive && header.tagId === TAG.PARA_TEXT) {
+      return { data, offset }
+    }
+  }
+
+  return null
 }
 
 function updateParaHeaderNChars(
@@ -656,6 +721,21 @@ function charByteSize(code: number): number {
   if (code === 0x0009 || code === 0x000a || code === 0x000d) return 2
   if (code < 0x0020) return 8
   return 2
+}
+
+function countVisibleChars(data: Buffer): number {
+  let count = 0
+  let offset = 0
+
+  while (offset + 1 < data.length) {
+    const code = data.readUInt16LE(offset)
+    if (code >= 0x0020) {
+      count += 1
+    }
+    offset += charByteSize(code)
+  }
+
+  return count
 }
 
 function buildPatchedParaText(originalData: Buffer, nextText: string): Buffer {
