@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import CFB from 'cfb'
 import type { FlushScheduler } from '@/daemon/flush'
 import { mutateHwpCfb } from '@/formats/hwp/mutator'
@@ -16,6 +16,7 @@ export class HwpHolder {
   private sectionsCache: Section[] | null = null
   private headerCache: DocumentHeader | null = null
   private dirty = false
+  private fileStats: { ino: number; mtimeMs: number; size: number } | null = null
 
   constructor(filePath: string) {
     this.filePath = filePath
@@ -28,9 +29,12 @@ export class HwpHolder {
     this.sectionsCache = null
     this.headerCache = null
     this.dirty = false
+    const stats = await stat(this.filePath)
+    this.fileStats = { ino: stats.ino, mtimeMs: stats.mtimeMs, size: stats.size }
   }
 
   async getSections(): Promise<Section[]> {
+    await this.checkFileChanged()
     const cfb = this.requireCfb()
 
     if (!this.sectionsCache) {
@@ -50,6 +54,7 @@ export class HwpHolder {
   }
 
   async getSectionTexts(): Promise<string[]> {
+    await this.checkFileChanged()
     const cfb = this.requireCfb()
     const tempPath = `${this.filePath}.holder-${randomUUID()}.tmp.hwp`
     try {
@@ -125,6 +130,24 @@ export class HwpHolder {
   scheduleFlush(scheduler: FlushScheduler): void {
     if (this.dirty) {
       scheduler.schedule()
+    }
+  }
+
+  private async checkFileChanged(): Promise<void> {
+    if (!this.fileStats) return
+    try {
+      const stats = await stat(this.filePath)
+      if (stats.ino !== this.fileStats.ino || stats.mtimeMs > this.fileStats.mtimeMs) {
+        if (this.dirty) {
+          console.warn(`File replaced externally while holder had unflushed changes: ${this.filePath}`)
+        }
+        await this.load()
+      }
+    } catch (err: any) {
+      if (err.code === 'ENOENT') {
+        throw new Error(`File no longer exists: ${this.filePath}`)
+      }
+      throw err
     }
   }
 
