@@ -596,7 +596,6 @@ function validateParagraphCompleteness(sectionStreams: StreamRef[]): CheckResult
   return { name: 'paragraph_completeness', status: 'pass' }
 }
 
-
 function collectSectionEntries(cfb: CFB.CFB$Container): StreamRef[] {
   const sectionEntries: StreamRef[] = []
   let sectionIndex = 0

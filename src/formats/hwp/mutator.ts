@@ -280,9 +280,8 @@ function appendParagraphRecords(
 ): Buffer {
   void sectionIndex
 
-  const charShapeRef = op.format && hasFormatOptions(op.format)
-    ? addCharShapeWithFormat(cfb, compressed, 0, op.format)
-    : 0
+  const charShapeRef =
+    op.format && hasFormatOptions(op.format) ? addCharShapeWithFormat(cfb, compressed, 0, op.format) : 0
 
   const textData = Buffer.from(op.text, 'utf16le')
   const nChars = textData.length / 2 + 1
