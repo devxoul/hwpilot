@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import JSZip from 'jszip'
-import { cleanupFiles, crossValidate, FIXTURES, parseOutput, runCli, tempCopy } from './helpers'
+import { cleanupFiles, crossValidate, FIXTURES, parseOutput, runCli, tempCopy, validateFile } from './helpers'
 
 const FIXTURE = FIXTURES.wageClaim
 const tempFiles: string[] = []
@@ -147,6 +147,8 @@ describe('Inline Format — HWP', () => {
       const afterPara = afterDoc.sections[0].paragraphs[0]
       const afterText = afterPara.runs ? afterPara.runs.map((r: any) => r.text).join('') : afterPara.text
       expect(afterText).toBe(originalText)
+
+      await validateFile(temp)
     })
   })
 
@@ -164,6 +166,7 @@ describe('Inline Format — HWP', () => {
       expect(fmtResult.exitCode).toBe(0)
 
       // then — text survives conversion
+      await validateFile(temp)
       const found = await crossValidate(temp, marker)
       expect(found).toBe(true)
     })
@@ -192,6 +195,8 @@ describe('Inline Format — HWP', () => {
       const afterPara = afterDoc.sections[0].paragraphs[0]
       const afterText = afterPara.runs ? afterPara.runs.map((r: any) => r.text).join('') : afterPara.text
       expect(afterText).toBe(originalText)
+
+      await validateFile(temp)
     })
   })
 })

@@ -8,6 +8,7 @@ import {
   parseOutput,
   runCli,
   tempCopy,
+  validateFile,
 } from './helpers'
 
 const isViewerAvailable = await isHwpViewerAvailable()
@@ -113,6 +114,8 @@ describe('Withholding Tax Receipt (근로소득원천징수영수증)', () => {
       expect(editOutput.success).toBe(true)
       expect(editOutput.ref).toBe('s0.p0')
       expect(editOutput.text).toContain('2025. 01.')
+
+      await validateFile(temp)
     })
 
     it('edits s1.p0 in the second section', async () => {
@@ -128,6 +131,8 @@ describe('Withholding Tax Receipt (근로소득원천징수영수증)', () => {
       expect(editOutput.success).toBe(true)
       expect(editOutput.ref).toBe('s1.p0')
       expect(editOutput.text).toContain('세액계산 테스트')
+
+      await validateFile(temp)
     })
   })
 
@@ -145,6 +150,7 @@ describe('Withholding Tax Receipt (근로소득원천징수영수증)', () => {
       const editOutput = parseOutput(editResult) as any
       expect(editOutput.success).toBe(true)
 
+      await validateFile(temp)
       const found = await crossValidate(temp, marker)
       expect(found).toBe(true)
     })

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'bun:test'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { checkViewerCorruption, isHwpViewerAvailable, parseOutput, runCli } from './helpers'
+import { checkViewerCorruption, isHwpViewerAvailable, parseOutput, runCli, validateFile } from './helpers'
 
 const isViewerAvailable = await isHwpViewerAvailable()
 
@@ -40,6 +40,7 @@ describe('HWP Creation', () => {
       expect(doc.format).toBe('hwp')
       expect(doc.sections).toHaveLength(1)
       expect(doc.sections[0].paragraphs).toHaveLength(1)
+      await validateFile(file)
     })
   })
 

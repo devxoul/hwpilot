@@ -8,6 +8,7 @@ import {
   parseOutput,
   runCli,
   tempCopy,
+  validateFile,
 } from './helpers'
 
 const isViewerAvailable = await isHwpViewerAvailable()
@@ -114,6 +115,8 @@ describe('Employment Contract (개정 표준근로계약서)', () => {
       expect(editOutput.ref).toBe('s0.p1')
       expect(editOutput.text).toContain('(주)테스트코리아')
 
+      await validateFile(temp)
+
       const found = await crossValidate(temp, '(주)테스트코리아')
       expect(found).toBe(true)
     })
@@ -131,6 +134,8 @@ describe('Employment Contract (개정 표준근로계약서)', () => {
       const editOutput = parseOutput(editResult) as any
       expect(editOutput.success).toBe(true)
       expect(editOutput.text).toContain('2025년 3월 1일')
+
+      await validateFile(temp)
 
       const found = await crossValidate(temp, '2025년 3월 1일')
       expect(found).toBe(true)
@@ -150,6 +155,8 @@ describe('Employment Contract (개정 표준근로계약서)', () => {
       expect(editOutput.success).toBe(true)
       expect(editOutput.text).toContain('서울특별시 강남구')
 
+      await validateFile(temp)
+
       const found = await crossValidate(temp, '서울특별시 강남구')
       expect(found).toBe(true)
     })
@@ -167,6 +174,8 @@ describe('Employment Contract (개정 표준근로계약서)', () => {
       const editOutput = parseOutput(editResult) as any
       expect(editOutput.success).toBe(true)
       expect(editOutput.text).toContain('소프트웨어 개발')
+
+      await validateFile(temp)
 
       const found = await crossValidate(temp, '소프트웨어 개발')
       expect(found).toBe(true)
@@ -187,6 +196,7 @@ describe('Employment Contract (개정 표준근로계약서)', () => {
       const editOutput = parseOutput(editResult) as any
       expect(editOutput.success).toBe(true)
 
+      await validateFile(temp)
       const found = await crossValidate(temp, marker)
       expect(found).toBe(true)
     })
@@ -201,6 +211,8 @@ describe('Employment Contract (개정 표준근로계약서)', () => {
       const formatOutput = parseOutput(formatResult) as any
       expect(formatOutput.success).toBe(true)
       expect(formatOutput.format.bold).toBe(true)
+
+      await validateFile(temp)
     })
   })
 })

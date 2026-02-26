@@ -12,6 +12,7 @@ import {
   parseOutput,
   runCli,
   tempCopy,
+  validateFile,
 } from './helpers'
 
 const isViewerAvailable = await isHwpViewerAvailable()
@@ -52,6 +53,8 @@ describe('Table Add — HWP fixture', () => {
       const afterResult = await runCli(['table', 'list', temp])
       const afterTables = parseOutput(afterResult) as any[]
       expect(afterTables.length).toBe(beforeCount + 1)
+
+      await validateFile(temp)
     })
 
     it('new table ref follows existing table indexing', async () => {
@@ -98,6 +101,8 @@ describe('Table Add — HWP fixture', () => {
       expect(table.rows[1].cells[0].text).toBe('김철수')
       expect(table.rows[1].cells[1].text).toBe('과장')
       expect(table.rows[1].cells[2].text).toBe('개발팀')
+
+      await validateFile(temp)
     })
 
     it('adds an empty table (no data) and reads back empty cells', async () => {
@@ -169,6 +174,7 @@ describe('Table Add — HWP fixture', () => {
       const marker = 'TABLE_ADD_CV_2026'
       await runCli(['table', 'add', temp, '1', '2', '--data', JSON.stringify([[marker, 'test']])])
 
+      await validateFile(temp)
       const found = await crossValidate(temp, marker)
       expect(found).toBe(true)
     })

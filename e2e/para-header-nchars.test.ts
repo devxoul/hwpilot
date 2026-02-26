@@ -9,6 +9,7 @@ import {
   runCli,
   tempCopy,
   verifyParaHeaderNChars,
+  validateFile,
 } from './helpers'
 
 const isViewerAvailable = await isHwpViewerAvailable()
@@ -38,6 +39,7 @@ describe('PARA_HEADER nChars consistency after editing', () => {
     const { nChars, textLength, match } = await verifyParaHeaderNChars(temp, 0)
     expect(match).toBe(true)
     expect(nChars).toBe(textLength)
+    await validateFile(temp)
   })
 
   it('nChars matches text length after editing longer text (폭행죄 고소장)', async () => {
@@ -52,6 +54,7 @@ describe('PARA_HEADER nChars consistency after editing', () => {
     // then — nChars matches actual PARA_TEXT length
     const { match } = await verifyParaHeaderNChars(temp, 0)
     expect(match).toBe(true)
+    await validateFile(temp)
   })
 
   it('nChars matches after editing Korean text (피해자 의견 진술서)', async () => {
@@ -63,6 +66,7 @@ describe('PARA_HEADER nChars consistency after editing', () => {
 
     const { match } = await verifyParaHeaderNChars(temp, 1)
     expect(match).toBe(true)
+    await validateFile(temp)
   })
 
   it('nChars matches after editing employment rules (표준취업규칙)', async () => {
@@ -74,6 +78,7 @@ describe('PARA_HEADER nChars consistency after editing', () => {
 
     const { match } = await verifyParaHeaderNChars(temp, 0)
     expect(match).toBe(true)
+    await validateFile(temp)
   })
 
   it('edited text with correct nChars survives HWP→HWPX cross-validation', async () => {
@@ -87,6 +92,7 @@ describe('PARA_HEADER nChars consistency after editing', () => {
     // then — both structural integrity and content are correct
     const { match } = await verifyParaHeaderNChars(temp, 0)
     expect(match).toBe(true)
+    await validateFile(temp)
 
     const found = await crossValidate(temp, marker)
     expect(found).toBe(true)

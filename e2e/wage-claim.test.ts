@@ -8,6 +8,7 @@ import {
   parseOutput,
   runCli,
   tempCopy,
+  validateFile,
 } from './helpers'
 
 const isViewerAvailable = await isHwpViewerAvailable()
@@ -121,6 +122,8 @@ describe('Wage Claim Lawsuit (임금 등 청구의 소)', () => {
       expect(editOutput.success).toBe(true)
       expect(editOutput.ref).toBe('s0.p0')
       expect(editOutput.text).toContain('임금 및 퇴직금 청구의 소')
+
+      await validateFile(temp)
     })
   })
 
@@ -139,6 +142,7 @@ describe('Wage Claim Lawsuit (임금 등 청구의 소)', () => {
       const textOutput = parseOutput(textResult) as any
       expect(textOutput.text).toContain(marker)
 
+      await validateFile(temp)
       const found = await crossValidate(temp, marker)
       expect(found).toBe(true)
     })
@@ -158,6 +162,7 @@ describe('Wage Claim Lawsuit (임금 등 청구의 소)', () => {
       const editOutput = parseOutput(editResult) as any
       expect(editOutput.success).toBe(true)
 
+      await validateFile(temp)
       const found = await crossValidate(temp, marker)
       expect(found).toBe(true)
     })

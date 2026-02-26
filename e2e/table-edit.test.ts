@@ -8,6 +8,7 @@ import {
   parseOutput,
   runCli,
   tempCopy,
+  validateFile,
 } from './helpers'
 
 const isViewerAvailable = await isHwpViewerAvailable()
@@ -65,6 +66,8 @@ describe('Table Cell Edit (표 셀 편집)', () => {
       const afterResult = await runCli(['table', 'read', temp, 's0.t6'])
       const afterTable = parseOutput(afterResult) as any
       expect(afterTable.rows[0].cells[1].text).toBe(newText)
+
+      await validateFile(temp)
     })
 
     it('editing one cell does not change adjacent cells', async () => {
@@ -125,6 +128,7 @@ describe('Table Cell Edit (표 셀 편집)', () => {
       expect((parseOutput(editResult) as any).success).toBe(true)
 
       // cross-validate: convert to HWPX and check raw XML
+      await validateFile(temp)
       const found = await crossValidate(temp, marker)
       expect(found).toBe(true)
     })
@@ -142,6 +146,8 @@ describe('Table Cell Edit (표 셀 편집)', () => {
       const afterResult = await runCli(['table', 'read', temp, 's0.t6'])
       const afterTable = parseOutput(afterResult) as any
       expect(afterTable.rows[0].cells[1].text).toBe(koreanText)
+
+      await validateFile(temp)
     })
   })
 })

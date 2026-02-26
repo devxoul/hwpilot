@@ -8,6 +8,7 @@ import {
   parseOutput,
   runCli,
   tempCopy,
+  validateFile,
 } from './helpers'
 
 const isViewerAvailable = await isHwpViewerAvailable()
@@ -110,6 +111,8 @@ describe('Victim Statement Form (피해자 의견 진술서)', () => {
       expect(editOutput.success).toBe(true)
       expect(editOutput.ref).toBe('s0.p0')
       expect(editOutput.text).toContain(marker)
+
+      await validateFile(temp)
     })
 
     it('edits s0.p1 with form content', async () => {
@@ -126,6 +129,8 @@ describe('Victim Statement Form (피해자 의견 진술서)', () => {
       expect(editOutput.success).toBe(true)
       expect(editOutput.ref).toBe('s0.p1')
       expect(editOutput.text).toContain('2025-E2E-TEST-001')
+
+      await validateFile(temp)
     })
   })
 
@@ -143,6 +148,7 @@ describe('Victim Statement Form (피해자 의견 진술서)', () => {
       const editOutput = parseOutput(editResult) as any
       expect(editOutput.success).toBe(true)
 
+      await validateFile(temp)
       const found = await crossValidate(temp, marker)
       expect(found).toBe(true)
     })

@@ -65,6 +65,21 @@ export async function crossValidate(hwpPath: string, expectedText: string): Prom
   }
 }
 
+/** Run `validate` CLI command and assert the file is valid */
+export async function validateFile(filePath: string): Promise<void> {
+  const result = await runCli(['validate', filePath])
+  const lines = result.stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+  const candidate = lines.at(-1) ?? result.stdout.trim()
+  const output = JSON.parse(candidate) as { valid: boolean; checks: { name: string; status: string; message?: string }[] }
+  if (!output.valid) {
+    const failures = output.checks.filter((c) => c.status === 'fail').map((c) => `${c.name}: ${c.message}`)
+    throw new Error(`Validation failed: ${failures.join('; ')}`)
+  }
+}
+
 /**
  * Verify PARA_HEADER nChars matches actual PARA_TEXT length for a given paragraph.
  * Reads the raw binary section stream and checks structural consistency.

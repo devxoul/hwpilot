@@ -12,6 +12,7 @@ import {
   parseOutput,
   runCli,
   tempCopy,
+  validateFile,
 } from './helpers'
 
 const isViewerAvailable = await isHwpViewerAvailable()
@@ -189,6 +190,8 @@ describe('Paragraph Add — HWP fixture', () => {
       const textResult = await runCli(['text', temp])
       const textOutput = parseOutput(textResult) as any
       expect(textOutput.text).toContain('HWP 추가 문단')
+
+      await validateFile(temp)
     })
   })
 
@@ -199,6 +202,8 @@ describe('Paragraph Add — HWP fixture', () => {
 
       const marker = 'PARA_ADD_CV_2026'
       await runCli(['paragraph', 'add', temp, 's0', marker, '--position', 'end'])
+
+      await validateFile(temp)
 
       const found = await crossValidate(temp, marker)
       expect(found).toBe(true)

@@ -8,6 +8,7 @@ import {
   parseOutput,
   runCli,
   tempCopy,
+  validateFile,
 } from './helpers'
 
 const isViewerAvailable = await isHwpViewerAvailable()
@@ -124,6 +125,8 @@ describe('Assault Complaint (폭행죄 고소장)', () => {
       expect(editOutput.success).toBe(true)
       expect(editOutput.ref).toBe('s0.p0')
       expect(editOutput.text).toContain('수정된 고소장')
+
+      await validateFile(temp)
 
       const found = await crossValidate(temp, '수정된 고소장')
       expect(found).toBe(true)

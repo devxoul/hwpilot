@@ -8,6 +8,7 @@ import {
   parseOutput,
   runCli,
   tempCopy,
+  validateFile,
 } from './helpers'
 
 const isViewerAvailable = await isHwpViewerAvailable()
@@ -136,6 +137,8 @@ describe('Standard Contracts 7-Type (표준 근로계약서 7종)', () => {
       expect(editOutput.ref).toBe('s0.p1')
       expect(editOutput.text).toContain('(주)표준코리아')
 
+      await validateFile(temp)
+
       const found = await crossValidate(temp, '(주)표준코리아')
       expect(found).toBe(true)
     })
@@ -154,6 +157,8 @@ describe('Standard Contracts 7-Type (표준 근로계약서 7종)', () => {
       expect(editOutput.success).toBe(true)
       expect(editOutput.text).toContain('2024년 7월 1일')
 
+      await validateFile(temp)
+
       const found = await crossValidate(temp, '2024년 7월 1일')
       expect(found).toBe(true)
     })
@@ -171,6 +176,8 @@ describe('Standard Contracts 7-Type (표준 근로계약서 7종)', () => {
       const editOutput = parseOutput(editResult) as any
       expect(editOutput.success).toBe(true)
       expect(editOutput.text).toContain('부산광역시 해운대구')
+
+      await validateFile(temp)
 
       const found = await crossValidate(temp, '부산광역시 해운대구')
       expect(found).toBe(true)
@@ -191,6 +198,7 @@ describe('Standard Contracts 7-Type (표준 근로계약서 7종)', () => {
       const editOutput = parseOutput(editResult) as any
       expect(editOutput.success).toBe(true)
 
+      await validateFile(temp)
       const found = await crossValidate(temp, marker)
       expect(found).toBe(true)
     })

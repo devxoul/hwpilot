@@ -10,6 +10,7 @@ import {
   parseOutput,
   runCli,
   tempCopy,
+  validateFile,
 } from './helpers'
 
 const isViewerAvailable = await isHwpViewerAvailable()
@@ -131,6 +132,8 @@ describe('Employment Rules (개정 표준취업규칙)', () => {
       const readResult = await runCli(['text', temp, 's0.p0'])
       const readOutput = parseOutput(readResult) as any
       expect(readOutput.text).toContain(marker)
+
+      await validateFile(temp)
     })
 
     it('edits s1.p0 in section 1', async () => {
@@ -147,6 +150,8 @@ describe('Employment Rules (개정 표준취업규칙)', () => {
       expect(editOutput.success).toBe(true)
       expect(editOutput.ref).toBe('s1.p0')
       expect(editOutput.text).toContain(marker)
+
+      await validateFile(temp)
     })
 
     it('edits multiple paragraphs in s2', async () => {
@@ -172,6 +177,8 @@ describe('Employment Rules (개정 표준취업규칙)', () => {
       const edit5 = await runCli(['edit', 'text', temp, 's2.p5', marker5])
       expect((parseOutput(edit5) as any).success).toBe(true)
       expect((parseOutput(edit5) as any).text).toContain(marker5)
+
+      await validateFile(temp)
     })
 
     it('edits s3.p0 in section 3', async () => {
@@ -188,6 +195,8 @@ describe('Employment Rules (개정 표준취업규칙)', () => {
       expect(editOutput.success).toBe(true)
       expect(editOutput.ref).toBe('s3.p0')
       expect(editOutput.text).toContain(marker)
+
+      await validateFile(temp)
     })
   })
 
