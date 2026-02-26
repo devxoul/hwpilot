@@ -4,18 +4,15 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import JSZip from 'jszip'
 import {
-  checkViewerCorruption,
   cleanupFiles,
   crossValidate,
   FIXTURES,
-  isHwpViewerAvailable,
   parseOutput,
   runCli,
   tempCopy,
   validateFile,
 } from './helpers'
 
-const isViewerAvailable = await isHwpViewerAvailable()
 
 const FIXTURE = FIXTURES.wageClaim
 const tempFiles: string[] = []
@@ -220,13 +217,11 @@ describe('Table Add — HWPX (created document)', () => {
   })
 })
 
-describe.skipIf(!isViewerAvailable)('Z. Viewer Corruption Check', () => {
-  it('HWP with added table passes viewer corruption check', async () => {
+describe('Z. Validation', () => {
+  it('HWP with added table passes validation', async () => {
     const temp = await tempCopy(FIXTURE)
     tempFiles.push(temp)
     await runCli(['table', 'add', temp, '2', '2', '--data', '[["v1","v2"],["v3","v4"]]'])
-    const result = await checkViewerCorruption(temp)
-    expect(result.corrupted).toBe(false)
-    expect(result.skipped).toBe(false)
-  }, 15_000)
+    await validateFile(temp)
+  })
 })

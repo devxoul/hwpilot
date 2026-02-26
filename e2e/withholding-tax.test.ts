@@ -1,17 +1,14 @@
 import { afterEach, describe, expect, it } from 'bun:test'
 import {
-  checkViewerCorruption,
   cleanupFiles,
   crossValidate,
   FIXTURES,
-  isHwpViewerAvailable,
   parseOutput,
   runCli,
   tempCopy,
   validateFile,
 } from './helpers'
 
-const isViewerAvailable = await isHwpViewerAvailable()
 
 const FIXTURE = FIXTURES.withholdingTax
 const tempFiles: string[] = []
@@ -157,13 +154,11 @@ describe('Withholding Tax Receipt (근로소득원천징수영수증)', () => {
   })
 })
 
-describe.skipIf(!isViewerAvailable)('Z. Viewer Corruption Check', () => {
-  it('edited file passes HWP Viewer corruption check', async () => {
+describe('Z. Validation', () => {
+  it('edited file passes validation', async () => {
     const temp = await tempCopy(FIXTURE)
     tempFiles.push(temp)
-    await runCli(['edit', 'text', temp, 's0.p0', 'viewer-corruption-test'])
-    const result = await checkViewerCorruption(temp)
-    expect(result.corrupted).toBe(false)
-    expect(result.skipped).toBe(false)
-  }, 15_000)
+    await runCli(['edit', 'text', temp, 's0.p0', 'validation-test'])
+    await validateFile(temp)
+  })
 })

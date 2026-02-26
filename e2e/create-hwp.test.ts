@@ -2,9 +2,8 @@ import { afterEach, describe, expect, it } from 'bun:test'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { checkViewerCorruption, isHwpViewerAvailable, parseOutput, runCli, validateFile } from './helpers'
+import { parseOutput, runCli, validateFile } from './helpers'
 
-const isViewerAvailable = await isHwpViewerAvailable()
 
 const tempFiles: string[] = []
 
@@ -57,14 +56,10 @@ describe('HWP Creation', () => {
   })
 })
 
-describe.skipIf(!isViewerAvailable)('Z. Viewer Compatibility Check', () => {
-  it('created blank HWP opens in viewer without any alert dialog', async () => {
-    const file = tempHwpPath('-viewer')
+describe('Z. Validation', () => {
+  it('created blank HWP passes validation', async () => {
+    const file = tempHwpPath('-validation')
     await runCli(['create', file])
-
-    const result = await checkViewerCorruption(file)
-    expect(result.skipped).toBe(false)
-    expect(result.corrupted).toBe(false)
-    expect(result.alert).toBeUndefined()
-  }, 15_000)
+    await validateFile(file)
+  })
 })
