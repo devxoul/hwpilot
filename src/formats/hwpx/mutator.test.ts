@@ -2,9 +2,11 @@ import { describe, expect, it } from 'bun:test'
 import { unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { XMLParser } from 'fast-xml-parser'
+import type { XmlNode } from '@/shared/edit-types'
 import { createTestHwpx } from '../../test-helpers'
 import { loadHwpx } from './loader'
-import { buildXml, mutateHwpxZip, parseXml } from './mutator'
+import { buildXml, escapeXml, mutateHwpxZip, parseXml } from './mutator'
 import { parseSections } from './section-parser'
 
 const tmpPath = (name: string) => join(tmpdir(), `${name}-${Date.now()}-${Math.random().toString(36).slice(2)}.hwpx`)
@@ -486,5 +488,25 @@ describe('mutateHwpxZip', () => {
     // Then: entities should not be double-encoded
     expect(xml).toContain('&amp;')
     expect(xml).not.toContain('&amp;amp;')
+  })
+
+  it('user-supplied text with <, >, & special chars survives write+read roundtrip', () => {
+    // Given: user text containing XML special characters
+    const userText = 'A & B <tag> C > D'
+
+    // When: store in #text node and roundtrip through parse/build
+    const node: XmlNode = { 'hp:t': [{ '#text': escapeXml(userText) }] }
+    const xml = buildXml([node])
+    const parsed = parseXml(xml)
+
+    // Then: text should be recoverable (still escaped in tree due to processEntities: false)
+    const textContent = parsed[0]?.['hp:t']?.[0]?.['#text']
+    expect(textContent).toBe('A &amp; B &lt;tag&gt; C &gt; D')
+
+    // And: when read through a normal parser (processEntities: true), should decode correctly
+    const normalParser = new XMLParser({ preserveOrder: true, processEntities: true })
+    const normalParsed = normalParser.parse(xml) as XmlNode[]
+    const decodedText = normalParsed[0]?.['hp:t']?.[0]?.['#text']
+    expect(decodedText).toBe(userText)
   })
 })

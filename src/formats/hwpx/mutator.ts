@@ -28,6 +28,19 @@ const builder = new XMLBuilder({
   processEntities: false,
 })
 
+/**
+ * Escape XML special characters in user-supplied text.
+ * Must escape & first, then <, >, ", ' to avoid double-escaping.
+ */
+export function escapeXml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+}
+
 export async function mutateHwpxZip(zip: JSZip, archive: HwpxArchive, operations: EditOperation[]): Promise<void> {
   if (operations.length === 0) return
 
@@ -187,7 +200,7 @@ function addTableToSection(sectionTree: XmlNode[], rows: number, cols: number, d
       }
 
       const textNode: XmlNode = {
-        'hp:t': [{ '#text': cellText }],
+        'hp:t': [{ '#text': escapeXml(cellText) }],
       }
 
       const runNode: XmlNode = {
@@ -235,7 +248,7 @@ function addParagraphToSection(
   const elementName = getElementName(sectionRoot)
   const sectionChildren = getElementChildren(sectionRoot, elementName)
 
-  const textNode: XmlNode = { 'hp:t': [{ '#text': text }] }
+  const textNode: XmlNode = { 'hp:t': [{ '#text': escapeXml(text) }] }
   const runNode: XmlNode = {
     'hp:run': [textNode],
     ':@': { 'hp:charPrIDRef': '0' },
@@ -295,11 +308,11 @@ function setRunText(runNode: XmlNode, text: string): void {
   const textNode = runChildren.find((child) => hasElement(child, 'hp:t'))
 
   if (!textNode) {
-    runChildren.push({ 'hp:t': [{ '#text': text }] })
+    runChildren.push({ 'hp:t': [{ '#text': escapeXml(text) }] })
     return
   }
 
-  textNode['hp:t'] = [{ '#text': text }]
+  textNode['hp:t'] = [{ '#text': escapeXml(text) }]
 }
 
 function applyInlineFormat(
