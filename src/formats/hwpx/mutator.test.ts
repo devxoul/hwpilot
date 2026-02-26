@@ -4,6 +4,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTestHwpx } from '../../test-helpers'
 import { loadHwpx } from './loader'
+import { mutateHwpxZip, parseXml, buildXml } from './mutator'
+import { parseSections } from './section-parser'
+import { unlink, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { createTestHwpx } from '../../test-helpers'
+import { loadHwpx } from './loader'
 import { mutateHwpxZip } from './mutator'
 import { parseSections } from './section-parser'
 
@@ -471,5 +478,20 @@ describe('mutateHwpxZip', () => {
     } finally {
       await unlink(filePath)
     }
+  })
+
+  it('parseXml/buildXml entity roundtrip survives 3+ cycles without double-encoding', () => {
+    // Given: XML with entities
+    let xml = '<root><text>Test &amp; entity</text></root>'
+
+    // When: parse and build 3 times
+    for (let i = 0; i < 3; i++) {
+      const parsed = parseXml(xml)
+      xml = buildXml(parsed)
+    }
+
+    // Then: entities should not be double-encoded
+    expect(xml).toContain('&amp;')
+    expect(xml).not.toContain('&amp;amp;')
   })
 })

@@ -25,6 +25,7 @@ const builder = new XMLBuilder({
   attributeNamePrefix: '',
   format: false,
   suppressEmptyNode: false,
+  processEntities: false,
 })
 
 export async function mutateHwpxZip(zip: JSZip, archive: HwpxArchive, operations: EditOperation[]): Promise<void> {
