@@ -415,6 +415,100 @@ describe('mutateHwpCfb addParagraph', () => {
     }
   })
 
+  it('appends paragraph after table add in separate mutateHwpCfb calls', async () => {
+    const hwpPath = tmpPath('mutator-addTable-then-addParagraph-separate')
+    await writeFile(hwpPath, await createHwp())
+
+    try {
+      const firstBuffer = await readFile(hwpPath)
+      const firstCfb = CFB.read(firstBuffer, { type: 'buffer' })
+      const firstCompressed = getCompressionFlag(getEntryBuffer(firstCfb, '/FileHeader'))
+
+      mutateHwpCfb(firstCfb, [{ type: 'addTable', ref: 's0', rows: 2, cols: 2 }], firstCompressed)
+      await writeFile(hwpPath, Buffer.from(CFB.write(firstCfb, { type: 'buffer' })))
+
+      const secondBuffer = await readFile(hwpPath)
+      const secondCfb = CFB.read(secondBuffer, { type: 'buffer' })
+      const secondCompressed = getCompressionFlag(getEntryBuffer(secondCfb, '/FileHeader'))
+
+      mutateHwpCfb(
+        secondCfb,
+        [{ type: 'addParagraph', ref: 's0', text: 'After table', position: 'end' }],
+        secondCompressed,
+      )
+      await writeFile(hwpPath, Buffer.from(CFB.write(secondCfb, { type: 'buffer' })))
+
+      const doc = await loadHwp(hwpPath)
+      const paragraphTexts = doc.sections[0].paragraphs.map((paragraph) =>
+        paragraph.runs.map((run) => run.text).join(''),
+      )
+      expect(doc.sections[0].tables).toHaveLength(1)
+      expect(paragraphTexts).toContain('After table')
+    } finally {
+      await unlink(hwpPath)
+    }
+  })
+
+  it('appends paragraph after table add in single mutateHwpCfb call', async () => {
+    const hwpPath = tmpPath('mutator-addTable-then-addParagraph-single')
+    await writeFile(hwpPath, await createHwp())
+
+    try {
+      const buffer = await readFile(hwpPath)
+      const cfb = CFB.read(buffer, { type: 'buffer' })
+      const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+      mutateHwpCfb(
+        cfb,
+        [
+          { type: 'addTable', ref: 's0', rows: 2, cols: 2 },
+          { type: 'addParagraph', ref: 's0', text: 'After table', position: 'end' },
+        ],
+        compressed,
+      )
+      await writeFile(hwpPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
+
+      const doc = await loadHwp(hwpPath)
+      const paragraphTexts = doc.sections[0].paragraphs.map((paragraph) =>
+        paragraph.runs.map((run) => run.text).join(''),
+      )
+      expect(doc.sections[0].tables).toHaveLength(1)
+      expect(paragraphTexts).toContain('After table')
+    } finally {
+      await unlink(hwpPath)
+    }
+  })
+
+  it('appends formatted paragraph after table add in separate calls', async () => {
+    const hwpPath = tmpPath('mutator-addTable-then-addParagraph-formatted')
+    await writeFile(hwpPath, await createHwp())
+
+    try {
+      const firstBuffer = await readFile(hwpPath)
+      const firstCfb = CFB.read(firstBuffer, { type: 'buffer' })
+      const firstCompressed = getCompressionFlag(getEntryBuffer(firstCfb, '/FileHeader'))
+
+      mutateHwpCfb(firstCfb, [{ type: 'addTable', ref: 's0', rows: 1, cols: 1 }], firstCompressed)
+      await writeFile(hwpPath, Buffer.from(CFB.write(firstCfb, { type: 'buffer' })))
+
+      const secondBuffer = await readFile(hwpPath)
+      const secondCfb = CFB.read(secondBuffer, { type: 'buffer' })
+      const secondCompressed = getCompressionFlag(getEntryBuffer(secondCfb, '/FileHeader'))
+
+      mutateHwpCfb(
+        secondCfb,
+        [{ type: 'addParagraph', ref: 's0', text: 'Formatted after table', position: 'end', format: { bold: true } }],
+        secondCompressed,
+      )
+      await writeFile(hwpPath, Buffer.from(CFB.write(secondCfb, { type: 'buffer' })))
+
+      const paragraphTexts = await readParagraphTexts(hwpPath)
+      expect(paragraphTexts).toContain('Formatted after table')
+    } finally {
+      await unlink(hwpPath)
+    }
+  })
+
   it('appends plain paragraph on freshly created HWP', async () => {
     const hwpPath = tmpPath('mutator-addParagraph-fresh-plain')
     await writeFile(hwpPath, await createHwp())
