@@ -352,6 +352,93 @@ describe('validateHwp', () => {
       expect(getCheckStatus(result, 'content_completeness')).toBe('pass')
     })
   })
+
+  describe('Section G — Layer 7: Paragraph Completeness', () => {
+    it('passes when all paragraphs have complete sub-records', async () => {
+      const paraHeader = Buffer.alloc(24)
+      paraHeader.writeUInt32LE((0x80000000 | 3) >>> 0, 0)
+
+      const section0 = Buffer.concat([
+        buildRecord(TAG.PARA_HEADER, 0, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 1, Buffer.from('abc', 'utf16le')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 1, Buffer.alloc(8)),
+        buildRecord(TAG.PARA_LINE_SEG, 1, Buffer.alloc(36)),
+      ])
+
+      const filePath = await writeTempHwp(await buildHwpWithCustomSection0(section0), 'validator-g-pass')
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'paragraph_completeness')).toBe('pass')
+    })
+
+    it('detects missing PARA_CHAR_SHAPE in table cell paragraph', async () => {
+      // Build a section with a table cell paragraph that has PARA_TEXT but no PARA_CHAR_SHAPE
+      const paraHeader = Buffer.alloc(24)
+      paraHeader.writeUInt32LE(3, 0) // nChars = 3
+
+      const cellParaHeader = Buffer.alloc(24)
+      cellParaHeader.writeUInt32LE((0x80000000 | 2) >>> 0, 0) // nChars = 2, last bit
+
+      const section0 = Buffer.concat([
+        // Normal paragraph with char shape (valid)
+        buildRecord(TAG.PARA_HEADER, 0, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 1, Buffer.from('abc', 'utf16le')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 1, Buffer.alloc(8)),
+        buildRecord(TAG.PARA_LINE_SEG, 1, Buffer.alloc(36)),
+        // Table cell paragraph missing PARA_CHAR_SHAPE (invalid)
+        buildRecord(TAG.PARA_HEADER, 3, cellParaHeader),
+        buildRecord(TAG.PARA_TEXT, 3, Buffer.from('hi', 'utf16le')),
+      ])
+
+      const filePath = await writeTempHwp(await buildHwpWithCustomSection0(section0), 'validator-g-missing-charshape')
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'paragraph_completeness')).toBe('fail')
+      expect(getCheckMessage(result, 'paragraph_completeness')).toContain('missing PARA_CHAR_SHAPE')
+    })
+
+    it('warns on missing PARA_LINE_SEG when PARA_CHAR_SHAPE present', async () => {
+      const paraHeader = Buffer.alloc(24)
+      paraHeader.writeUInt32LE((0x80000000 | 3) >>> 0, 0)
+
+      const section0 = Buffer.concat([
+        buildRecord(TAG.PARA_HEADER, 0, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 1, Buffer.from('abc', 'utf16le')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 1, Buffer.alloc(8)),
+        // No PARA_LINE_SEG
+      ])
+
+      const filePath = await writeTempHwp(await buildHwpWithCustomSection0(section0), 'validator-g-missing-lineseg')
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'paragraph_completeness')).toBe('warn')
+      expect(getCheckMessage(result, 'paragraph_completeness')).toContain('missing PARA_LINE_SEG')
+    })
+
+    it('passes on empty paragraph without PARA_TEXT', async () => {
+      const section0 = Buffer.concat([
+        buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(24)),
+      ])
+
+      const filePath = await writeTempHwp(await buildHwpWithCustomSection0(section0), 'validator-g-empty')
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'paragraph_completeness')).toBe('pass')
+    })
+
+    it('detects corruption in README.hwp (real file)', async () => {
+      const result = await validateHwp('README.hwp')
+
+      expect(getCheckStatus(result, 'paragraph_completeness')).toBe('fail')
+      expect(getCheckMessage(result, 'paragraph_completeness')).toContain('missing PARA_CHAR_SHAPE')
+    })
+
+    it('passes on valid fixture with tables', async () => {
+      const result = await validateHwp('e2e/fixtures/폭행죄(고소장).hwp')
+
+      expect(getCheckStatus(result, 'paragraph_completeness')).toBe('pass')
+    })
+  })
 })
 
 function tmpPath(name: string): string {

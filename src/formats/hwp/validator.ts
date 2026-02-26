@@ -99,6 +99,7 @@ export async function validateHwp(filePath: string): Promise<ValidateResult> {
   checks.push(validateCrossReferences(docInfoBuffer, sectionStreams))
   checks.push(validateIdMappings(docInfoBuffer))
   checks.push(validateContentCompleteness(docInfoBuffer, sectionStreams))
+  checks.push(validateParagraphCompleteness(sectionStreams))
 
   return {
     valid: checks.every((check) => check.status !== 'fail'),
@@ -505,6 +506,90 @@ function validateContentCompleteness(docInfoBuffer: Buffer, sectionStreams: Stre
 
   return { name: 'content_completeness', status: 'pass' }
 }
+
+function validateParagraphCompleteness(sectionStreams: StreamRef[]): CheckResult {
+  const missingCharShape: Array<{ stream: string; level: number }> = []
+  const missingLineSeg: Array<{ stream: string; level: number }> = []
+
+  for (const stream of sectionStreams) {
+    const records = parseRecords(stream.buffer)
+
+    // Track pending paragraph scopes by level.
+    // When a PARA_HEADER at level L is encountered, it starts a scope.
+    // Sub-records at level L+1 belong to it.
+    // The scope ends when the next PARA_HEADER at level <= L appears.
+    const pendingByLevel = new Map<number, { hasText: boolean; hasCharShape: boolean; hasLineSeg: boolean }>()
+
+    for (const record of records) {
+      if (record.tagId === TAG.PARA_HEADER) {
+        // Flush any existing paragraph at this level (and deeper — they're implicitly closed)
+        for (const [level, pending] of pendingByLevel) {
+          if (level >= record.level) {
+            if (pending.hasText && !pending.hasCharShape) {
+              missingCharShape.push({ stream: stream.name, level })
+            }
+            if (pending.hasText && !pending.hasLineSeg) {
+              missingLineSeg.push({ stream: stream.name, level })
+            }
+            pendingByLevel.delete(level)
+          }
+        }
+
+        pendingByLevel.set(record.level, { hasText: false, hasCharShape: false, hasLineSeg: false })
+        continue
+      }
+
+      // Assign sub-records to their parent paragraph.
+      // Normally sub-records are at level+1, but some producers (including
+      // corrupted files) emit them at the same level as PARA_HEADER.
+      for (const [level, pending] of pendingByLevel) {
+        if (record.level === level + 1 || record.level === level) {
+          if (record.tagId === TAG.PARA_TEXT) pending.hasText = true
+          if (record.tagId === TAG.PARA_CHAR_SHAPE) pending.hasCharShape = true
+          if (record.tagId === TAG.PARA_LINE_SEG) pending.hasLineSeg = true
+        }
+      }
+    }
+
+    // Flush remaining paragraphs
+    for (const [level, pending] of pendingByLevel) {
+      if (pending.hasText && !pending.hasCharShape) {
+        missingCharShape.push({ stream: stream.name, level })
+      }
+      if (pending.hasText && !pending.hasLineSeg) {
+        missingLineSeg.push({ stream: stream.name, level })
+      }
+    }
+  }
+
+  if (missingCharShape.length > 0) {
+    return {
+      name: 'paragraph_completeness',
+      status: 'fail',
+      message: `${missingCharShape.length} paragraph(s) with text missing PARA_CHAR_SHAPE`,
+      details: {
+        missingCharShapeCount: missingCharShape.length,
+        missingLineSegCount: missingLineSeg.length,
+        examples: missingCharShape.slice(0, 5),
+      },
+    }
+  }
+
+  if (missingLineSeg.length > 0) {
+    return {
+      name: 'paragraph_completeness',
+      status: 'warn',
+      message: `${missingLineSeg.length} paragraph(s) with text missing PARA_LINE_SEG`,
+      details: {
+        missingLineSegCount: missingLineSeg.length,
+        examples: missingLineSeg.slice(0, 5),
+      },
+    }
+  }
+
+  return { name: 'paragraph_completeness', status: 'pass' }
+}
+
 
 function collectSectionEntries(cfb: CFB.CFB$Container): StreamRef[] {
   const sectionEntries: StreamRef[] = []
