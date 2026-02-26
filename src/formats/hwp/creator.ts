@@ -125,10 +125,18 @@ function patchDocInfo(
         if (font) patched.writeUInt16LE(0, 0)
         if (fontSize) patched.writeUInt32LE(fontSize, 42)
         parts.push(buildRecord(TAG.CHAR_SHAPE, header.level, patched))
-      } else {
-        parts.push(recordBuf)
       }
       charShapeIndex++
+      continue
+    }
+
+    if (header.tagId === TAG.ID_MAPPINGS) {
+      const patched = Buffer.from(data)
+      const charShapeByteOffset = 9 * 4
+      if (patched.length >= charShapeByteOffset + 4) {
+        patched.writeUInt32LE(1, charShapeByteOffset)
+      }
+      parts.push(buildRecord(header.tagId, header.level, patched))
       continue
     }
 

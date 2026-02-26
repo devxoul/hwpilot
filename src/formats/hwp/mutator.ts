@@ -270,9 +270,11 @@ function appendParagraphRecords(
   sectionIndex: number,
   compressed: boolean,
 ): Buffer {
-  void cfb
   void sectionIndex
-  void compressed
+
+  const charShapeRef = op.format && hasFormatOptions(op.format)
+    ? addCharShapeWithFormat(cfb, compressed, 0, op.format)
+    : 0
 
   const textData = Buffer.from(op.text, 'utf16le')
   const nChars = textData.length / 2 + 1
@@ -285,7 +287,7 @@ function appendParagraphRecords(
 
   const paraCharShapeData = Buffer.alloc(8)
   paraCharShapeData.writeUInt32LE(0, 0)
-  paraCharShapeData.writeUInt32LE(0, 4)
+  paraCharShapeData.writeUInt32LE(charShapeRef, 4)
 
   const paraLineSegData = buildParaLineSegData()
 
@@ -876,6 +878,61 @@ function findLastCharShapeRecordEnd(stream: Buffer): number {
     }
   }
   return lastEnd
+}
+
+function hasFormatOptions(format: FormatOptions): boolean {
+  return (
+    format.bold !== undefined ||
+    format.italic !== undefined ||
+    format.underline !== undefined ||
+    format.fontName !== undefined ||
+    format.fontSize !== undefined ||
+    format.color !== undefined
+  )
+}
+
+function addCharShapeWithFormat(
+  cfb: CFB.CFB$Container,
+  compressed: boolean,
+  sourceCharShapeId: number,
+  format: FormatOptions,
+): number {
+  const docInfoPath = '/DocInfo'
+  let docInfoStream = getEntryBuffer(cfb, docInfoPath)
+  if (compressed) {
+    docInfoStream = decompressStream(docInfoStream)
+  }
+
+  const charShapeRecords = findCharShapeRecords(docInfoStream)
+  const sourceCharShape = charShapeRecords[sourceCharShapeId]
+  if (!sourceCharShape) {
+    throw new Error(`CHAR_SHAPE[${sourceCharShapeId}] not found`)
+  }
+
+  const clonedCharShape = Buffer.from(sourceCharShape)
+  applyFormatToCharShape(clonedCharShape, format)
+
+  const idMappings = findIdMappingsRecord(docInfoStream)
+  if (!idMappings || idMappings.data.length < 8) {
+    throw new Error('ID_MAPPINGS record not found or malformed')
+  }
+
+  const charShapeCountOffset = findCharShapeCountOffset(idMappings.data, charShapeRecords.length)
+  const currentCharShapeCount = idMappings.data.readUInt32LE(charShapeCountOffset)
+  const patchedIdMappings = Buffer.from(idMappings.data)
+  patchedIdMappings.writeUInt32LE(currentCharShapeCount + 1, charShapeCountOffset)
+  docInfoStream = replaceRecordData(docInfoStream, idMappings.offset, patchedIdMappings)
+
+  const insertionOffset = findLastCharShapeRecordEnd(docInfoStream)
+  const newRecord = buildRecord(TAG.CHAR_SHAPE, 1, clonedCharShape)
+  docInfoStream = Buffer.concat([
+    docInfoStream.subarray(0, insertionOffset),
+    newRecord,
+    docInfoStream.subarray(insertionOffset),
+  ])
+
+  CFB.utils.cfb_add(cfb, docInfoPath, compressed ? compressStream(docInfoStream) : docInfoStream)
+  return currentCharShapeCount
 }
 
 function applyFormatToCharShape(charShape: Buffer, format: FormatOptions): void {
