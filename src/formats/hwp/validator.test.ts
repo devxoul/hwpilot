@@ -462,6 +462,7 @@ describe('validateHwp', () => {
       expect(result.valid).toBe(false)
       expect(result.format).toBe('hwp')
       expect(result.file).toBe('<buffer>')
+      expect(result.checks.some(c => c.status === 'fail')).toBe(true)
     })
 
     it('validateHwpBuffer and validateHwp return same results (excluding file field)', async () => {
@@ -476,6 +477,17 @@ describe('validateHwp', () => {
       expect(bufferResult.checks.length).toBe(fileResult.checks.length)
       expect(bufferResult.file).toBe('<buffer>')
       expect(fileResult.file).toBe(filePath)
+    })
+
+    it('validateHwpBuffer(compressedBuffer) returns { valid: true }', async () => {
+      const buffer = await createTestHwpBinary({ paragraphs: ['hello'], compressed: true })
+
+      const result = await validateHwpBuffer(buffer)
+
+      expect(result.valid).toBe(true)
+      expect(result.format).toBe('hwp')
+      expect(result.file).toBe('<buffer>')
+      expect(result.checks.length).toBeGreaterThan(0)
     })
   })
 })
