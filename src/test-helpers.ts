@@ -203,7 +203,8 @@ export function createTestHwpCfb(): Buffer {
   fileHeader.write('HWP Document File', 0, 'ascii')
   fileHeader.writeUInt32LE(0, 36) // flags: no compression, no encryption
   CFB.utils.cfb_add(cfb, 'FileHeader', fileHeader)
-  CFB.utils.cfb_add(cfb, 'DocInfo', Buffer.alloc(0))
+  const docInfo = buildDocInfoStream()
+  CFB.utils.cfb_add(cfb, 'DocInfo', docInfo)
   return Buffer.from(CFB.write(cfb, { type: 'buffer' }))
 }
 
@@ -266,19 +267,24 @@ function buildSection0Stream(paragraphs: string[], tables: TestTable[], textBoxe
   }
 
   for (const table of tables) {
+    const tableParaCharShape = Buffer.alloc(6)
+    tableParaCharShape.writeUInt16LE(0, 4)
     records.push(buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)))
+    records.push(buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape))
     records.push(buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x000b])))
     records.push(buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')))
     records.push(buildRecord(TAG.TABLE, 2, buildTableData(table.rows.length, table.rows[0]?.length ?? 0)))
-
     for (let rowIndex = 0; rowIndex < table.rows.length; rowIndex++) {
       for (let colIndex = 0; colIndex < table.rows[rowIndex].length; colIndex++) {
         const cellText = table.rows[rowIndex][colIndex]
         const cellTextData = Buffer.from(cellText, 'utf16le')
         const cellParaHeader = Buffer.alloc(24)
         cellParaHeader.writeUInt32LE((0x80000000 | (cellTextData.length / 2)) >>> 0, 0)
+        const cellParaCharShape = Buffer.alloc(6)
+        cellParaCharShape.writeUInt16LE(0, 4)
         records.push(buildRecord(TAG.LIST_HEADER, 2, buildCellListHeaderData(colIndex, rowIndex, 1, 1)))
         records.push(buildRecord(TAG.PARA_HEADER, 3, cellParaHeader))
+        records.push(buildRecord(TAG.PARA_CHAR_SHAPE, 3, cellParaCharShape))
         records.push(buildRecord(TAG.PARA_TEXT, 3, cellTextData))
       }
     }
@@ -311,7 +317,10 @@ function buildParagraphRecords(text: string): Buffer {
 export function buildMergedTable(rows: MergedTableRow[], colCount: number, rowCount: number): Buffer {
   const records: Buffer[] = []
 
+  const tableParaCharShape = Buffer.alloc(6)
+  tableParaCharShape.writeUInt16LE(0, 4)
   records.push(buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)))
+  records.push(buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape))
   records.push(buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x000b])))
   records.push(buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')))
   records.push(buildRecord(TAG.TABLE, 2, buildTableData(rowCount, colCount)))
@@ -327,8 +336,11 @@ export function buildMergedTable(rows: MergedTableRow[], colCount: number, rowCo
       const cellTextData = Buffer.from(cell.text, 'utf16le')
       const cellParaHeader = Buffer.alloc(24)
       cellParaHeader.writeUInt32LE((0x80000000 | (cellTextData.length / 2)) >>> 0, 0)
+      const cellParaCharShape = Buffer.alloc(6)
+      cellParaCharShape.writeUInt16LE(0, 4)
       records.push(buildRecord(TAG.LIST_HEADER, 2, buildCellListHeaderData(col, row, colSpan, rowSpan)))
       records.push(buildRecord(TAG.PARA_HEADER, 3, cellParaHeader))
+      records.push(buildRecord(TAG.PARA_CHAR_SHAPE, 3, cellParaCharShape))
       records.push(buildRecord(TAG.PARA_TEXT, 3, cellTextData))
     }
   }
@@ -366,6 +378,9 @@ function buildTextBoxRecord(level: number, text: string): Buffer {
   const paraHeader = Buffer.alloc(24)
   paraHeader.writeUInt32LE(nChars, 0)
 
+  const paraCharShape = Buffer.alloc(6)
+  paraCharShape.writeUInt16LE(0, 4)
+
   const shapeComponentData = Buffer.alloc(32)
   controlIdBuffer('$rec').copy(shapeComponentData, 0)
   controlIdBuffer('$rec').copy(shapeComponentData, 4)
@@ -378,6 +393,7 @@ function buildTextBoxRecord(level: number, text: string): Buffer {
     buildRecord(TAG.SHAPE_COMPONENT_RECTANGLE, level + 2, Buffer.alloc(0)),
     buildRecord(TAG.LIST_HEADER, level + 1, Buffer.alloc(0)),
     buildRecord(TAG.PARA_HEADER, level + 2, paraHeader),
+    buildRecord(TAG.PARA_CHAR_SHAPE, level + 3, paraCharShape),
     buildRecord(TAG.PARA_TEXT, level + 3, textData),
   ])
 }

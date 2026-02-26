@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test'
+import { afterEach, describe, expect, it, mock } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import CFB from 'cfb'
 import { buildCellListHeaderData, buildMergedTable, createTestHwpBinary, createTestHwpCfb } from '../../test-helpers'
@@ -10,9 +10,29 @@ import { decompressStream, getCompressionFlag } from './stream-util'
 import { TAG } from './tag-ids'
 import { editHwp } from './writer'
 
+let _mockValidationFail = false
+let _mockValidationCrash = false
+
+mock.module('./validator', () => ({
+  validateHwpBuffer: async (_buffer: Buffer) => {
+    if (_mockValidationCrash) throw new Error('validator internal crash')
+    if (_mockValidationFail) {
+      return {
+        valid: false as const,
+        format: 'hwp' as const,
+        file: '<buffer>',
+        checks: [{ name: 'test_check', status: 'fail' as const, message: 'injected failure' }],
+      }
+    }
+    return { valid: true as const, format: 'hwp' as const, file: '<buffer>', checks: [] }
+  },
+}))
+
 const TMP_FILES: string[] = []
 
 afterEach(async () => {
+  _mockValidationFail = false
+  _mockValidationCrash = false
   await Promise.all(
     TMP_FILES.splice(0).map(async (filePath) => {
       await Bun.file(filePath).delete()
@@ -386,6 +406,47 @@ describe('editHwp', () => {
     expect(doc.sections[0].tables[0].rows[1].cells[0].paragraphs[0].runs[0].text).toBe('Z')
     expect(doc.sections[0].tables[0].rows[1].cells[1].paragraphs[0].runs[0].text).toBe('4th')
   })
+
+  it('validation failure throws error and does not write file', async () => {
+    const filePath = tmpPath('writer-validation-failure')
+    TMP_FILES.push(filePath)
+    const fixture = await createTestHwpBinary({ paragraphs: ['original'] })
+    await Bun.write(filePath, fixture)
+    const originalContent = await readFile(filePath)
+
+    _mockValidationFail = true
+    await expect(editHwp(filePath, [{ type: 'setText', ref: 's0.p0', text: 'changed' }])).rejects.toThrow(
+      'HWP validation failed: test_check: injected failure',
+    )
+
+    const afterContent = await readFile(filePath)
+    expect(Buffer.compare(originalContent, afterContent)).toBe(0)
+  })
+
+  it('validator internal crash allows write to proceed (fail-open)', async () => {
+    const filePath = tmpPath('writer-validator-crash')
+    TMP_FILES.push(filePath)
+    const fixture = await createTestHwpBinary({ paragraphs: ['original'] })
+    await Bun.write(filePath, fixture)
+
+    _mockValidationCrash = true
+    await editHwp(filePath, [{ type: 'setText', ref: 's0.p0', text: 'changed' }])
+
+    const doc = await loadHwp(filePath)
+    expect(joinRuns(doc.sections[0].paragraphs[0].runs)).toBe('changed')
+  })
+
+  it('valid edit passes validation and writes file', async () => {
+    const filePath = tmpPath('writer-validation-pass')
+    TMP_FILES.push(filePath)
+    const fixture = await createTestHwpBinary({ paragraphs: ['original'] })
+    await Bun.write(filePath, fixture)
+
+    await editHwp(filePath, [{ type: 'setText', ref: 's0.p0', text: 'changed' }])
+
+    const doc = await loadHwp(filePath)
+    expect(joinRuns(doc.sections[0].paragraphs[0].runs)).toBe('changed')
+  })
 })
 
 function tmpPath(name: string): string {
@@ -526,7 +587,10 @@ function buildTableWithEmptyListHeaders(cells: string[]): Buffer {
   tableData.writeUInt16LE(1, 4)
   tableData.writeUInt16LE(cells.length, 6)
 
+  const tableParaCharShape = Buffer.alloc(6)
+  tableParaCharShape.writeUInt16LE(0, 4)
   records.push(buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)))
+  records.push(buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape))
   records.push(buildRecord(TAG.PARA_TEXT, 1, Buffer.from([0x0b, 0x00])))
   records.push(buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')))
   records.push(buildRecord(TAG.TABLE, 2, tableData))
@@ -535,8 +599,11 @@ function buildTableWithEmptyListHeaders(cells: string[]): Buffer {
     const cellTextData = Buffer.from(cellText, 'utf16le')
     const cellParaHeader = Buffer.alloc(24)
     cellParaHeader.writeUInt32LE((0x80000000 | (cellTextData.length / 2)) >>> 0, 0)
+    const cellParaCharShape = Buffer.alloc(6)
+    cellParaCharShape.writeUInt16LE(0, 4)
     records.push(buildRecord(TAG.LIST_HEADER, 2, Buffer.alloc(0)))
     records.push(buildRecord(TAG.PARA_HEADER, 3, cellParaHeader))
+    records.push(buildRecord(TAG.PARA_CHAR_SHAPE, 3, cellParaCharShape))
     records.push(buildRecord(TAG.PARA_TEXT, 3, cellTextData))
   }
 
@@ -546,7 +613,10 @@ function buildTableWithEmptyListHeaders(cells: string[]): Buffer {
 function buildSameLevelTable(rows: string[][], colCount: number, rowCount: number): Buffer {
   const records: Buffer[] = []
 
+  const tableParaCharShape = Buffer.alloc(6)
+  tableParaCharShape.writeUInt16LE(0, 4)
   records.push(buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)))
+  records.push(buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape))
   records.push(buildRecord(TAG.PARA_TEXT, 1, Buffer.from([0x0b, 0x00])))
   records.push(buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')))
   records.push(buildRecord(TAG.TABLE, 2, buildTableDataLocal(rowCount, colCount)))
@@ -557,9 +627,12 @@ function buildSameLevelTable(rows: string[][], colCount: number, rowCount: numbe
       const cellTextData = Buffer.from(cellText, 'utf16le')
       const cellParaHeader = Buffer.alloc(24)
       cellParaHeader.writeUInt32LE((0x80000000 | (cellTextData.length / 2)) >>> 0, 0)
+      const cellParaCharShape = Buffer.alloc(6)
+      cellParaCharShape.writeUInt16LE(0, 4)
       // Same level as LIST_HEADER (level 2) — mimics real HWP binary pattern
       records.push(buildRecord(TAG.LIST_HEADER, 2, buildCellListHeaderData(colIndex, rowIndex, 1, 1)))
       records.push(buildRecord(TAG.PARA_HEADER, 2, cellParaHeader))
+      records.push(buildRecord(TAG.PARA_CHAR_SHAPE, 2, cellParaCharShape))
       records.push(buildRecord(TAG.PARA_TEXT, 3, cellTextData))
     }
   }
