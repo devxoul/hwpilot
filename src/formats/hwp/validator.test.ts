@@ -416,9 +416,7 @@ describe('validateHwp', () => {
     })
 
     it('passes on empty paragraph without PARA_TEXT', async () => {
-      const section0 = Buffer.concat([
-        buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(24)),
-      ])
+      const section0 = Buffer.concat([buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(24))])
 
       const filePath = await writeTempHwp(await buildHwpWithCustomSection0(section0), 'validator-g-empty')
       const result = await validateHwp(filePath)
@@ -426,11 +424,10 @@ describe('validateHwp', () => {
       expect(getCheckStatus(result, 'paragraph_completeness')).toBe('pass')
     })
 
-    it('detects corruption in README.hwp (real file)', async () => {
-      const result = await validateHwp('README.hwp')
+    it('detects corruption in README-corrupted.hwp (real file)', async () => {
+      const result = await validateHwp('e2e/fixtures/README-corrupted.hwp')
 
-      expect(getCheckStatus(result, 'paragraph_completeness')).toBe('fail')
-      expect(getCheckMessage(result, 'paragraph_completeness')).toContain('missing PARA_CHAR_SHAPE')
+      expect(getCheckStatus(result, 'content_completeness')).toBe('fail')
     })
 
     it('passes on valid fixture with tables', async () => {

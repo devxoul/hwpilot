@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, mock } from 'bun:test'
+import { afterEach, describe, expect, it, spyOn } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import CFB from 'cfb'
 import { buildCellListHeaderData, buildMergedTable, createTestHwpBinary, createTestHwpCfb } from '../../test-helpers'
@@ -8,38 +8,18 @@ import { iterateRecords } from './record-parser'
 import { buildRecord } from './record-serializer'
 import { decompressStream, getCompressionFlag } from './stream-util'
 import { TAG } from './tag-ids'
+import * as validatorModule from './validator'
 import { editHwp } from './writer'
-
-let _mockValidationFail = false
-let _mockValidationCrash = false
-
-mock.module('./validator', () => ({
-  validateHwpBuffer: async (_buffer: Buffer) => {
-    if (_mockValidationCrash) throw new Error('validator internal crash')
-    if (_mockValidationFail) {
-      return {
-        valid: false as const,
-        format: 'hwp' as const,
-        file: '<buffer>',
-        checks: [{ name: 'test_check', status: 'fail' as const, message: 'injected failure' }],
-      }
-    }
-    return { valid: true as const, format: 'hwp' as const, file: '<buffer>', checks: [] }
-  },
-}))
 
 const TMP_FILES: string[] = []
 
 afterEach(async () => {
-  _mockValidationFail = false
-  _mockValidationCrash = false
   await Promise.all(
     TMP_FILES.splice(0).map(async (filePath) => {
       await Bun.file(filePath).delete()
     }),
   )
 })
-
 describe('editHwp', () => {
   it('setText on first paragraph changes target and keeps second paragraph', async () => {
     const filePath = tmpPath('writer-set-text')
@@ -408,32 +388,47 @@ describe('editHwp', () => {
   })
 
   it('validation failure throws error and does not write file', async () => {
+    const validateSpy = spyOn(validatorModule, 'validateHwpBuffer').mockResolvedValue({
+      valid: false,
+      format: 'hwp',
+      file: '<buffer>',
+      checks: [{ name: 'test_check', status: 'fail', message: 'injected failure' }],
+    })
     const filePath = tmpPath('writer-validation-failure')
     TMP_FILES.push(filePath)
     const fixture = await createTestHwpBinary({ paragraphs: ['original'] })
     await Bun.write(filePath, fixture)
     const originalContent = await readFile(filePath)
 
-    _mockValidationFail = true
-    await expect(editHwp(filePath, [{ type: 'setText', ref: 's0.p0', text: 'changed' }])).rejects.toThrow(
-      'HWP validation failed: test_check: injected failure',
-    )
+    try {
+      await expect(editHwp(filePath, [{ type: 'setText', ref: 's0.p0', text: 'changed' }])).rejects.toThrow(
+        'HWP validation failed: test_check: injected failure',
+      )
 
-    const afterContent = await readFile(filePath)
-    expect(Buffer.compare(originalContent, afterContent)).toBe(0)
+      const afterContent = await readFile(filePath)
+      expect(Buffer.compare(originalContent, afterContent)).toBe(0)
+    } finally {
+      validateSpy.mockRestore()
+    }
   })
 
   it('validator internal crash allows write to proceed (fail-open)', async () => {
+    const validateSpy = spyOn(validatorModule, 'validateHwpBuffer').mockRejectedValue(
+      new Error('validator internal crash'),
+    )
     const filePath = tmpPath('writer-validator-crash')
     TMP_FILES.push(filePath)
     const fixture = await createTestHwpBinary({ paragraphs: ['original'] })
     await Bun.write(filePath, fixture)
 
-    _mockValidationCrash = true
-    await editHwp(filePath, [{ type: 'setText', ref: 's0.p0', text: 'changed' }])
+    try {
+      await editHwp(filePath, [{ type: 'setText', ref: 's0.p0', text: 'changed' }])
 
-    const doc = await loadHwp(filePath)
-    expect(joinRuns(doc.sections[0].paragraphs[0].runs)).toBe('changed')
+      const doc = await loadHwp(filePath)
+      expect(joinRuns(doc.sections[0].paragraphs[0].runs)).toBe('changed')
+    } finally {
+      validateSpy.mockRestore()
+    }
   })
 
   it('valid edit passes validation and writes file', async () => {

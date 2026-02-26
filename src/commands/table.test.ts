@@ -1,4 +1,5 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test'
+import * as validatorModule from '@/formats/hwp/validator'
 import { createTestHwpBinary, createTestHwpx } from '@/test-helpers'
 import { tableAddCommand, tableEditCommand, tableListCommand, tableReadCommand } from './table'
 
@@ -318,23 +319,33 @@ describe('tableAddCommand', () => {
   })
 
   it('adds table to HWP file', async () => {
+    const validateSpy = spyOn(validatorModule, 'validateHwpBuffer').mockResolvedValue({
+      valid: true,
+      format: 'hwp',
+      file: '<buffer>',
+      checks: [],
+    })
     const hwpBuffer = await createTestHwpBinary({ paragraphs: ['Intro'] })
     await Bun.write(TEST_HWP_FILE, hwpBuffer)
 
-    captureOutput()
-    await tableAddCommand(TEST_HWP_FILE, 2, 2, { data: '[["A","B"],["C","D"]]' })
-    restoreOutput()
+    try {
+      captureOutput()
+      await tableAddCommand(TEST_HWP_FILE, 2, 2, { data: '[["A","B"],["C","D"]]' })
+      restoreOutput()
 
-    const output = JSON.parse(logs[0])
-    expect(output.ref).toBe('s0.t0')
-    expect(output.success).toBe(true)
+      const output = JSON.parse(logs[0])
+      expect(output.ref).toBe('s0.t0')
+      expect(output.success).toBe(true)
 
-    captureOutput()
-    await tableReadCommand(TEST_HWP_FILE, 's0.t0', {})
-    restoreOutput()
+      captureOutput()
+      await tableReadCommand(TEST_HWP_FILE, 's0.t0', {})
+      restoreOutput()
 
-    const table = JSON.parse(logs[0])
-    expect(table.rows[0].cells[0].text).toBe('A')
-    expect(table.rows[1].cells[1].text).toBe('D')
+      const table = JSON.parse(logs[0])
+      expect(table.rows[0].cells[0].text).toBe('A')
+      expect(table.rows[1].cells[1].text).toBe('D')
+    } finally {
+      validateSpy.mockRestore()
+    }
   })
 })

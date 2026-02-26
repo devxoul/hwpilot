@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'bun:test'
 import { readFile, unlink, writeFile } from 'node:fs/promises'
 import CFB from 'cfb'
-import { buildMergedTable, createTestHwpBinary, type MergedTableRow } from '../../test-helpers'
+import { buildMergedTable, createTestHwpBinary, createTestHwpCfb, type MergedTableRow } from '../../test-helpers'
 import { loadHwp } from './reader'
 import { iterateRecords } from './record-parser'
 import { decompressStream, getCompressionFlag } from './stream-util'
@@ -275,14 +275,8 @@ describe('HWP writer: error cases', () => {
 })
 
 function createHwpFromSection(section0: Buffer): Buffer {
-  const cfb = CFB.utils.cfb_new()
-  const fileHeader = Buffer.alloc(256)
-  fileHeader.write('HWP Document File', 0, 'ascii')
-  fileHeader.writeUInt32LE(0x05040000, 32)
-  fileHeader.writeUInt32LE(0, 36)
-  CFB.utils.cfb_add(cfb, 'FileHeader', fileHeader)
-  CFB.utils.cfb_add(cfb, 'DocInfo', Buffer.alloc(0))
-  CFB.utils.cfb_add(cfb, 'BodyText/Section0', section0)
+  const cfb = CFB.read(createTestHwpCfb(), { type: 'buffer' })
+  CFB.utils.cfb_add(cfb, '/BodyText/Section0', section0)
   return Buffer.from(CFB.write(cfb, { type: 'buffer' }))
 }
 
