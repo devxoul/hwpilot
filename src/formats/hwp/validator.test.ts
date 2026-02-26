@@ -322,6 +322,36 @@ describe('validateHwp', () => {
       expect(getCheckMessage(result, 'id_mappings')).toContain('charShape mismatch')
     })
   })
+
+  describe('Section F — Layer 6: Content Completeness', () => {
+    it('passes on fixture file with full charShape coverage', async () => {
+      // e2e/fixtures/폭행죄(고소장).hwp has 25 declared charShapes, 100% referenced in body
+      const result = await validateHwp('e2e/fixtures/폭행죄(고소장).hwp')
+
+      expect(getCheckStatus(result, 'content_completeness')).toBe('pass')
+    })
+
+    it('detects truncated section content with low charShape coverage', async () => {
+      // README-corrupted.hwp has 86 declared charShapes but body references only charShape index 0
+      const result = await validateHwp('e2e/fixtures/README-corrupted.hwp')
+
+      expect(getCheckStatus(result, 'content_completeness')).toBe('fail')
+      expect(getCheckMessage(result, 'content_completeness')).toContain('charShapes')
+    })
+
+    it('skips check when declared charShape count is below threshold', async () => {
+      // createTestHwpBinary creates exactly 1 CHAR_SHAPE record in DocInfo (well below threshold of 10)
+      const filePath = await writeTempHwp(
+        await createTestHwpBinary({ paragraphs: ['hello'] }),
+        'validator-f-below-threshold',
+      )
+
+      const result = await validateHwp(filePath)
+
+      // Guard kicks in: 1 < 10 → check skipped → pass
+      expect(getCheckStatus(result, 'content_completeness')).toBe('pass')
+    })
+  })
 })
 
 function tmpPath(name: string): string {
