@@ -328,6 +328,7 @@ function clearLastParagraphBit(stream: Buffer): Buffer {
   const result = Buffer.from(stream)
   for (const { header, data, offset } of iterateRecords(result)) {
     if (header.tagId === TAG.PARA_HEADER && header.level === 0) {
+      if (data.length < 4) continue
       const nCharsField = data.readUInt32LE(0)
       if (nCharsField & 0x80000000) {
         const dataOffset = offset + header.headerSize

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import CFB from 'cfb'
 import { createTestHwpBinary } from '../../test-helpers'
+import { createHwp } from './creator'
 import { getEntryBuffer, mutateHwpCfb } from './mutator'
 import { loadHwp } from './reader'
 import { iterateRecords } from './record-parser'
@@ -411,6 +412,48 @@ describe('mutateHwpCfb addParagraph', () => {
       expect(paragraphTexts[2]).toBe('Second')
     } finally {
       await unlink(outPath)
+    }
+  })
+
+  it('appends plain paragraph on freshly created HWP', async () => {
+    const hwpPath = tmpPath('mutator-addParagraph-fresh-plain')
+    await writeFile(hwpPath, await createHwp())
+
+    try {
+      const buffer = await readFile(hwpPath)
+      const cfb = CFB.read(buffer, { type: 'buffer' })
+      const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+      mutateHwpCfb(cfb, [{ type: 'addParagraph', ref: 's0', text: 'hello', position: 'end' }], compressed)
+
+      await writeFile(hwpPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
+      const paragraphTexts = await readParagraphTexts(hwpPath)
+      expect(paragraphTexts).toEqual(['', 'hello'])
+    } finally {
+      await unlink(hwpPath)
+    }
+  })
+
+  it('appends formatted paragraph on freshly created HWP', async () => {
+    const hwpPath = tmpPath('mutator-addParagraph-fresh-formatted')
+    await writeFile(hwpPath, await createHwp())
+
+    try {
+      const buffer = await readFile(hwpPath)
+      const cfb = CFB.read(buffer, { type: 'buffer' })
+      const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+      mutateHwpCfb(
+        cfb,
+        [{ type: 'addParagraph', ref: 's0', text: 'hello', position: 'end', format: { bold: true } }],
+        compressed,
+      )
+
+      await writeFile(hwpPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
+      const paragraphTexts = await readParagraphTexts(hwpPath)
+      expect(paragraphTexts).toEqual(['', 'hello'])
+    } finally {
+      await unlink(hwpPath)
     }
   })
 })
