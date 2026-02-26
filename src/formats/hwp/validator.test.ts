@@ -5,7 +5,7 @@ import { createTestHwpBinary, createTestHwpCfb, createTestHwpx } from '../../tes
 import { iterateRecords } from './record-parser'
 import { buildRecord, replaceRecordData } from './record-serializer'
 import { TAG } from './tag-ids'
-import { validateHwp } from './validator'
+import { validateHwp, validateHwpBuffer } from './validator'
 
 const TMP_FILES: string[] = []
 
@@ -437,6 +437,48 @@ describe('validateHwp', () => {
       const result = await validateHwp('e2e/fixtures/폭행죄(고소장).hwp')
 
       expect(getCheckStatus(result, 'paragraph_completeness')).toBe('pass')
+    })
+  })
+
+  describe('Section G — Buffer validation', () => {
+    it('validateHwpBuffer(validBuffer) returns { valid: true }', async () => {
+      const buffer = await createTestHwpBinary({ paragraphs: ['hello'] })
+
+      const result = await validateHwpBuffer(buffer)
+
+      expect(result.valid).toBe(true)
+      expect(result.format).toBe('hwp')
+      expect(result.file).toBe('<buffer>')
+      expect(result.checks.length).toBeGreaterThan(0)
+    })
+
+    it('validateHwpBuffer(corruptedBuffer) returns { valid: false }', async () => {
+      const base = await createTestHwpBinary({ paragraphs: ['hello'] })
+      const cfb = CFB.read(base, { type: 'buffer' })
+      const section0 = getEntryContent(cfb, '/BodyText/Section0')
+      const truncated = section0.subarray(0, Math.floor(section0.length / 2))
+
+      const buffer = await buildHwpWithCustomSection0(truncated)
+
+      const result = await validateHwpBuffer(buffer)
+
+      expect(result.valid).toBe(false)
+      expect(result.format).toBe('hwp')
+      expect(result.file).toBe('<buffer>')
+    })
+
+    it('validateHwpBuffer and validateHwp return same results (excluding file field)', async () => {
+      const buffer = await createTestHwpBinary({ paragraphs: ['hello'] })
+      const filePath = await writeTempHwp(buffer, 'validator-g-compare')
+
+      const bufferResult = await validateHwpBuffer(buffer)
+      const fileResult = await validateHwp(filePath)
+
+      expect(bufferResult.valid).toBe(fileResult.valid)
+      expect(bufferResult.format).toBe(fileResult.format)
+      expect(bufferResult.checks.length).toBe(fileResult.checks.length)
+      expect(bufferResult.file).toBe('<buffer>')
+      expect(fileResult.file).toBe(filePath)
     })
   })
 })

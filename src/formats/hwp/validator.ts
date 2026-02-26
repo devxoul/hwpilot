@@ -40,26 +40,32 @@ type CfbRoot = {
 
 export async function validateHwp(filePath: string): Promise<ValidateResult> {
   const fileBuffer = await readFile(filePath)
+  const result = await validateHwpBuffer(fileBuffer)
+  result.file = filePath
+  return result
+}
+
+export async function validateHwpBuffer(buffer: Buffer): Promise<ValidateResult> {
   const checks: CheckResult[] = []
 
-  const magic = fileBuffer.subarray(0, 4)
+  const magic = buffer.subarray(0, 4)
   if (magic[0] === 0x50 && magic[1] === 0x4b && magic[2] === 0x03 && magic[3] === 0x04) {
     return {
       valid: true,
       format: 'hwpx',
-      file: filePath,
+      file: '<buffer>',
       checks: [],
     }
   }
 
   let cfb: CFB.CFB$Container
   try {
-    cfb = CFB.read(fileBuffer, { type: 'buffer' })
+    cfb = CFB.read(buffer, { type: 'buffer' })
   } catch {
     return {
       valid: false,
       format: 'hwp',
-      file: filePath,
+      file: '<buffer>',
       checks: [{ name: 'file_format', status: 'fail', message: 'Not a valid HWP or HWPX file' }],
     }
   }
@@ -70,7 +76,7 @@ export async function validateHwp(filePath: string): Promise<ValidateResult> {
     return {
       valid: false,
       format: 'hwp',
-      file: filePath,
+      file: '<buffer>',
       checks,
     }
   }
@@ -88,7 +94,7 @@ export async function validateHwp(filePath: string): Promise<ValidateResult> {
     return {
       valid: checks.every((check) => check.status !== 'fail'),
       format: 'hwp',
-      file: filePath,
+      file: '<buffer>',
       checks,
     }
   }
@@ -104,7 +110,7 @@ export async function validateHwp(filePath: string): Promise<ValidateResult> {
   return {
     valid: checks.every((check) => check.status !== 'fail'),
     format: 'hwp',
-    file: filePath,
+    file: '<buffer>',
     checks,
   }
 }
