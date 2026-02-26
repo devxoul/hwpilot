@@ -462,7 +462,7 @@ describe('validateHwp', () => {
       expect(result.valid).toBe(false)
       expect(result.format).toBe('hwp')
       expect(result.file).toBe('<buffer>')
-      expect(result.checks.some(c => c.status === 'fail')).toBe(true)
+      expect(result.checks.some((c) => c.status === 'fail')).toBe(true)
     })
 
     it('validateHwpBuffer and validateHwp return same results (excluding file field)', async () => {
