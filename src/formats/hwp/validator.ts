@@ -98,6 +98,7 @@ export async function validateHwp(filePath: string): Promise<ValidateResult> {
   checks.push(validateNCharsConsistency(sectionStreams))
   checks.push(validateCrossReferences(docInfoBuffer, sectionStreams))
   checks.push(validateIdMappings(docInfoBuffer))
+  checks.push(validateContentCompleteness(docInfoBuffer, sectionStreams))
 
   return {
     valid: checks.every((check) => check.status !== 'fail'),
@@ -461,6 +462,48 @@ function validateIdMappings(docInfoBuffer: Buffer): CheckResult {
     status: 'warn',
     message: 'Unable to verify ID_MAPPINGS charShape count in short record',
   }
+}
+
+function validateContentCompleteness(docInfoBuffer: Buffer, sectionStreams: StreamRef[]): CheckResult {
+  const declaredCharShapeCount = parseRecords(docInfoBuffer).filter((record) => record.tagId === TAG.CHAR_SHAPE).length
+  if (declaredCharShapeCount < 10) {
+    return { name: 'content_completeness', status: 'pass' }
+  }
+
+  const uniqueRefs = new Set<number>()
+  for (const stream of sectionStreams) {
+    const records = parseRecords(stream.buffer)
+    for (const record of records) {
+      if (record.tagId !== TAG.PARA_CHAR_SHAPE) {
+        continue
+      }
+
+      if (record.data.length > 0 && record.data.length % 8 === 0) {
+        const entryCount = record.data.length / 8
+        for (let i = 0; i < entryCount; i++) {
+          uniqueRefs.add(record.data.readUInt32LE(i * 8 + 4))
+        }
+      } else if (record.data.length >= 6 && record.data.length < 8) {
+        uniqueRefs.add(record.data.readUInt16LE(4))
+      }
+    }
+  }
+
+  const coverageRatio = uniqueRefs.size / declaredCharShapeCount
+  if (coverageRatio < 0.5) {
+    return {
+      name: 'content_completeness',
+      status: 'fail',
+      message: `Body text references only ${uniqueRefs.size} of ${declaredCharShapeCount} declared charShapes (${(coverageRatio * 100).toFixed(1)}%)`,
+      details: {
+        declaredCharShapes: declaredCharShapeCount,
+        referencedCharShapes: uniqueRefs.size,
+        coveragePercent: Math.round(coverageRatio * 100),
+      },
+    }
+  }
+
+  return { name: 'content_completeness', status: 'pass' }
 }
 
 function collectSectionEntries(cfb: CFB.CFB$Container): StreamRef[] {

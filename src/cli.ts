@@ -220,7 +220,6 @@ program
   .command('create <file>')
   .description('Create a new blank document')
   .option('--font <name>', 'Set default font name', '맑은 고딕')
-  .option('--font <name>', 'Set default font name', '맑은 고딕')
   .option('--size <pt>', 'Set default font size', '10')
   .option('--pretty', 'Pretty-print JSON output')
   .action(async (file: string, options: { font?: string; size?: string; pretty?: boolean }) => {
@@ -245,7 +244,5 @@ program
   .action(async (file: string, options: { pretty?: boolean }) => {
     await validateCommand(file, options)
   })
-
-program.parse(process.argv)
 
 program.parse(process.argv)
