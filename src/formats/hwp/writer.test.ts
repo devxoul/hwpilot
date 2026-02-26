@@ -584,9 +584,12 @@ function buildTableWithEmptyListHeaders(cells: string[]): Buffer {
 
   const tableParaCharShape = Buffer.alloc(6)
   tableParaCharShape.writeUInt16LE(0, 4)
-  records.push(buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)))
+  const tableParaHeader = Buffer.alloc(24)
+  tableParaHeader.writeUInt32LE(1, 0)
+  records.push(buildRecord(TAG.PARA_HEADER, 0, tableParaHeader))
   records.push(buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape))
   records.push(buildRecord(TAG.PARA_TEXT, 1, Buffer.from([0x0b, 0x00])))
+  records.push(buildRecord(TAG.PARA_LINE_SEG, 1, buildParaLineSegDataForTest()))
   records.push(buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')))
   records.push(buildRecord(TAG.TABLE, 2, tableData))
 
@@ -600,6 +603,7 @@ function buildTableWithEmptyListHeaders(cells: string[]): Buffer {
     records.push(buildRecord(TAG.PARA_HEADER, 3, cellParaHeader))
     records.push(buildRecord(TAG.PARA_CHAR_SHAPE, 3, cellParaCharShape))
     records.push(buildRecord(TAG.PARA_TEXT, 3, cellTextData))
+    records.push(buildRecord(TAG.PARA_LINE_SEG, 3, buildParaLineSegDataForTest()))
   }
 
   return Buffer.concat(records)
@@ -610,9 +614,12 @@ function buildSameLevelTable(rows: string[][], colCount: number, rowCount: numbe
 
   const tableParaCharShape = Buffer.alloc(6)
   tableParaCharShape.writeUInt16LE(0, 4)
-  records.push(buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)))
+  const tableParaHeader = Buffer.alloc(24)
+  tableParaHeader.writeUInt32LE(1, 0)
+  records.push(buildRecord(TAG.PARA_HEADER, 0, tableParaHeader))
   records.push(buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape))
   records.push(buildRecord(TAG.PARA_TEXT, 1, Buffer.from([0x0b, 0x00])))
+  records.push(buildRecord(TAG.PARA_LINE_SEG, 1, buildParaLineSegDataForTest()))
   records.push(buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')))
   records.push(buildRecord(TAG.TABLE, 2, buildTableDataLocal(rowCount, colCount)))
 
@@ -629,6 +636,7 @@ function buildSameLevelTable(rows: string[][], colCount: number, rowCount: numbe
       records.push(buildRecord(TAG.PARA_HEADER, 2, cellParaHeader))
       records.push(buildRecord(TAG.PARA_CHAR_SHAPE, 2, cellParaCharShape))
       records.push(buildRecord(TAG.PARA_TEXT, 3, cellTextData))
+      records.push(buildRecord(TAG.PARA_LINE_SEG, 3, buildParaLineSegDataForTest()))
     }
   }
 
@@ -678,4 +686,14 @@ function parseCellAddressForTest(data: Buffer): { col: number; row: number } | n
     col: data.readUInt16LE(commonHeaderSize),
     row: data.readUInt16LE(commonHeaderSize + 2),
   }
+}
+
+function buildParaLineSegDataForTest(): Buffer {
+  const buf = Buffer.alloc(36)
+  buf.writeUInt32LE(0x000009a0, 8)
+  buf.writeUInt32LE(0x000009a0, 12)
+  buf.writeUInt32LE(0x000007f8, 16)
+  buf.writeInt32LE(-0x00000690, 20)
+  buf.writeUInt16LE(0x0006, 34)
+  return buf
 }

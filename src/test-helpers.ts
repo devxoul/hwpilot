@@ -320,11 +320,14 @@ function buildParagraphRecords(text: string): Buffer {
 export function buildMergedTable(rows: MergedTableRow[], colCount: number, rowCount: number): Buffer {
   const records: Buffer[] = []
 
+  const tableParaHeader = Buffer.alloc(24)
+  tableParaHeader.writeUInt32LE(1, 0)
   const tableParaCharShape = Buffer.alloc(6)
   tableParaCharShape.writeUInt16LE(0, 4)
-  records.push(buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)))
+  records.push(buildRecord(TAG.PARA_HEADER, 0, tableParaHeader))
   records.push(buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape))
   records.push(buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x000b])))
+  records.push(buildRecord(TAG.PARA_LINE_SEG, 1, buildParaLineSeg()))
   records.push(buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')))
   records.push(buildRecord(TAG.TABLE, 2, buildTableData(rowCount, colCount)))
 
@@ -345,6 +348,7 @@ export function buildMergedTable(rows: MergedTableRow[], colCount: number, rowCo
       records.push(buildRecord(TAG.PARA_HEADER, 3, cellParaHeader))
       records.push(buildRecord(TAG.PARA_CHAR_SHAPE, 3, cellParaCharShape))
       records.push(buildRecord(TAG.PARA_TEXT, 3, cellTextData))
+      records.push(buildRecord(TAG.PARA_LINE_SEG, 3, buildParaLineSeg()))
     }
   }
 
