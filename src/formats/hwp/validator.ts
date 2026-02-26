@@ -584,7 +584,7 @@ function validateParagraphCompleteness(sectionStreams: StreamRef[]): CheckResult
   if (missingLineSeg.length > 0) {
     return {
       name: 'paragraph_completeness',
-      status: 'warn',
+      status: 'fail',
       message: `${missingLineSeg.length} paragraph(s) with text missing PARA_LINE_SEG`,
       details: {
         missingLineSegCount: missingLineSeg.length,

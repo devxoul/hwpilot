@@ -243,12 +243,19 @@ function groupOperationsBySection(operations: EditOperation[]): Map<number, Sect
 function appendTableRecords(stream: Buffer, op: SectionAddTableOperation): Buffer {
   const records: Buffer[] = [stream]
 
-  records.push(buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)))
+  const tableParaHeader = Buffer.alloc(24)
+  tableParaHeader.writeUInt32LE(1, 0)
+  tableParaHeader.writeUInt32LE(1, 16)
+
+  const tableParaLineSeg = buildParaLineSegData()
+
+  records.push(buildRecord(TAG.PARA_HEADER, 0, tableParaHeader))
   records.push(buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x000b])))
   const tableParaCharShape = Buffer.alloc(8)
   tableParaCharShape.writeUInt32LE(0, 0) // position
   tableParaCharShape.writeUInt32LE(0, 4) // charShapeRef = 0 (default)
   records.push(buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape))
+  records.push(buildRecord(TAG.PARA_LINE_SEG, 1, tableParaLineSeg))
   records.push(buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')))
   records.push(buildRecord(TAG.TABLE, 2, buildTableData(op.rows, op.cols)))
 
@@ -261,10 +268,12 @@ function appendTableRecords(stream: Buffer, op: SectionAddTableOperation): Buffe
       const cellParaCharShape = Buffer.alloc(8)
       cellParaCharShape.writeUInt32LE(0, 0) // position
       cellParaCharShape.writeUInt32LE(0, 4) // charShapeRef = 0 (default)
+      const cellParaLineSeg = buildParaLineSegData()
       records.push(buildRecord(TAG.LIST_HEADER, 2, buildCellListHeaderData(col, row, 1, 1)))
       records.push(buildRecord(TAG.PARA_HEADER, 3, cellParaHeader))
       records.push(buildRecord(TAG.PARA_TEXT, 3, cellTextData))
       records.push(buildRecord(TAG.PARA_CHAR_SHAPE, 3, cellParaCharShape))
+      records.push(buildRecord(TAG.PARA_LINE_SEG, 3, cellParaLineSeg))
     }
   }
 

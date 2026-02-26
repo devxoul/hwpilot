@@ -397,7 +397,7 @@ describe('validateHwp', () => {
       expect(getCheckMessage(result, 'paragraph_completeness')).toContain('missing PARA_CHAR_SHAPE')
     })
 
-    it('warns on missing PARA_LINE_SEG when PARA_CHAR_SHAPE present', async () => {
+    it('fails on missing PARA_LINE_SEG when PARA_CHAR_SHAPE present', async () => {
       const paraHeader = Buffer.alloc(24)
       paraHeader.writeUInt32LE((0x80000000 | 3) >>> 0, 0)
 
@@ -411,7 +411,7 @@ describe('validateHwp', () => {
       const filePath = await writeTempHwp(await buildHwpWithCustomSection0(section0), 'validator-g-missing-lineseg')
       const result = await validateHwp(filePath)
 
-      expect(getCheckStatus(result, 'paragraph_completeness')).toBe('warn')
+      expect(getCheckStatus(result, 'paragraph_completeness')).toBe('fail')
       expect(getCheckMessage(result, 'paragraph_completeness')).toContain('missing PARA_LINE_SEG')
     })
 
