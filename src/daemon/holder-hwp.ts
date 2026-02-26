@@ -5,6 +5,7 @@ import type { FlushScheduler } from '@/daemon/flush'
 import { mutateHwpCfb } from '@/formats/hwp/mutator'
 import { loadHwp, loadHwpSectionTexts } from '@/formats/hwp/reader'
 import { getCompressionFlag } from '@/formats/hwp/stream-util'
+import { validateHwpBuffer } from '@/formats/hwp/validator'
 import type { EditOperation } from '@/shared/edit-types'
 import type { DocumentHeader, Section } from '@/types'
 
@@ -78,9 +79,27 @@ export class HwpHolder {
 
     const cfb = this.requireCfb()
     const tmpPath = `${this.filePath}.tmp`
+    const buffer = this.serializeCfb(cfb)
 
     try {
-      await writeFile(tmpPath, this.serializeCfb(cfb))
+      const result = await validateHwpBuffer(buffer)
+      if (!result.valid) {
+        const failedChecks = result.checks
+          .filter((c) => c.status === 'fail')
+          .map((c) => c.name + (c.message ? ': ' + c.message : ''))
+          .join('; ')
+        await this.load()
+        throw new Error('HWP validation failed: ' + failedChecks)
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('HWP validation failed:')) {
+        throw error
+      }
+      console.warn('HWP buffer validation error (proceeding with write):', error)
+    }
+
+    try {
+      await writeFile(tmpPath, buffer)
       await rename(tmpPath, this.filePath)
     } catch (error) {
       await rm(tmpPath, { force: true })
