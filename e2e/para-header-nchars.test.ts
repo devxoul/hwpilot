@@ -6,10 +6,9 @@ import {
   parseOutput,
   runCli,
   tempCopy,
-  verifyParaHeaderNChars,
   validateFile,
+  verifyParaHeaderNChars,
 } from './helpers'
-
 
 const tempFiles: string[] = []
 

@@ -73,7 +73,10 @@ export async function validateFile(filePath: string): Promise<void> {
     .map((line) => line.trim())
     .filter(Boolean)
   const candidate = lines.at(-1) ?? result.stdout.trim()
-  const output = JSON.parse(candidate) as { valid: boolean; checks: { name: string; status: string; message?: string }[] }
+  const output = JSON.parse(candidate) as {
+    valid: boolean
+    checks: { name: string; status: string; message?: string }[]
+  }
   if (!output.valid) {
     const failures = output.checks.filter((c) => c.status === 'fail').map((c) => `${c.name}: ${c.message}`)
     throw new Error(`Validation failed: ${failures.join('; ')}`)

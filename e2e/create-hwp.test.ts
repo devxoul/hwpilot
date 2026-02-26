@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parseOutput, runCli, validateFile } from './helpers'
 
-
 const tempFiles: string[] = []
 
 function tempHwpPath(suffix = ''): string {
