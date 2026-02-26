@@ -1,4 +1,4 @@
-import { rename, rm, writeFile } from 'node:fs/promises'
+import { rename, rm, stat, writeFile } from 'node:fs/promises'
 import type JSZip from 'jszip'
 import type { FlushScheduler } from '@/daemon/flush'
 import { parseHeader } from '@/formats/hwpx/header-parser'
@@ -15,6 +15,7 @@ export class HwpxHolder {
   private sectionsCache: Section[] | null = null
   private headerCache: DocumentHeader | null = null
   private dirty = false
+  private fileStats: { ino: number; mtimeMs: number; size: number } | null = null
 
   constructor(filePath: string) {
     this.filePath = filePath
@@ -26,9 +27,12 @@ export class HwpxHolder {
     this.sectionsCache = null
     this.headerCache = null
     this.dirty = false
+    const stats = await stat(this.filePath)
+    this.fileStats = { ino: stats.ino, mtimeMs: stats.mtimeMs, size: stats.size }
   }
 
   async getSections(): Promise<Section[]> {
+    await this.checkFileChanged()
     const archive = this.requireArchive()
 
     if (!this.sectionsCache) {
@@ -77,6 +81,7 @@ export class HwpxHolder {
   }
 
   async getHeader(): Promise<DocumentHeader> {
+    await this.checkFileChanged()
     if (!this.headerCache) {
       const archive = this.requireArchive()
       this.headerCache = parseHeader(await archive.getHeaderXml())
@@ -91,6 +96,24 @@ export class HwpxHolder {
   scheduleFlush(scheduler: FlushScheduler): void {
     if (this.dirty) {
       scheduler.schedule()
+    }
+  }
+
+  private async checkFileChanged(): Promise<void> {
+    if (!this.fileStats) return
+    try {
+      const stats = await stat(this.filePath)
+      if (stats.ino !== this.fileStats.ino || stats.mtimeMs > this.fileStats.mtimeMs) {
+        if (this.dirty) {
+          console.warn(`File replaced externally while holder had unflushed changes: ${this.filePath}`)
+        }
+        await this.load()
+      }
+    } catch (err: any) {
+      if (err.code === 'ENOENT') {
+        throw new Error(`File no longer exists: ${this.filePath}`)
+      }
+      throw err
     }
   }
 
