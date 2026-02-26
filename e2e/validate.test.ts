@@ -110,7 +110,6 @@ describe('validate command', () => {
     it('detects README-corrupted.hwp with truncated body content', async () => {
       await expectCorrupted('e2e/fixtures/README-corrupted.hwp')
     })
-
   })
 
   describe('C. Post-edit validation execution', () => {
