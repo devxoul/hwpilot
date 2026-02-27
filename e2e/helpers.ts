@@ -198,18 +198,37 @@ export async function checkViewerCorruption(filePath: string): Promise<ViewerChe
   await existingPidsProc.exited
   const existingPids = new Set(existingPidsOut.trim().split('\n').filter(Boolean))
 
-  // Open hidden
+  // Open with OS-level hiding
   const openProc = Bun.spawn(['open', '-g', '-j', '-a', VIEWER_APP_NAME, filePath], {
     stdout: 'pipe',
     stderr: 'pipe',
   })
   await openProc.exited
 
-  // Wait for app to initialize
+  // Continuously force-hide the process (catches alerts that bypass -g -j)
+  const keepHiddenScript = `
+repeat 100 times
+  delay 0.1
+  tell application "System Events"
+    if exists process "${VIEWER_APP_NAME}" then
+      set visible of process "${VIEWER_APP_NAME}" to false
+    end if
+  end tell
+end repeat
+`
+  const hideProc = Bun.spawn(['osascript', '-e', keepHiddenScript], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  })
+
+  // Wait for app to initialize (hide loop runs concurrently)
   await Bun.sleep(VIEWER_ALERT_TIMEOUT_MS)
 
   // Read alert via osascript with timeout
   const alertText = await readViewerAlert()
+
+  // Stop continuous hiding
+  hideProc.kill()
 
   // Check for corruption keywords
   const corrupted = alertText.includes('손상') || alertText.includes('변조') || alertText.includes('복구')
