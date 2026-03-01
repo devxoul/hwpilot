@@ -253,7 +253,8 @@ program
   .command('validate <file>')
   .description('Validate HWP file structural integrity')
   .option('--pretty', 'Pretty-print JSON output')
-  .action(async (file: string, options: { pretty?: boolean }) => {
+  .option('--viewer', 'Also validate using Hancom Office HWP Viewer app (macOS only)')
+  .action(async (file: string, options: { pretty?: boolean; viewer?: boolean }) => {
     await validateCommand(file, options)
   })
 
