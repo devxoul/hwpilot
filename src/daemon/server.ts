@@ -382,7 +382,10 @@ function enrichReadResult(resolved: unknown, header: DocumentHeader): unknown {
   return resolved
 }
 
-function enrichParagraph(para: Paragraph, header: DocumentHeader): Paragraph & { headingLevel?: number; styleName?: string } {
+function enrichParagraph(
+  para: Paragraph,
+  header: DocumentHeader,
+): Paragraph & { headingLevel?: number; styleName?: string } {
   const enriched: Paragraph & { headingLevel?: number; styleName?: string } = { ...para }
 
   const paraShape = header.paraShapes.find((shape) => shape.id === para.paraShapeRef)

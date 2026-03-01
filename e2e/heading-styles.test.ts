@@ -65,7 +65,17 @@ describe('Heading Styles — HWPX (created document)', () => {
       const hwpxFile = tempPath('hwpx-style-name', '.hwpx')
 
       await runCliNoDaemon(['create', hwpxFile])
-      await runCliNoDaemon(['paragraph', 'add', hwpxFile, 's0', '스타일 기반 제목', '--style', '개요 2', '--position', 'end'])
+      await runCliNoDaemon([
+        'paragraph',
+        'add',
+        hwpxFile,
+        's0',
+        '스타일 기반 제목',
+        '--style',
+        '개요 2',
+        '--position',
+        'end',
+      ])
 
       const readResult = await runCliNoDaemon(['read', hwpxFile, '--pretty'])
       const doc = parseOutput(readResult) as any
