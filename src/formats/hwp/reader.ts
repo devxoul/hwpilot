@@ -215,14 +215,20 @@ function parseDocInfo(buffer: Buffer): DocInfoParseResult {
         continue
       }
 
-      const alignBits = data.readUInt32LE(0) & 0x3
+      const dword = data.readUInt32LE(0)
+      const alignBits = dword & 0x3
+      const headingLevelBits = (dword >>> 25) & 0x7
       const alignMap: Record<number, 'left' | 'right' | 'center' | 'justify'> = {
         0: 'justify',
         1: 'left',
         2: 'right',
         3: 'center',
       }
-      paraShapes.push({ id: paraShapeId, align: alignMap[alignBits] ?? 'left' })
+      const paraShape: ParaShape = { id: paraShapeId, align: alignMap[alignBits] ?? 'left' }
+      if (headingLevelBits > 0) {
+        paraShape.headingLevel = headingLevelBits
+      }
+      paraShapes.push(paraShape)
       paraShapeId += 1
       continue
     }
