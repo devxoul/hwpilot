@@ -317,6 +317,133 @@ describe('readCommand — text box support', () => {
   })
 })
 
+describe('readCommand — heading level and style name resolution', () => {
+  const TEST_HEADING_FILE = '/tmp/test-read-heading.hwpx'
+
+  beforeAll(async () => {
+    // Create a test document with heading styles
+    const zip = new (await import('jszip')).default()
+
+    zip.file(
+      'version.xml',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<hv:version xmlns:hv="http://www.hancom.co.kr/hwpml/2011/version"
+  major="5" minor="1" micro="0" buildNumber="0"/>`
+    )
+
+    zip.file(
+      'META-INF/manifest.xml',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0">
+  <manifest:file-entry manifest:full-path="/" manifest:media-type="application/hwp+zip"/>
+  <manifest:file-entry manifest:full-path="Contents/header.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Contents/section0.xml" manifest:media-type="text/xml"/>
+</manifest:manifest>`
+    )
+
+    zip.file(
+      'Contents/content.hpf',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<opf:package xmlns:opf="http://www.idpf.org/2007/opf/">
+  <opf:manifest>
+    <opf:item id="header" href="header.xml" media-type="text/xml"/>
+    <opf:item id="section0" href="section0.xml" media-type="text/xml"/>
+  </opf:manifest>
+  <opf:spine>
+    <opf:itemref idref="section0"/>
+  </opf:spine>
+</opf:package>`
+    )
+
+    // Header with heading style (id=1) and body style (id=0)
+    zip.file(
+      'Contents/header.xml',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head">
+  <hh:refList>
+    <hh:fontfaces>
+      <hh:fontface hh:id="0" hh:face="맑은 고딕"/>
+    </hh:fontfaces>
+    <hh:charProperties>
+      <hh:charPr hh:id="0" hh:height="1000" hh:fontRef="0"
+        hh:fontBold="0" hh:fontItalic="0" hh:underline="0" hh:color="0"/>
+    </hh:charProperties>
+    <hh:paraProperties>
+      <hh:paraPr hh:id="0" hh:align="JUSTIFY"/>
+      <hh:paraPr hh:id="1" hh:align="LEFT">
+        <hh:heading hh:type="OUTLINE" hh:idRef="0" hh:level="1"/>
+      </hh:paraPr>
+    </hh:paraProperties>
+    <hh:styles>
+      <hh:style hh:id="0" hh:name="Normal" hh:charPrIDRef="0" hh:paraPrIDRef="0"/>
+      <hh:style hh:id="1" hh:name="Heading 1" hh:charPrIDRef="0" hh:paraPrIDRef="1" hh:type="PARA"/>
+    </hh:styles>
+  </hh:refList>
+</hh:head>`
+    )
+
+    // Section with two paragraphs: one with heading style, one with body style
+    zip.file(
+      'Contents/section0.xml',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"
+        xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"
+        xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core"
+        xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head">
+  <hp:p hp:id="0" hp:paraPrIDRef="1" hp:styleIDRef="1">
+    <hp:run hp:charPrIDRef="0"><hp:t>Heading Text</hp:t></hp:run>
+  </hp:p>
+  <hp:p hp:id="1" hp:paraPrIDRef="0" hp:styleIDRef="0">
+    <hp:run hp:charPrIDRef="0"><hp:t>Body Text</hp:t></hp:run>
+  </hp:p>
+</hs:sec>`
+    )
+
+    const buffer = await zip.generateAsync({ type: 'nodebuffer' })
+    await Bun.write(TEST_HEADING_FILE, buffer)
+  })
+
+  it('includes headingLevel and styleName for heading style paragraph', async () => {
+    captureOutput()
+    await readCommand(TEST_HEADING_FILE, 's0.p0', {})
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.ref).toBe('s0.p0')
+    expect(output.headingLevel).toBe(1)
+    expect(output.styleName).toBe('Heading 1')
+  })
+
+  it('includes styleName but no headingLevel for body style paragraph', async () => {
+    captureOutput()
+    await readCommand(TEST_HEADING_FILE, 's0.p1', {})
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.ref).toBe('s0.p1')
+    expect(output.headingLevel).toBeUndefined()
+    expect(output.styleName).toBe('Normal')
+  })
+
+  it('includes heading and style info in full document read', async () => {
+    captureOutput()
+    await readCommand(TEST_HEADING_FILE, undefined, {})
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    const section = output.sections[0]
+    expect(section.paragraphs).toHaveLength(2)
+
+    // First paragraph: heading
+    expect(section.paragraphs[0].headingLevel).toBe(1)
+    expect(section.paragraphs[0].styleName).toBe('Heading 1')
+
+    // Second paragraph: body
+    expect(section.paragraphs[1].headingLevel).toBeUndefined()
+    expect(section.paragraphs[1].styleName).toBe('Normal')
+  })
+})
+
 function createMinimalHwp(): Buffer {
   const cfb = CFB.utils.cfb_new()
   const fileHeader = Buffer.alloc(256)
