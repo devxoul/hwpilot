@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import CFB from 'cfb'
 import { createTestHwpBinary, createTestHwpCfb, createTestHwpx } from '../../test-helpers'
+import { controlIdBuffer } from './control-id'
 import { iterateRecords } from './record-parser'
 import { buildCellListHeaderData, buildRecord, buildTableData, replaceRecordData } from './record-serializer'
-import { controlIdBuffer } from './control-id'
 import { TAG } from './tag-ids'
 import { validateHwp, validateHwpBuffer } from './validator'
 
@@ -500,10 +500,7 @@ describe('validateHwp', () => {
     })
 
     it('passes on file without any tables', async () => {
-      const filePath = await writeTempHwp(
-        await createTestHwpBinary({ paragraphs: ['hello'] }),
-        'validator-h-no-tables',
-      )
+      const filePath = await writeTempHwp(await createTestHwpBinary({ paragraphs: ['hello'] }), 'validator-h-no-tables')
 
       const result = await validateHwp(filePath)
 
@@ -603,7 +600,10 @@ describe('validateHwp', () => {
         buildRecord(TAG.PARA_LINE_SEG, 3, tableParaLineSeg),
       ])
 
-      const filePath = await writeTempHwp(await buildHwpWithCustomSection0(section0), 'validator-h-truncated-listheader')
+      const filePath = await writeTempHwp(
+        await buildHwpWithCustomSection0(section0),
+        'validator-h-truncated-listheader',
+      )
       const result = await validateHwp(filePath)
 
       expect(getCheckStatus(result, 'table_structure')).toBe('fail')

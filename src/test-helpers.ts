@@ -1,7 +1,12 @@
 import CFB from 'cfb'
 import JSZip from 'jszip'
 import { controlIdBuffer } from '@/formats/hwp/control-id'
-import { buildCellListHeaderData, buildRecord, buildTableCtrlHeaderData, buildTableData } from '@/formats/hwp/record-serializer'
+import {
+  buildCellListHeaderData,
+  buildRecord,
+  buildTableCtrlHeaderData,
+  buildTableData,
+} from '@/formats/hwp/record-serializer'
 import { compressStream } from '@/formats/hwp/stream-util'
 import { TAG } from '@/formats/hwp/tag-ids'
 

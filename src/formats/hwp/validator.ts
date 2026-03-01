@@ -1,9 +1,8 @@
 import { readFile } from 'node:fs/promises'
 import CFB from 'cfb'
 import { inflateRaw } from 'pako'
-
-import { TAG } from '@/formats/hwp/tag-ids'
 import { readControlId } from '@/formats/hwp/control-id'
+import { TAG } from '@/formats/hwp/tag-ids'
 
 export type CheckStatus = 'pass' | 'fail' | 'warn' | 'skip'
 
