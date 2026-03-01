@@ -1,4 +1,4 @@
-import { afterEach, expect, it, mock } from 'bun:test'
+import { afterEach, describe, expect, it, mock } from 'bun:test'
 import { unlink } from 'node:fs/promises'
 import { loadHwp } from '@/formats/hwp/reader'
 import { loadHwpx } from '@/formats/hwpx/loader'
