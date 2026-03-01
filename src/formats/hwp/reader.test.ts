@@ -456,9 +456,7 @@ describe('PARA_CHAR_SHAPE reading', () => {
     const filePath = '/tmp/test-hwp-charshape-ordering.hwp'
     TMP_FILES.push(filePath)
 
-    const sectionRecords = Buffer.concat([
-      paragraphWithCharShape(0, 'Hello', [{ pos: 0, ref: 5 }]),
-    ])
+    const sectionRecords = Buffer.concat([paragraphWithCharShape(0, 'Hello', [{ pos: 0, ref: 5 }])])
 
     const buffer = createHwpCfbBufferWithRecords(0, Buffer.alloc(0), sectionRecords)
     await Bun.write(filePath, buffer)
@@ -477,7 +475,7 @@ describe('PARA_CHAR_SHAPE reading', () => {
     const sectionRecords = Buffer.concat([
       buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)),
       buildRecord(TAG.PARA_CHAR_SHAPE, 1, paraCharShapeData({ pos: 0, ref: 3 })),
-      buildRecord(TAG.PARA_TEXT, 1, encodeUint16([...('World')].map((ch) => ch.charCodeAt(0)).concat(0x0000))),
+      buildRecord(TAG.PARA_TEXT, 1, encodeUint16([...'World'].map((ch) => ch.charCodeAt(0)).concat(0x0000))),
     ])
 
     const buffer = createHwpCfbBufferWithRecords(0, Buffer.alloc(0), sectionRecords)
@@ -518,9 +516,7 @@ describe('PARA_CHAR_SHAPE reading', () => {
     const filePath = '/tmp/test-hwp-charshape-large-ref.hwp'
     TMP_FILES.push(filePath)
 
-    const sectionRecords = Buffer.concat([
-      paragraphWithCharShape(0, 'Test', [{ pos: 0, ref: 70000 }]),
-    ])
+    const sectionRecords = Buffer.concat([paragraphWithCharShape(0, 'Test', [{ pos: 0, ref: 70000 }])])
 
     const buffer = createHwpCfbBufferWithRecords(0, Buffer.alloc(0), sectionRecords)
     await Bun.write(filePath, buffer)

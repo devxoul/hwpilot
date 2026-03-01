@@ -726,10 +726,7 @@ export function extractParaText(data: Buffer): string {
   return chars.join('')
 }
 
-function splitTextByCharShapeEntries(
-  text: string,
-  entries: Array<{ pos: number; ref: number }>,
-): Run[] {
+function splitTextByCharShapeEntries(text: string, entries: Array<{ pos: number; ref: number }>): Run[] {
   const runs: Run[] = []
   for (let i = 0; i < entries.length; i++) {
     const start = entries[i].pos
