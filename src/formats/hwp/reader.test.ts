@@ -537,3 +537,54 @@ function shapePictureData(binId: number, noiseIdAtZero = 0): Buffer {
   data.writeUInt16LE(binId, 4 * 17 + 3)
   return data
 }
+
+// Test for STYLE record with non-empty English name
+describe('STYLE record parsing', () => {
+  it('parses STYLE record with non-empty English name correctly', async () => {
+    const filePath = '/tmp/test-hwp-style-english-name.hwp'
+    const TMP_FILES: string[] = [filePath]
+
+    // Build STYLE record with Korean name "스타일" and English name "Heading 1"
+    const koreanName = Buffer.from('스타일', 'utf16le')
+    const koreanNameLen = Buffer.alloc(2)
+    koreanNameLen.writeUInt16LE(3, 0) // "스타일" is 3 characters
+
+    const englishName = Buffer.from('Heading 1', 'utf16le')
+    const englishNameLen = Buffer.alloc(2)
+    englishNameLen.writeUInt16LE(9, 0) // "Heading 1" is 9 characters
+
+    const charShapeRef = Buffer.alloc(2)
+    charShapeRef.writeUInt16LE(5, 0)
+
+    const paraShapeRef = Buffer.alloc(2)
+    paraShapeRef.writeUInt16LE(3, 0)
+
+    const styleData = Buffer.concat([
+      koreanNameLen,
+      koreanName,
+      englishNameLen,
+      englishName,
+      charShapeRef,
+      paraShapeRef,
+    ])
+
+    const docInfoRecords = buildRecord(TAG.STYLE, 1, styleData)
+    const sectionRecords = Buffer.concat([
+      buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)),
+      buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x0000])),
+    ])
+
+    const buffer = createHwpCfbBufferWithRecords(0, docInfoRecords, sectionRecords)
+    await Bun.write(filePath, buffer)
+
+    const doc = await loadHwp(filePath)
+    const style = doc.header.styles[0]
+
+    expect(style.name).toBe('스타일')
+    expect(style.charShapeRef).toBe(5)
+    expect(style.paraShapeRef).toBe(3)
+
+    // Cleanup
+    await Bun.file(filePath).delete()
+  })
+})
