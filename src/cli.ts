@@ -131,14 +131,15 @@ tableCmd
     await tableListCommand(file, options)
   })
 
-// hwpilot table add <file> <rows> <cols>
+// hwpilot table add <file> <ref> <rows> <cols>
 tableCmd
-  .command('add <file> <rows> <cols>')
+  .command('add <file> <ref> <rows> <cols>')
   .description('Add a new table to the document')
+  .option('--position <pos>', 'Insertion position: before|after|end', 'end')
   .option('--data <json>', 'Cell data as JSON array of arrays')
   .option('--pretty', 'Pretty-print JSON output')
-  .action(async (file: string, rows: string, cols: string, options: { data?: string; pretty?: boolean }) => {
-    await tableAddCommand(file, Number(rows), Number(cols), options)
+  .action(async (file: string, ref: string, rows: string, cols: string, options: { position?: string; data?: string; pretty?: boolean }) => {
+    await tableAddCommand(file, ref, Number(rows), Number(cols), options)
   })
 
 // hwpilot paragraph
