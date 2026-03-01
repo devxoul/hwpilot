@@ -83,8 +83,9 @@ hwpilot read document.hwpx --limit 20              # 문서 읽기
 hwpilot find document.hwpx "청구취지"                # 텍스트 검색
 hwpilot edit text document.hwpx s0.p0 "새 내용"     # 문단 편집
 hwpilot table edit document.hwpx s0.t0.r0.c0 "값"   # 표 셀 편집
-hwpilot table add document.hwpx 3 4                 # 3×4 표 추가
-hwpilot table add document.hwpx 2 2 --data '[["A","B"],["C","D"]]'  # 데이터와 함께 표 추가
+hwpilot table add document.hwpx s0 3 4                 # 3×4 표 추가
+hwpilot table add document.hwpx s0 2 2 --data '[["A","B"],["C","D"]]'  # 데이터와 함께 표 추가
+hwpilot table add document.hwpx s0.p2 3 4 --position after  # 특정 위치에 표 삽입
 hwpilot edit format document.hwpx s0.p0 --bold --size 16  # 서식 변경
 hwpilot edit format document.hwpx s0.p0 --bold --start 0 --end 5  # 인라인 서식
 hwpilot paragraph add document.hwpx s0 "새 문단" --position end  # 문단 추가
