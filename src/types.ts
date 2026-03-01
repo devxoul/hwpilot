@@ -30,6 +30,7 @@ export type CharShape = {
 export type ParaShape = {
   id: number
   align: 'left' | 'center' | 'right' | 'justify'
+  headingLevel?: number
 }
 
 export type Style = {
@@ -37,6 +38,7 @@ export type Style = {
   name: string
   charShapeRef: number
   paraShapeRef: number
+  type?: string
 }
 
 export type Section = {

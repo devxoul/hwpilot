@@ -12,6 +12,6 @@ export type EditOperation =
   | { type: 'setFormat'; ref: string; format: FormatOptions; start?: number; end?: number }
   | { type: 'setTableCell'; ref: string; text: string }
   | { type: 'addTable'; ref: string; rows: number; cols: number; data?: string[][] }
-  | { type: 'addParagraph'; ref: string; text: string; position: 'before' | 'after' | 'end'; format?: FormatOptions }
+  | { type: 'addParagraph'; ref: string; text: string; position: 'before' | 'after' | 'end'; format?: FormatOptions; heading?: number; style?: string | number }
 
 export type XmlNode = Record<string, unknown>
