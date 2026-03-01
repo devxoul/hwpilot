@@ -126,13 +126,20 @@ function generateHeaderXml(header: DocumentHeader): string {
     .join('\n')
 
   const paraShapes = header.paraShapes
-    .map((paraShape) => `      <hh:paraPr ${generateParaShapeAttrs(paraShape)}/>`)
+    .map((paraShape) => {
+      const attrs = generateParaShapeAttrs(paraShape)
+      const headingElement = generateHeadingElement(paraShape)
+      const headingXml = headingElement ? `\n      ${headingElement}` : ''
+      return `      <hh:paraPr ${attrs}${headingXml}/>`
+    })
     .join('\n')
 
   const styles = header.styles
     .map(
-      (style) =>
-        `      <hh:style hh:id="${style.id}" hh:name="${escapeXml(style.name)}" hh:charPrIDRef="${style.charShapeRef}" hh:paraPrIDRef="${style.paraShapeRef}"/>`,
+      (style) => {
+        const typeAttr = style.type ? ` hh:type="${style.type}"` : ''
+        return `      <hh:style hh:id="${style.id}" hh:name="${escapeXml(style.name)}" hh:charPrIDRef="${style.charShapeRef}" hh:paraPrIDRef="${style.paraShapeRef}"${typeAttr}/>`
+      },
     )
     .join('\n')
 
@@ -231,6 +238,13 @@ function generateCharShapeAttrs(charShape: CharShape): string {
 
 function generateParaShapeAttrs(paraShape: ParaShape): string {
   return [`hh:id="${paraShape.id}"`, `hh:align="${toHwpxAlign(paraShape.align)}"`].join(' ')
+}
+
+function generateHeadingElement(paraShape: ParaShape): string | null {
+  if (!paraShape.headingLevel || paraShape.headingLevel <= 0) {
+    return null
+  }
+  return `<hh:heading hh:type="OUTLINE" hh:idRef="0" hh:level="${paraShape.headingLevel}"/>`
 }
 
 function toHwpxAlign(align: ParaShape['align']): 'LEFT' | 'CENTER' | 'RIGHT' | 'JUSTIFY' {
