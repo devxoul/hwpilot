@@ -54,18 +54,31 @@ export function parseHeader(xml: string): DocumentHeader {
   }))
 
   const rawParaPrs = refList['hh:paraProperties']?.['hh:paraPr'] ?? []
-  const paraShapes: ParaShape[] = rawParaPrs.map((p: Record<string, unknown>) => ({
-    id: p['hh:id'] as number,
-    align: parseAlign(p['hh:align'] as string),
-  }))
+  const paraShapes: ParaShape[] = rawParaPrs.map((p: Record<string, unknown>) => {
+    const shape: ParaShape = {
+      id: p['hh:id'] as number,
+      align: parseAlign(p['hh:align'] as string),
+    }
+    const heading = p['hh:heading'] as Record<string, unknown> | undefined
+    if (heading && heading['hh:level'] !== undefined) {
+      shape.headingLevel = heading['hh:level'] as number
+    }
+    return shape
+  })
 
   const rawStyles = refList['hh:styles']?.['hh:style'] ?? []
-  const styles: Style[] = rawStyles.map((s: Record<string, unknown>) => ({
-    id: s['hh:id'] as number,
-    name: s['hh:name'] as string,
-    charShapeRef: s['hh:charPrIDRef'] as number,
-    paraShapeRef: s['hh:paraPrIDRef'] as number,
-  }))
+  const styles: Style[] = rawStyles.map((s: Record<string, unknown>) => {
+    const style: Style = {
+      id: s['hh:id'] as number,
+      name: s['hh:name'] as string,
+      charShapeRef: s['hh:charPrIDRef'] as number,
+      paraShapeRef: s['hh:paraPrIDRef'] as number,
+    }
+    if (s['hh:type'] !== undefined) {
+      style.type = s['hh:type'] as string
+    }
+    return style
+  })
 
   return { fonts, charShapes, paraShapes, styles }
 }
