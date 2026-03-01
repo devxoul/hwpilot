@@ -137,7 +137,7 @@ export class HwpHolder {
     if (!this.fileStats) return
     try {
       const stats = await stat(this.filePath)
-      if (stats.ino !== this.fileStats.ino || stats.mtimeMs > this.fileStats.mtimeMs) {
+      if (stats.ino !== this.fileStats.ino || stats.mtimeMs > this.fileStats.mtimeMs || stats.size !== this.fileStats.size) {
         if (this.dirty) {
           console.warn(`File replaced externally while holder had unflushed changes: ${this.filePath}`)
         }
