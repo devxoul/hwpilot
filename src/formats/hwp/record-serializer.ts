@@ -1,3 +1,4 @@
+import { controlIdBuffer } from './control-id'
 import { parseRecordHeader } from './record-parser'
 
 export function encodeRecordHeader(tagId: number, level: number, dataSize: number): Buffer {
@@ -34,14 +35,21 @@ export function replaceRecordData(stream: Buffer, recordOffset: number, newData:
 }
 
 export function buildTableData(rowCount: number, colCount: number): Buffer {
-  const table = Buffer.alloc(8)
+  // Minimum 34 bytes to match well-formed Hancom-created TABLE records.
+  // Bytes 0-3: flags/properties, bytes 4-5: rows, bytes 6-7: cols,
+  // bytes 8+: row sizes and border info (zeroed for minimal valid record).
+  const table = Buffer.alloc(34)
   table.writeUInt16LE(rowCount, 4)
   table.writeUInt16LE(colCount, 6)
   return table
 }
 
 export function buildCellListHeaderData(col: number, row: number, colSpan: number, rowSpan: number): Buffer {
-  const buf = Buffer.alloc(32)
+  // Minimum 46 bytes to match well-formed Hancom-created cell LIST_HEADER records.
+  // Bytes 0-3: nPara (paragraph count), bytes 4-7: properties,
+  // bytes 8-9: col, bytes 10-11: row, bytes 12-13: colSpan, bytes 14-15: rowSpan,
+  // bytes 16+: cell width/height/margins (zeroed for minimal valid record).
+  const buf = Buffer.alloc(46)
   buf.writeInt32LE(1, 0)
   buf.writeUInt32LE(0, 4)
   buf.writeUInt16LE(col, 8)
@@ -50,5 +58,14 @@ export function buildCellListHeaderData(col: number, row: number, colSpan: numbe
   buf.writeUInt16LE(rowSpan, 14)
   buf.writeUInt32LE(0, 16)
   buf.writeUInt32LE(0, 20)
+  return buf
+}
+
+export function buildTableCtrlHeaderData(): Buffer {
+  // Minimum 44 bytes to match well-formed Hancom-created table CTRL_HEADER records.
+  // Bytes 0-3: control ID ('tbl ' in reversed byte order),
+  // bytes 4+: control properties (zeroed for minimal valid record).
+  const buf = Buffer.alloc(44)
+  controlIdBuffer('tbl ').copy(buf, 0)
   return buf
 }
