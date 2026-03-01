@@ -107,6 +107,7 @@ export async function validateHwpBuffer(buffer: Buffer): Promise<ValidateResult>
   checks.push(validateContentCompleteness(docInfoBuffer, sectionStreams))
   checks.push(validateParagraphCompleteness(sectionStreams))
   checks.push(validateTableStructure(sectionStreams))
+  checks.push(validateEmptyParagraphText(sectionStreams))
 
   return {
     valid: checks.every((check) => check.status !== 'fail'),
@@ -595,6 +596,51 @@ function validateParagraphCompleteness(sectionStreams: StreamRef[]): CheckResult
   }
 
   return { name: 'paragraph_completeness', status: 'pass' }
+}
+
+function validateEmptyParagraphText(sectionStreams: StreamRef[]): CheckResult {
+  const issues: Array<{ stream: string; offset: number }> = []
+
+  for (const stream of sectionStreams) {
+    const records = parseRecords(stream.buffer)
+    let pendingEmpty: { offset: number } | null = null
+
+    for (const record of records) {
+      if (record.tagId === TAG.PARA_HEADER && record.level === 0) {
+        pendingEmpty = null
+        if (record.data.length < 4) continue
+        const nChars = record.data.readUInt32LE(0) & 0x7fffffff
+        if (nChars <= 1) {
+          pendingEmpty = { offset: record.offset }
+        }
+        continue
+      }
+
+      if (pendingEmpty && record.tagId === TAG.PARA_TEXT) {
+        // Only flag PARA_TEXT that contains just the paragraph end marker (0x000d).
+        // Table holder paragraphs legitimately have PARA_TEXT with control chars (e.g. 0x000b).
+        const isOnlyParaEnd = record.data.length === 2 && record.data.readUInt16LE(0) === 0x000d
+        if (isOnlyParaEnd) {
+          issues.push({ stream: stream.name, offset: pendingEmpty.offset })
+        }
+        pendingEmpty = null
+      }
+    }
+  }
+
+  if (issues.length > 0) {
+    return {
+      name: 'empty_paragraph_text',
+      status: 'fail',
+      message: `${issues.length} empty paragraph(s) have PARA_TEXT records (should be omitted for nChars ≤ 1)`,
+      details: {
+        issueCount: issues.length,
+        examples: issues.slice(0, 5),
+      },
+    }
+  }
+
+  return { name: 'empty_paragraph_text', status: 'pass' }
 }
 
 // Minimum sizes observed in well-formed Hancom-created HWP files.

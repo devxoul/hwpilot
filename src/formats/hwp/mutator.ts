@@ -404,7 +404,8 @@ function appendParagraphRecords(
     op.format && hasFormatOptions(op.format) ? addCharShapeWithFormat(cfb, compressed, 0, op.format) : 0
 
   const textData = Buffer.from(op.text, 'utf16le')
-  const nChars = textData.length / 2 + 1
+  const isEmpty = textData.length === 0
+  const nChars = isEmpty ? 1 : textData.length / 2 + 1
 
   const paraHeaderData = Buffer.alloc(24)
   paraHeaderData.writeUInt32LE(nChars & 0x7fffffff, 0)
@@ -412,7 +413,7 @@ function appendParagraphRecords(
   paraHeaderData.writeUInt8(styleIndex, 10)
   paraHeaderData.writeUInt32LE(1, 16)
 
-  const paraTextData = Buffer.concat([textData, Buffer.from([0x0d, 0x00])])
+  const paraTextData = isEmpty ? null : Buffer.concat([textData, Buffer.from([0x0d, 0x00])])
 
   const paraCharShapeData = Buffer.alloc(8)
   paraCharShapeData.writeUInt32LE(0, 0)
@@ -422,7 +423,7 @@ function appendParagraphRecords(
 
   const newRecords = Buffer.concat([
     buildRecord(TAG.PARA_HEADER, 0, paraHeaderData),
-    buildRecord(TAG.PARA_TEXT, 1, paraTextData),
+    ...(paraTextData ? [buildRecord(TAG.PARA_TEXT, 1, paraTextData)] : []),
     buildRecord(TAG.PARA_CHAR_SHAPE, 1, paraCharShapeData),
     buildRecord(TAG.PARA_LINE_SEG, 1, paraLineSegData),
   ])
@@ -432,7 +433,7 @@ function appendParagraphRecords(
     paraHeaderData.writeUInt32LE((0x80000000 | (nChars & 0x7fffffff)) >>> 0, 0)
     const finalRecords = Buffer.concat([
       buildRecord(TAG.PARA_HEADER, 0, paraHeaderData),
-      buildRecord(TAG.PARA_TEXT, 1, paraTextData),
+      ...(paraTextData ? [buildRecord(TAG.PARA_TEXT, 1, paraTextData)] : []),
       buildRecord(TAG.PARA_CHAR_SHAPE, 1, paraCharShapeData),
       buildRecord(TAG.PARA_LINE_SEG, 1, paraLineSegData),
     ])
