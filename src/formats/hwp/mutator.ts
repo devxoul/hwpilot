@@ -3,7 +3,7 @@ import { type EditOperation, type FormatOptions } from '@/shared/edit-types'
 import { parseRef } from '@/shared/refs'
 import { controlIdBuffer, readControlId } from './control-id'
 import { iterateRecords } from './record-parser'
-import { buildCellListHeaderData, buildRecord, buildTableData, replaceRecordData } from './record-serializer'
+import { buildCellListHeaderData, buildRecord, buildTableCtrlHeaderData, buildTableData, replaceRecordData } from './record-serializer'
 import { compressStream, decompressStream } from './stream-util'
 import { TAG } from './tag-ids'
 
@@ -288,7 +288,7 @@ function appendTableRecords(stream: Buffer, op: SectionAddTableOperation): Buffe
       buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x000b])),
       buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape),
       buildRecord(TAG.PARA_LINE_SEG, 1, tableParaLineSeg),
-      buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')),
+      buildRecord(TAG.CTRL_HEADER, 1, buildTableCtrlHeaderData()),
       buildRecord(TAG.TABLE, 2, buildTableData(op.rows, op.cols)),
       ...cellRecords,
     ])
@@ -304,7 +304,7 @@ function appendTableRecords(stream: Buffer, op: SectionAddTableOperation): Buffe
     buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x000b])),
     buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape),
     buildRecord(TAG.PARA_LINE_SEG, 1, tableParaLineSeg),
-    buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')),
+    buildRecord(TAG.CTRL_HEADER, 1, buildTableCtrlHeaderData()),
     buildRecord(TAG.TABLE, 2, buildTableData(op.rows, op.cols)),
     ...cellRecords,
   ])
