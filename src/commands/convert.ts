@@ -129,8 +129,9 @@ function generateHeaderXml(header: DocumentHeader): string {
     .map((paraShape) => {
       const attrs = generateParaShapeAttrs(paraShape)
       const headingElement = generateHeadingElement(paraShape)
-      const headingXml = headingElement ? `\n      ${headingElement}` : ''
-      return `      <hh:paraPr ${attrs}${headingXml}/>`
+      return headingElement
+        ? `      <hh:paraPr ${attrs}>\n        ${headingElement}\n      </hh:paraPr>`
+        : `      <hh:paraPr ${attrs}/>`
     })
     .join('\n')
 

@@ -89,7 +89,7 @@ function enrichParagraph(
   para: Paragraph,
   header: DocumentHeader,
 ): Paragraph & { headingLevel?: number; styleName?: string } {
-  const enriched: any = { ...para }
+  const enriched: Paragraph & { headingLevel?: number; styleName?: string } = { ...para }
 
   // Resolve heading level from paraShapeRef
   const paraShape = header.paraShapes.find((ps) => ps.id === para.paraShapeRef)
