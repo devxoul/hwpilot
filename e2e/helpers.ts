@@ -4,10 +4,17 @@ import { basename, join } from 'node:path'
 import JSZip from 'jszip'
 
 /** Run the CLI as a real subprocess and capture output */
-export async function runCli(args: string[]): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+export async function runCli(
+  args: string[],
+  options?: { env?: Record<string, string | undefined> },
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   const proc = Bun.spawn(['bun', 'src/cli.ts', ...args], {
     stdout: 'pipe',
     stderr: 'pipe',
+    env: {
+      ...process.env,
+      ...options?.env,
+    },
   })
 
   const stdout = await new Response(proc.stdout).text()
