@@ -54,7 +54,7 @@ export async function mutateHwpxZip(zip: JSZip, archive: HwpxArchive, operations
 
     for (const { op, ref } of ops) {
       if (op.type === 'addTable') {
-        addTableToSection(sectionTree, op.rows, op.cols, op.data)
+        addTableToSection(sectionTree, op.rows, op.cols, op.data, op.position, ref)
         continue
       }
 
@@ -174,7 +174,14 @@ function setTextInTableCell(sectionTree: XmlNode[], ref: ParsedRef, text: string
   })
 }
 
-function addTableToSection(sectionTree: XmlNode[], rows: number, cols: number, data?: string[][]): void {
+function addTableToSection(
+  sectionTree: XmlNode[],
+  rows: number,
+  cols: number,
+  data: string[][] | undefined,
+  position: 'before' | 'after' | 'end',
+  ref: ParsedRef,
+): void {
   const sectionRoot = getSectionRootNode(sectionTree)
   const elementName = getElementName(sectionRoot)
   const sectionChildren = getElementChildren(sectionRoot, elementName)
@@ -233,7 +240,33 @@ function addTableToSection(sectionTree: XmlNode[], rows: number, cols: number, d
     'hp:tbl': tableRows,
   }
 
-  sectionChildren.push(tableNode)
+  if (position === 'end') {
+    sectionChildren.push(tableNode)
+    return
+  }
+
+  if (ref.paragraph === undefined) {
+    throw new Error(`addTable with position '${position}' requires a paragraph reference`)
+  }
+
+  let paragraphCount = -1
+  let targetIndex = -1
+  for (let i = 0; i < sectionChildren.length; i++) {
+    if (hasElement(sectionChildren[i], 'hp:p')) {
+      paragraphCount++
+      if (paragraphCount === ref.paragraph) {
+        targetIndex = i
+        break
+      }
+    }
+  }
+
+  if (targetIndex === -1) {
+    throw new Error(`Paragraph not found: index ${ref.paragraph}`)
+  }
+
+  const insertIndex = position === 'before' ? targetIndex : targetIndex + 1
+  sectionChildren.splice(insertIndex, 0, tableNode)
 }
 
 function addParagraphToSection(

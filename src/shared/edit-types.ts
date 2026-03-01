@@ -11,7 +11,14 @@ export type EditOperation =
   | { type: 'setText'; ref: string; text: string }
   | { type: 'setFormat'; ref: string; format: FormatOptions; start?: number; end?: number }
   | { type: 'setTableCell'; ref: string; text: string }
-  | { type: 'addTable'; ref: string; rows: number; cols: number; data?: string[][] }
+  | {
+      type: 'addTable'
+      ref: string
+      rows: number
+      cols: number
+      data?: string[][]
+      position: 'before' | 'after' | 'end'
+    }
   | {
       type: 'addParagraph'
       ref: string

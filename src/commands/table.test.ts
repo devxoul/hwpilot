@@ -256,7 +256,7 @@ describe('tableAddCommand', () => {
     await Bun.write(TEST_FILE, buffer)
 
     captureOutput()
-    await tableAddCommand(TEST_FILE, 2, 3, {})
+    await tableAddCommand(TEST_FILE, 's0', 2, 3, {})
     restoreOutput()
 
     const output = JSON.parse(logs[0])
@@ -279,7 +279,7 @@ describe('tableAddCommand', () => {
     await Bun.write(TEST_FILE, buffer)
 
     captureOutput()
-    await tableAddCommand(TEST_FILE, 2, 2, { data: '[["A","B"],["C","D"]]' })
+    await tableAddCommand(TEST_FILE, 's0', 2, 2, { data: '[["A","B"],["C","D"]]' })
     restoreOutput()
 
     const output = JSON.parse(logs[0])
@@ -304,7 +304,7 @@ describe('tableAddCommand', () => {
     await Bun.write(TEST_FILE, buffer)
 
     captureOutput()
-    await tableAddCommand(TEST_FILE, 1, 2, { data: '[["New1","New2"]]' })
+    await tableAddCommand(TEST_FILE, 's0', 1, 2, { data: '[["New1","New2"]]' })
     restoreOutput()
 
     const output = JSON.parse(logs[0])
@@ -323,7 +323,7 @@ describe('tableAddCommand', () => {
     await Bun.write(TEST_HWP_FILE, hwpBuffer)
 
     captureOutput()
-    await tableAddCommand(TEST_HWP_FILE, 2, 2, { data: '[["A","B"],["C","D"]]' })
+    await tableAddCommand(TEST_HWP_FILE, 's0', 2, 2, { data: '[["A","B"],["C","D"]]' })
     restoreOutput()
 
     const output = JSON.parse(logs[0])

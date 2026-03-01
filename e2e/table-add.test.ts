@@ -31,7 +31,7 @@ describe('Table Add — HWP fixture', () => {
       const beforeCount = beforeTables.length
 
       // when — add a 2x3 table
-      const addResult = await runCli(['table', 'add', temp, '2', '3'])
+      const addResult = await runCli(['table', 'add', temp, 's0', '2', '3'])
       const addOutput = parseOutput(addResult) as any
       expect(addOutput.success).toBe(true)
       expect(addOutput.rows).toBe(2)
@@ -55,7 +55,7 @@ describe('Table Add — HWP fixture', () => {
       const expectedRef = `s0.t${beforeTables.length}`
 
       // when
-      const addResult = await runCli(['table', 'add', temp, '1', '2'])
+      const addResult = await runCli(['table', 'add', temp, 's0', '1', '2'])
       const addOutput = parseOutput(addResult) as any
 
       // then
@@ -74,7 +74,7 @@ describe('Table Add — HWP fixture', () => {
       ]
 
       // when — add with data
-      const addResult = await runCli(['table', 'add', temp, '2', '3', '--data', JSON.stringify(data)])
+      const addResult = await runCli(['table', 'add', temp, 's0', '2', '3', '--data', JSON.stringify(data)])
       const addOutput = parseOutput(addResult) as any
       expect(addOutput.success).toBe(true)
       const newRef = addOutput.ref
@@ -97,7 +97,7 @@ describe('Table Add — HWP fixture', () => {
       const temp = await tempCopy(FIXTURE)
       tempFiles.push(temp)
 
-      const addResult = await runCli(['table', 'add', temp, '2', '2'])
+      const addResult = await runCli(['table', 'add', temp, 's0', '2', '2'])
       const addOutput = parseOutput(addResult) as any
       const newRef = addOutput.ref
 
@@ -123,7 +123,7 @@ describe('Table Add — HWP fixture', () => {
       parseOutput(beforeText) // ensure it parses without error
 
       // when
-      await runCli(['table', 'add', temp, '2', '2', '--data', '[["X","Y"],["1","2"]]'])
+      await runCli(['table', 'add', temp, 's0', '2', '2', '--data', '[["X","Y"],["1","2"]]'])
 
       // then — original text still present
       const afterText = await runCli(['text', temp])
@@ -145,7 +145,7 @@ describe('Table Add — HWP fixture', () => {
       const originalCell = beforeTable.rows[0].cells[0].text
 
       // when
-      await runCli(['table', 'add', temp, '1', '1', '--data', '[["NEW"]]'])
+      await runCli(['table', 'add', temp, 's0', '1', '1', '--data', '[["NEW"]]'])
 
       // then — existing table unchanged
       const afterResult = await runCli(['table', 'read', temp, 's0.t0'])
@@ -160,7 +160,7 @@ describe('Table Add — HWP fixture', () => {
       tempFiles.push(temp)
 
       const marker = 'TABLE_ADD_CV_2026'
-      await runCli(['table', 'add', temp, '1', '2', '--data', JSON.stringify([[marker, 'test']])])
+      await runCli(['table', 'add', temp, 's0', '1', '2', '--data', JSON.stringify([[marker, 'test']])])
 
       await validateFile(temp)
       const found = await crossValidate(temp, marker)
@@ -178,7 +178,16 @@ describe('Table Add — HWPX (created document)', () => {
     expect((parseOutput(createResult) as any).success).toBe(true)
 
     // when — add a table
-    const addResult = await runCli(['table', 'add', hwpxFile, '2', '3', '--data', '[["A","B","C"],["D","E","F"]]'])
+    const addResult = await runCli([
+      'table',
+      'add',
+      hwpxFile,
+      's0',
+      '2',
+      '3',
+      '--data',
+      '[["A","B","C"],["D","E","F"]]',
+    ])
     const addOutput = parseOutput(addResult) as any
     expect(addOutput.success).toBe(true)
     expect(addOutput.ref).toBe('s0.t0')
@@ -196,7 +205,7 @@ describe('Table Add — HWPX (created document)', () => {
     await runCli(['create', hwpxFile])
 
     const marker = 'HWPX_TABLE_ADD_2026'
-    await runCli(['table', 'add', hwpxFile, '1', '1', '--data', JSON.stringify([[marker]])])
+    await runCli(['table', 'add', hwpxFile, 's0', '1', '1', '--data', JSON.stringify([[marker]])])
 
     // directly inspect the HWPX zip XML
     const data = await readFile(hwpxFile)
@@ -208,11 +217,164 @@ describe('Table Add — HWPX (created document)', () => {
   })
 })
 
+describe('E. Positional Table Add', () => {
+  describe('HWPX position tests', () => {
+    it('adds table before first paragraph in HWPX', async () => {
+      const hwpxFile = tempPath('hwpx-pos-before', '.hwpx')
+
+      // given — create HWPX with named paragraphs
+      await runCli(['create', hwpxFile])
+      await runCli(['edit', 'text', hwpxFile, 's0.p0', 'Paragraph Zero'])
+      await runCli(['paragraph', 'add', hwpxFile, 's0', 'Paragraph One', '--position', 'end'])
+
+      // when — add table before first paragraph
+      const addResult = await runCli([
+        'table',
+        'add',
+        hwpxFile,
+        's0.p0',
+        '1',
+        '2',
+        '--position',
+        'before',
+        '--data',
+        '[["TBL_BEFORE_A","TBL_BEFORE_B"]]',
+      ])
+      expect((parseOutput(addResult) as any).success).toBe(true)
+
+      // then — table marker appears before paragraph text in raw XML
+      const data = await readFile(hwpxFile)
+      const zip = await JSZip.loadAsync(data)
+      const xml = (await zip.file('Contents/section0.xml')?.async('string'))!
+      expect(xml).toContain('TBL_BEFORE_A')
+      expect(xml).toContain('Paragraph Zero')
+      const tblMarkerPos = xml.indexOf('TBL_BEFORE_A')
+      const paraZeroPos = xml.indexOf('Paragraph Zero')
+      expect(tblMarkerPos).toBeLessThan(paraZeroPos)
+    })
+
+    it('adds table after first paragraph in HWPX', async () => {
+      const hwpxFile = tempPath('hwpx-pos-after', '.hwpx')
+
+      // given — create HWPX with named paragraphs
+      await runCli(['create', hwpxFile])
+      await runCli(['edit', 'text', hwpxFile, 's0.p0', 'Paragraph Zero'])
+      await runCli(['paragraph', 'add', hwpxFile, 's0', 'Paragraph One', '--position', 'end'])
+
+      // when — add table after first paragraph
+      const addResult = await runCli([
+        'table',
+        'add',
+        hwpxFile,
+        's0.p0',
+        '1',
+        '2',
+        '--position',
+        'after',
+        '--data',
+        '[["TBL_AFTER_A","TBL_AFTER_B"]]',
+      ])
+      expect((parseOutput(addResult) as any).success).toBe(true)
+
+      // then — table marker appears after Paragraph Zero but before Paragraph One
+      const data = await readFile(hwpxFile)
+      const zip = await JSZip.loadAsync(data)
+      const xml = (await zip.file('Contents/section0.xml')?.async('string'))!
+      expect(xml).toContain('TBL_AFTER_A')
+      const paraZeroPos = xml.indexOf('Paragraph Zero')
+      const tblMarkerPos = xml.indexOf('TBL_AFTER_A')
+      const paraOnePos = xml.indexOf('Paragraph One')
+      expect(paraZeroPos).toBeLessThan(tblMarkerPos)
+      expect(tblMarkerPos).toBeLessThan(paraOnePos)
+    })
+  })
+
+  describe('HWP position tests', () => {
+    it('adds table before first paragraph in HWP', async () => {
+      const temp = await tempCopy(FIXTURE)
+      tempFiles.push(temp)
+
+      // when — add table before first paragraph
+      const addResult = await runCli([
+        'table',
+        'add',
+        temp,
+        's0.p0',
+        '1',
+        '2',
+        '--position',
+        'before',
+        '--data',
+        '[["HWP_BEFORE_A","HWP_BEFORE_B"]]',
+      ])
+      expect((parseOutput(addResult) as any).success).toBe(true)
+
+      // then — file validates and data survives cross-validation
+      await validateFile(temp)
+      const found = await crossValidate(temp, 'HWP_BEFORE_A')
+      expect(found).toBe(true)
+    })
+
+    it('adds table after first paragraph in HWP', async () => {
+      const temp = await tempCopy(FIXTURE)
+      tempFiles.push(temp)
+
+      // when — add table after first paragraph
+      const addResult = await runCli([
+        'table',
+        'add',
+        temp,
+        's0.p0',
+        '1',
+        '2',
+        '--position',
+        'after',
+        '--data',
+        '[["HWP_AFTER_A","HWP_AFTER_B"]]',
+      ])
+      expect((parseOutput(addResult) as any).success).toBe(true)
+
+      // then — file validates and data survives cross-validation
+      await validateFile(temp)
+      const found = await crossValidate(temp, 'HWP_AFTER_A')
+      expect(found).toBe(true)
+    })
+  })
+
+  describe('Cross-validation', () => {
+    it('HWP positioned table data survives HWP→HWPX conversion', async () => {
+      const temp = await tempCopy(FIXTURE)
+      tempFiles.push(temp)
+
+      const marker = 'POSITIONED_TABLE_CV_2026'
+
+      // when — add table at specific position in HWP
+      await runCli([
+        'table',
+        'add',
+        temp,
+        's0.p0',
+        '1',
+        '2',
+        '--position',
+        'before',
+        '--data',
+        JSON.stringify([[marker, 'cross-val']]),
+      ])
+
+      // then — marker survives HWP→HWPX conversion
+      await validateFile(temp)
+      const found = await crossValidate(temp, marker)
+      expect(found).toBe(true)
+    })
+  })
+})
+
 describe('Z. Validation', () => {
   it('HWP with added table passes validation', async () => {
     const temp = await tempCopy(FIXTURE)
     tempFiles.push(temp)
-    await runCli(['table', 'add', temp, '2', '2', '--data', '[["v1","v2"],["v3","v4"]]'])
+    await runCli(['table', 'add', temp, 's0', '2', '2', '--data', '[["v1","v2"],["v3","v4"]]'])
     await validateFile(temp)
   })
 })

@@ -128,6 +128,7 @@ describe('mutateHwpxZip', () => {
           ref: 's0',
           rows: 2,
           cols: 2,
+          position: 'end',
           data: [
             ['A', 'B'],
             ['C', 'D'],
@@ -160,6 +161,7 @@ describe('mutateHwpxZip', () => {
           ref: 's0',
           rows: 2,
           cols: 3,
+          position: 'end',
           data: [
             ['a', 'b', 'c'],
             ['d', 'e', 'f'],
@@ -194,7 +196,7 @@ describe('mutateHwpxZip', () => {
       const archive = await loadHwpx(filePath)
       const zip = archive.getZip()
 
-      await mutateHwpxZip(zip, archive, [{ type: 'addTable', ref: 's0', rows: 1, cols: 2 }])
+      await mutateHwpxZip(zip, archive, [{ type: 'addTable', ref: 's0', rows: 1, cols: 2, position: 'end' }])
 
       const outPath = tmpPath('mutator-addTable-empty-out')
       const buffer = await zip.generateAsync({ type: 'nodebuffer' })
@@ -204,6 +206,134 @@ describe('mutateHwpxZip', () => {
       const sections = await parseSections(archive2)
       expect(sections[0].tables).toHaveLength(1)
       expect(sections[0].tables[0].rows[0].cells[0].paragraphs[0].runs[0].text).toBe('')
+
+      await unlink(outPath)
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('addTable with position=end behaves like append', async () => {
+    const filePath = tmpPath('mutator-addTable-position-end')
+    const fixture = await createTestHwpx({ paragraphs: ['END_ANCHOR'] })
+    await Bun.write(filePath, fixture)
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await mutateHwpxZip(zip, archive, [{ type: 'addTable', ref: 's0', rows: 1, cols: 2, position: 'end' }])
+
+      const outPath = tmpPath('mutator-addTable-position-end-out')
+      const buffer = await zip.generateAsync({ type: 'nodebuffer' })
+      await writeFile(outPath, buffer)
+
+      const archive2 = await loadHwpx(outPath)
+      const sections = await parseSections(archive2)
+      expect(sections[0].tables).toHaveLength(1)
+
+      const sectionXml = await zip.file('Contents/section0.xml')!.async('string')
+      const paragraphIndex = sectionXml.indexOf('END_ANCHOR')
+      const tableIndex = sectionXml.lastIndexOf('<hp:tbl>')
+      expect(tableIndex).toBeGreaterThan(paragraphIndex)
+
+      await unlink(outPath)
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('addTable inserts before paragraph 0', async () => {
+    const filePath = tmpPath('mutator-addTable-position-before')
+    const fixture = await createTestHwpx({ paragraphs: ['FIRST_PARAGRAPH'] })
+    await Bun.write(filePath, fixture)
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await mutateHwpxZip(zip, archive, [{ type: 'addTable', ref: 's0.p0', rows: 1, cols: 1, position: 'before' }])
+
+      const sectionXml = await zip.file('Contents/section0.xml')!.async('string')
+      expect(sectionXml).toContain('<hp:tbl>')
+      expect(sectionXml.indexOf('<hp:tbl>')).toBeLessThan(sectionXml.indexOf('FIRST_PARAGRAPH'))
+
+      const outPath = tmpPath('mutator-addTable-position-before-out')
+      await writeFile(outPath, await zip.generateAsync({ type: 'nodebuffer' }))
+      const sections = await parseSections(await loadHwpx(outPath))
+      expect(sections[0].tables).toHaveLength(1)
+      expect(sections[0].paragraphs[0].runs.map((r) => r.text).join('')).toBe('FIRST_PARAGRAPH')
+
+      await unlink(outPath)
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('addTable inserts after paragraph 0', async () => {
+    const filePath = tmpPath('mutator-addTable-position-after')
+    const fixture = await createTestHwpx({ paragraphs: ['PARA_A', 'PARA_B'] })
+    await Bun.write(filePath, fixture)
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await mutateHwpxZip(zip, archive, [{ type: 'addTable', ref: 's0.p0', rows: 1, cols: 1, position: 'after' }])
+
+      const sectionXml = await zip.file('Contents/section0.xml')!.async('string')
+      const firstParagraphIndex = sectionXml.indexOf('PARA_A')
+      const tableIndex = sectionXml.indexOf('<hp:tbl>')
+      const secondParagraphIndex = sectionXml.indexOf('PARA_B')
+      expect(firstParagraphIndex).toBeGreaterThan(-1)
+      expect(tableIndex).toBeGreaterThan(firstParagraphIndex)
+      expect(secondParagraphIndex).toBeGreaterThan(tableIndex)
+
+      const outPath = tmpPath('mutator-addTable-position-after-out')
+      await writeFile(outPath, await zip.generateAsync({ type: 'nodebuffer' }))
+      const sections = await parseSections(await loadHwpx(outPath))
+      expect(sections[0].tables).toHaveLength(1)
+      expect(sections[0].paragraphs.map((p) => p.runs.map((r) => r.text).join(''))).toEqual(['PARA_A', 'PARA_B'])
+
+      await unlink(outPath)
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('addTable with data + position inserts table with cell content', async () => {
+    const filePath = tmpPath('mutator-addTable-position-data')
+    const fixture = await createTestHwpx({ paragraphs: ['DATA_ANCHOR'] })
+    await Bun.write(filePath, fixture)
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await mutateHwpxZip(zip, archive, [
+        {
+          type: 'addTable',
+          ref: 's0.p0',
+          rows: 2,
+          cols: 2,
+          position: 'before',
+          data: [
+            ['X1', 'Y1'],
+            ['X2', 'Y2'],
+          ],
+        },
+      ])
+
+      const outPath = tmpPath('mutator-addTable-position-data-out')
+      await writeFile(outPath, await zip.generateAsync({ type: 'nodebuffer' }))
+
+      const sections = await parseSections(await loadHwpx(outPath))
+      expect(sections[0].tables).toHaveLength(1)
+      expect(sections[0].tables[0].rows[0].cells[0].paragraphs[0].runs[0].text).toBe('X1')
+      expect(sections[0].tables[0].rows[1].cells[1].paragraphs[0].runs[0].text).toBe('Y2')
+
+      const sectionXml = await zip.file('Contents/section0.xml')!.async('string')
+      expect(sectionXml.indexOf('<hp:tbl>')).toBeLessThan(sectionXml.indexOf('DATA_ANCHOR'))
 
       await unlink(outPath)
     } finally {

@@ -130,11 +130,28 @@ export async function tableEditCommand(
 
 export async function tableAddCommand(
   file: string,
+  ref: string,
   rows: number,
   cols: number,
-  options: { data?: string; pretty?: boolean },
+  options: { position?: string; data?: string; pretty?: boolean },
 ): Promise<void> {
   try {
+    const position = (options.position ?? 'end') as 'before' | 'after' | 'end'
+
+    if (!['before', 'after', 'end'].includes(position)) {
+      throw new Error(`Invalid position: ${position}. Must be 'before', 'after', or 'end'`)
+    }
+
+    if (!validateRef(ref)) {
+      throw new Error(`Invalid reference: ${ref}`)
+    }
+
+    const parsedRef = parseRef(ref)
+
+    if ((position === 'before' || position === 'after') && parsedRef.paragraph === undefined) {
+      throw new Error(`table add with position '${position}' requires a paragraph reference (e.g., s0.p0)`)
+    }
+
     const data: string[][] | undefined = options.data ? JSON.parse(options.data) : undefined
 
     if (data) {
@@ -143,7 +160,7 @@ export async function tableAddCommand(
       }
     }
 
-    const daemonResult = await dispatchViaDaemon(file, 'table-add', { rows, cols, data })
+    const daemonResult = await dispatchViaDaemon(file, 'table-add', { ref, rows, cols, data, position })
     if (daemonResult !== null) {
       if (!daemonResult.success) {
         const errorOptions =
@@ -161,21 +178,21 @@ export async function tableAddCommand(
     }
 
     const format = await detectFormat(file)
-    const ref = 's0'
 
     const sections = format === 'hwp' ? (await loadHwp(file)).sections : await loadHwpxSections(file)
-    const tableCount = sections[0]?.tables.length ?? 0
+    const tableCount = sections[parsedRef.section]?.tables.length ?? 0
 
     if (format === 'hwp') {
-      await editHwp(file, [{ type: 'addTable', ref, rows, cols, data }])
+      await editHwp(file, [{ type: 'addTable', ref, rows, cols, data, position }])
     } else {
-      await editHwpx(file, [{ type: 'addTable', ref, rows, cols, data }])
+      await editHwpx(file, [{ type: 'addTable', ref, rows, cols, data, position }])
     }
 
-    const newRef = buildRef({ section: 0, table: tableCount })
+    const newRef = buildRef({ section: parsedRef.section, table: tableCount })
     console.log(formatOutput({ ref: newRef, rows, cols, success: true }, options.pretty))
   } catch (e) {
-    handleError(e, { context: { file } })
+    const hint = await getRefHint(file, ref).catch(() => undefined)
+    handleError(e, { context: { ref, file }, hint })
   }
 }
 

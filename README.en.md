@@ -28,10 +28,10 @@ hwpilot edit text document.hwpx s0.p0 "New content"
 hwpilot table edit document.hwpx s0.t0.r0.c0 "Cell value"
 
 # Add a 3×4 table
-hwpilot table add document.hwpx 3 4
+hwpilot table add document.hwpx s0 3 4
 
 # Add a table with data
-hwpilot table add document.hwpx 2 2 --data '[["A","B"],["C","D"]]'
+hwpilot table add document.hwpx s0 2 2 --data '[["A","B"],["C","D"]]'
 
 # Bold + resize
 hwpilot edit format document.hwpx s0.p0 --bold --size 16
@@ -176,12 +176,13 @@ hwpilot table edit report.hwpx s0.t0.r0.c1 "Date"
 Add a new table to the document.
 
 ```bash
-hwpilot table add <file> <rows> <cols> [--data <json>] [--pretty]
+hwpilot table add <file> <ref> <rows> <cols> [--position before|after|end] [--data <json>] [--pretty]
 ```
 
 ```bash
-hwpilot table add report.hwpx 3 4
-hwpilot table add report.hwpx 2 2 --data '[["Name","Date"],["Alice","2025-01-01"]]'
+hwpilot table add report.hwpx s0 3 4
+hwpilot table add report.hwpx s0 2 2 --data '[["Name","Date"],["Alice","2025-01-01"]]'
+hwpilot table add report.hwpx s0.p2 3 4 --position after  # Insert table after paragraph 2
 ```
 ### table list
 

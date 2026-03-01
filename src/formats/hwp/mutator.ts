@@ -41,6 +41,8 @@ type SectionAddTableOperation = {
   cols: number
   data?: string[][]
   ref: string
+  position: 'before' | 'after' | 'end'
+  paragraph?: number
 }
 
 type SectionAddParagraphOperation = {
@@ -216,6 +218,8 @@ function groupOperationsBySection(operations: EditOperation[]): Map<number, Sect
         cols: operation.cols,
         data: operation.data,
         ref: operation.ref,
+        position: operation.position,
+        paragraph: ref.paragraph,
       })
       grouped.set(ref.section, sectionOperations)
       continue
@@ -245,23 +249,12 @@ function groupOperationsBySection(operations: EditOperation[]): Map<number, Sect
 }
 
 function appendTableRecords(stream: Buffer, op: SectionAddTableOperation): Buffer {
-  const records: Buffer[] = [stream]
-
   const tableParaHeader = Buffer.alloc(24)
   tableParaHeader.writeUInt32LE(1, 0)
   tableParaHeader.writeUInt32LE(1, 16)
 
   const tableParaLineSeg = buildParaLineSegData()
-
-  records.push(buildRecord(TAG.PARA_HEADER, 0, tableParaHeader))
-  records.push(buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x000b])))
-  const tableParaCharShape = Buffer.alloc(8)
-  tableParaCharShape.writeUInt32LE(0, 0) // position
-  tableParaCharShape.writeUInt32LE(0, 4) // charShapeRef = 0 (default)
-  records.push(buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape))
-  records.push(buildRecord(TAG.PARA_LINE_SEG, 1, tableParaLineSeg))
-  records.push(buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')))
-  records.push(buildRecord(TAG.TABLE, 2, buildTableData(op.rows, op.cols)))
+  const cellRecords: Buffer[] = []
 
   for (let row = 0; row < op.rows; row++) {
     for (let col = 0; col < op.cols; col++) {
@@ -273,15 +266,50 @@ function appendTableRecords(stream: Buffer, op: SectionAddTableOperation): Buffe
       cellParaCharShape.writeUInt32LE(0, 0) // position
       cellParaCharShape.writeUInt32LE(0, 4) // charShapeRef = 0 (default)
       const cellParaLineSeg = buildParaLineSegData()
-      records.push(buildRecord(TAG.LIST_HEADER, 2, buildCellListHeaderData(col, row, 1, 1)))
-      records.push(buildRecord(TAG.PARA_HEADER, 3, cellParaHeader))
-      records.push(buildRecord(TAG.PARA_TEXT, 3, cellTextData))
-      records.push(buildRecord(TAG.PARA_CHAR_SHAPE, 3, cellParaCharShape))
-      records.push(buildRecord(TAG.PARA_LINE_SEG, 3, cellParaLineSeg))
+      cellRecords.push(buildRecord(TAG.LIST_HEADER, 2, buildCellListHeaderData(col, row, 1, 1)))
+      cellRecords.push(buildRecord(TAG.PARA_HEADER, 3, cellParaHeader))
+      cellRecords.push(buildRecord(TAG.PARA_TEXT, 3, cellTextData))
+      cellRecords.push(buildRecord(TAG.PARA_CHAR_SHAPE, 3, cellParaCharShape))
+      cellRecords.push(buildRecord(TAG.PARA_LINE_SEG, 3, cellParaLineSeg))
     }
   }
 
-  return Buffer.concat(records)
+  const tableParaCharShape = Buffer.alloc(8)
+  tableParaCharShape.writeUInt32LE(0, 0) // position
+  tableParaCharShape.writeUInt32LE(0, 4) // charShapeRef = 0 (default)
+
+  if (op.position === 'end') {
+    const result = clearLastParagraphBit(stream)
+    const lastTableParaHeader = Buffer.alloc(24)
+    lastTableParaHeader.writeUInt32LE((0x80000000 | 1) >>> 0, 0)
+    lastTableParaHeader.writeUInt32LE(1, 16)
+    const tableRecords = Buffer.concat([
+      buildRecord(TAG.PARA_HEADER, 0, lastTableParaHeader),
+      buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x000b])),
+      buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape),
+      buildRecord(TAG.PARA_LINE_SEG, 1, tableParaLineSeg),
+      buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')),
+      buildRecord(TAG.TABLE, 2, buildTableData(op.rows, op.cols)),
+      ...cellRecords,
+    ])
+    return Buffer.concat([result, tableRecords])
+  }
+
+  if (op.paragraph === undefined) {
+    throw new Error(`addTable with position '${op.position}' requires a paragraph reference: ${op.ref}`)
+  }
+
+  const tableRecords = Buffer.concat([
+    buildRecord(TAG.PARA_HEADER, 0, tableParaHeader),
+    buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x000b])),
+    buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape),
+    buildRecord(TAG.PARA_LINE_SEG, 1, tableParaLineSeg),
+    buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')),
+    buildRecord(TAG.TABLE, 2, buildTableData(op.rows, op.cols)),
+    ...cellRecords,
+  ])
+
+  return spliceTableRecords(stream, op.paragraph, op.position, tableRecords)
 }
 
 function resolveStyleRefs(
@@ -429,6 +457,41 @@ function clearLastParagraphBit(stream: Buffer): Buffer {
 }
 
 function spliceParagraphRecords(
+  stream: Buffer,
+  paragraphIndex: number,
+  position: 'before' | 'after',
+  newRecords: Buffer,
+): Buffer {
+  let currentParagraph = -1
+  let targetStart: number | undefined
+  let targetEnd: number | undefined
+
+  for (const { header, offset } of iterateRecords(stream)) {
+    if (header.tagId === TAG.PARA_HEADER && header.level === 0) {
+      currentParagraph += 1
+      if (currentParagraph === paragraphIndex) {
+        targetStart = offset
+      } else if (currentParagraph === paragraphIndex + 1 && targetStart !== undefined) {
+        targetEnd = offset
+        break
+      }
+    }
+  }
+
+  if (targetStart === undefined) {
+    throw new Error(`Paragraph not found at index ${paragraphIndex}`)
+  }
+
+  if (targetEnd === undefined) {
+    targetEnd = stream.length
+  }
+
+  const insertAt = position === 'before' ? targetStart : targetEnd
+
+  return Buffer.concat([stream.subarray(0, insertAt), newRecords, stream.subarray(insertAt)])
+}
+
+function spliceTableRecords(
   stream: Buffer,
   paragraphIndex: number,
   position: 'before' | 'after',
