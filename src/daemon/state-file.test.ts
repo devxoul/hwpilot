@@ -15,6 +15,11 @@ import {
   writeStateFileExclusive,
 } from './state-file'
 
+let testDirCounter = 0
+function uniqueTestDir(): string {
+  return join(tmpdir(), `state-test-${Date.now()}-${++testDirCounter}`)
+}
+
 describe('state-file', () => {
   describe('getStateFilePath', () => {
     it('returns same path for same file', () => {
@@ -30,7 +35,7 @@ describe('state-file', () => {
     })
 
     it('resolves symlinks to same state file path', async () => {
-      const testDir = join(tmpdir(), `state-test-${Date.now()}`)
+      const testDir = uniqueTestDir()
       mkdirSync(testDir, { recursive: true })
 
       try {
@@ -67,11 +72,12 @@ describe('state-file', () => {
     let testDir: string
 
     beforeEach(() => {
-      testDir = join(tmpdir(), `state-test-${Date.now()}`)
+      testDir = uniqueTestDir()
       mkdirSync(testDir, { recursive: true })
     })
 
     afterEach(async () => {
+      deleteStateFile(join(testDir, 'test.hwpx'))
       await rm(testDir, { recursive: true, force: true })
     })
 
@@ -122,7 +128,7 @@ describe('state-file', () => {
     let testDir: string
 
     beforeEach(() => {
-      testDir = join(tmpdir(), `state-test-${Date.now()}`)
+      testDir = uniqueTestDir()
       mkdirSync(testDir, { recursive: true })
     })
 
@@ -188,11 +194,12 @@ describe('state-file', () => {
     let testDir: string
 
     beforeEach(() => {
-      testDir = join(tmpdir(), `state-test-${Date.now()}`)
+      testDir = uniqueTestDir()
       mkdirSync(testDir, { recursive: true })
     })
 
     afterEach(async () => {
+      deleteStateFile(join(testDir, 'test.hwpx'))
       await rm(testDir, { recursive: true, force: true })
     })
 
@@ -229,7 +236,7 @@ describe('state-file', () => {
     let testDir: string
 
     beforeEach(() => {
-      testDir = join(tmpdir(), `state-test-${Date.now()}`)
+      testDir = uniqueTestDir()
       mkdirSync(testDir, { recursive: true })
     })
 
