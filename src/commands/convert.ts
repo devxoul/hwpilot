@@ -135,12 +135,10 @@ function generateHeaderXml(header: DocumentHeader): string {
     .join('\n')
 
   const styles = header.styles
-    .map(
-      (style) => {
-        const typeAttr = style.type ? ` hh:type="${style.type}"` : ''
-        return `      <hh:style hh:id="${style.id}" hh:name="${escapeXml(style.name)}" hh:charPrIDRef="${style.charShapeRef}" hh:paraPrIDRef="${style.paraShapeRef}"${typeAttr}/>`
-      },
-    )
+    .map((style) => {
+      const typeAttr = style.type ? ` hh:type="${style.type}"` : ''
+      return `      <hh:style hh:id="${style.id}" hh:name="${escapeXml(style.name)}" hh:charPrIDRef="${style.charShapeRef}" hh:paraPrIDRef="${style.paraShapeRef}"${typeAttr}/>`
+    })
     .join('\n')
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>

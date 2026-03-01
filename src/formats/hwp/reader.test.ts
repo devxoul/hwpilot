@@ -542,7 +542,7 @@ function shapePictureData(binId: number, noiseIdAtZero = 0): Buffer {
 describe('STYLE record parsing', () => {
   it('parses STYLE record with non-empty English name correctly', async () => {
     const filePath = '/tmp/test-hwp-style-english-name.hwp'
-    const TMP_FILES: string[] = [filePath]
+    const _TMP_FILES: string[] = [filePath]
 
     // Build STYLE record with Korean name "스타일" and English name "Heading 1"
     const koreanName = Buffer.from('스타일', 'utf16le')

@@ -159,8 +159,8 @@ function patchDocInfo(
           refOffset += 2 + englishNameLen * 2
         }
         if (refOffset + 4 <= patched.length) {
-          patched.writeUInt16LE(0, refOffset)     // charShapeRef = 0
-          patched.writeUInt16LE(0, refOffset + 2)  // paraShapeRef = 0
+          patched.writeUInt16LE(0, refOffset) // charShapeRef = 0
+          patched.writeUInt16LE(0, refOffset + 2) // paraShapeRef = 0
         }
         parts.push(buildRecord(TAG.STYLE, header.level, patched))
         // Add 7 heading styles after body

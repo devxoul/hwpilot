@@ -671,11 +671,7 @@ describe('mutateHwpCfb addParagraph heading/style', () => {
       const cfb = CFB.read(buffer, { type: 'buffer' })
       const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
 
-      mutateHwpCfb(
-        cfb,
-        [{ type: 'addParagraph', ref: 's0', text: 'Styled', position: 'end', style: 4 }],
-        compressed,
-      )
+      mutateHwpCfb(cfb, [{ type: 'addParagraph', ref: 's0', text: 'Styled', position: 'end', style: 4 }], compressed)
 
       const headerData = await getParagraphHeaderData(cfb, compressed, 1)
       expect(headerData).not.toBeNull()
@@ -715,11 +711,7 @@ describe('mutateHwpCfb addParagraph heading/style', () => {
     const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
 
     expect(() => {
-      mutateHwpCfb(
-        cfb,
-        [{ type: 'addParagraph', ref: 's0', text: 'Bad', position: 'end', heading: 1 }],
-        compressed,
-      )
+      mutateHwpCfb(cfb, [{ type: 'addParagraph', ref: 's0', text: 'Bad', position: 'end', heading: 1 }], compressed)
     }).toThrow('개요 1')
   })
 
@@ -732,11 +724,7 @@ describe('mutateHwpCfb addParagraph heading/style', () => {
       const cfb = CFB.read(buffer, { type: 'buffer' })
       const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
 
-      mutateHwpCfb(
-        cfb,
-        [{ type: 'addParagraph', ref: 's0', text: 'Plain', position: 'end' }],
-        compressed,
-      )
+      mutateHwpCfb(cfb, [{ type: 'addParagraph', ref: 's0', text: 'Plain', position: 'end' }], compressed)
 
       const headerData = await getParagraphHeaderData(cfb, compressed, 1)
       expect(headerData).not.toBeNull()

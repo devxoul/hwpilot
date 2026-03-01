@@ -328,7 +328,7 @@ describe('readCommand — heading level and style name resolution', () => {
       'version.xml',
       `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <hv:version xmlns:hv="http://www.hancom.co.kr/hwpml/2011/version"
-  major="5" minor="1" micro="0" buildNumber="0"/>`
+  major="5" minor="1" micro="0" buildNumber="0"/>`,
     )
 
     zip.file(
@@ -338,7 +338,7 @@ describe('readCommand — heading level and style name resolution', () => {
   <manifest:file-entry manifest:full-path="/" manifest:media-type="application/hwp+zip"/>
   <manifest:file-entry manifest:full-path="Contents/header.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="Contents/section0.xml" manifest:media-type="text/xml"/>
-</manifest:manifest>`
+</manifest:manifest>`,
     )
 
     zip.file(
@@ -352,7 +352,7 @@ describe('readCommand — heading level and style name resolution', () => {
   <opf:spine>
     <opf:itemref idref="section0"/>
   </opf:spine>
-</opf:package>`
+</opf:package>`,
     )
 
     // Header with heading style (id=1) and body style (id=0)
@@ -379,7 +379,7 @@ describe('readCommand — heading level and style name resolution', () => {
       <hh:style hh:id="1" hh:name="Heading 1" hh:charPrIDRef="0" hh:paraPrIDRef="1" hh:type="PARA"/>
     </hh:styles>
   </hh:refList>
-</hh:head>`
+</hh:head>`,
     )
 
     // Section with two paragraphs: one with heading style, one with body style
@@ -396,7 +396,7 @@ describe('readCommand — heading level and style name resolution', () => {
   <hp:p hp:id="1" hp:paraPrIDRef="0" hp:styleIDRef="0">
     <hp:run hp:charPrIDRef="0"><hp:t>Body Text</hp:t></hp:run>
   </hp:p>
-</hs:sec>`
+</hs:sec>`,
     )
 
     const buffer = await zip.generateAsync({ type: 'nodebuffer' })

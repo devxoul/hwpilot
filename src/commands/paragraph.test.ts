@@ -109,4 +109,69 @@ describe('paragraphAddCommand', () => {
     const output = JSON.parse(logs[0])
     expect(output.success).toBe(true)
   })
+
+  it('--heading 1 sets heading in operation', async () => {
+    captureOutput()
+    await paragraphAddCommand(TEST_FILE, 's0', 'Heading text', { heading: 1 })
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.success).toBe(true)
+  })
+
+  it('--heading 3 sets heading in operation', async () => {
+    captureOutput()
+    await paragraphAddCommand(TEST_FILE, 's0', 'Heading text', { heading: 3 })
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.success).toBe(true)
+  })
+
+  it('--style "개요 2" sets style by name', async () => {
+    captureOutput()
+    await paragraphAddCommand(TEST_FILE, 's0', 'Styled text', { style: '개요 2' })
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.success).toBe(true)
+  })
+
+  it('--style 3 sets style by numeric ID', async () => {
+    captureOutput()
+    await paragraphAddCommand(TEST_FILE, 's0', 'Styled text', { style: 3 })
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.success).toBe(true)
+  })
+
+  it('--heading 1 --style "개요 1" simultaneously rejects', async () => {
+    captureOutput()
+    await expect(paragraphAddCommand(TEST_FILE, 's0', 'Text', { heading: 1, style: '개요 1' })).rejects.toThrow(
+      'process.exit',
+    )
+    restoreOutput()
+
+    const output = JSON.parse(errors[0])
+    expect(output.error).toContain('Cannot specify both --heading and --style')
+  })
+
+  it('--heading 0 rejects (invalid level)', async () => {
+    captureOutput()
+    await expect(paragraphAddCommand(TEST_FILE, 's0', 'Text', { heading: 0 })).rejects.toThrow('process.exit')
+    restoreOutput()
+
+    const output = JSON.parse(errors[0])
+    expect(output.error).toContain('Heading level must be between 1 and 7')
+  })
+
+  it('--heading 8 rejects (out of range)', async () => {
+    captureOutput()
+    await expect(paragraphAddCommand(TEST_FILE, 's0', 'Text', { heading: 8 })).rejects.toThrow('process.exit')
+    restoreOutput()
+
+    const output = JSON.parse(errors[0])
+    expect(output.error).toContain('Heading level must be between 1 and 7')
+  })
 })

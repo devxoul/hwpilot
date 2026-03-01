@@ -149,13 +149,14 @@ paragraphCmd
   .command('add <file> <ref> <text>')
   .description('Add a new paragraph')
   .option('--position <pos>', 'Insertion position: before|after|end', 'end')
+  .option('--heading <level>', 'Set heading level (1-7)', (val: string) => parseInt(val, 10))
+  .option('--style <name>', 'Set paragraph style by name or ID')
   .option('--bold', 'Bold text')
   .option('--italic', 'Italic text')
   .option('--underline', 'Underline text')
   .option('--font <name>', 'Font name')
   .option('--size <n>', 'Font size in points', parseFloat)
   .option('--color <hex>', 'Text color (hex)')
-  .option('--pretty', 'Pretty-print JSON output')
   .action(
     async (
       file: string,
@@ -163,6 +164,8 @@ paragraphCmd
       text: string,
       options: {
         position?: string
+        heading?: number
+        style?: string | number
         bold?: boolean
         italic?: boolean
         underline?: boolean

@@ -16,6 +16,8 @@ type ParagraphAddCommandOptions = {
   font?: string
   size?: number
   color?: string
+  heading?: number
+  style?: string | number
   pretty?: boolean
 }
 
@@ -33,6 +35,18 @@ export async function paragraphAddCommand(
       throw new Error(`Invalid position: ${position}. Must be 'before', 'after', or 'end'`)
     }
 
+    // Validate heading and style are mutually exclusive
+    if (options.heading !== undefined && options.style !== undefined) {
+      throw new Error('Cannot specify both --heading and --style')
+    }
+
+    // Validate heading level
+    if (options.heading !== undefined) {
+      if (options.heading < 1 || options.heading > 7) {
+        throw new Error('Heading level must be between 1 and 7')
+      }
+    }
+
     // Build format object from options
     const format: FormatOptions = {}
     if (options.bold !== undefined) format.bold = options.bold
@@ -47,6 +61,8 @@ export async function paragraphAddCommand(
       text,
       position,
       format: Object.keys(format).length > 0 ? format : undefined,
+      heading: options.heading,
+      style: options.style,
     })
 
     if (daemonResult !== null) {
@@ -79,6 +95,8 @@ export async function paragraphAddCommand(
           text,
           position: position as 'before' | 'after' | 'end',
           format: Object.keys(format).length > 0 ? format : undefined,
+          heading: options.heading,
+          style: options.style,
         },
       ])
     } else {
@@ -89,6 +107,8 @@ export async function paragraphAddCommand(
           text,
           position: position as 'before' | 'after' | 'end',
           format: Object.keys(format).length > 0 ? format : undefined,
+          heading: options.heading,
+          style: options.style,
         },
       ])
     }

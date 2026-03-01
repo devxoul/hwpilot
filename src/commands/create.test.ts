@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, mock } from 'bun:test'
+import { afterEach, expect, it, mock } from 'bun:test'
 import { unlink } from 'node:fs/promises'
 import { loadHwp } from '@/formats/hwp/reader'
 import { loadHwpx } from '@/formats/hwpx/loader'
@@ -150,10 +150,9 @@ describe('createCommand', () => {
   })
 })
 
-import { describe, expect, it } from 'bun:test'
 import JSZip from 'jszip'
-import { createTestHwpx } from '@/test-helpers'
 import { parseHeader } from '@/formats/hwpx/header-parser'
+import { createTestHwpx } from '@/test-helpers'
 
 describe('createTestHwpx — heading styles', () => {
   async function getHeader() {

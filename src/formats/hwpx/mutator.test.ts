@@ -480,9 +480,7 @@ describe('mutateHwpxZip', () => {
       const zip = archive.getZip()
 
       await expect(
-        mutateHwpxZip(zip, archive, [
-          { type: 'addParagraph', ref: 's0', text: 'Bad', position: 'end', heading: 99 },
-        ]),
+        mutateHwpxZip(zip, archive, [{ type: 'addParagraph', ref: 's0', text: 'Bad', position: 'end', heading: 99 }]),
       ).rejects.toThrow('개요 99')
     } finally {
       await unlink(filePath)
