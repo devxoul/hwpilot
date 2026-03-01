@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import CFB from 'cfb'
 import { inflateRaw } from 'pako'
-
+import { readControlId } from '@/formats/hwp/control-id'
 import { TAG } from '@/formats/hwp/tag-ids'
 
 export type CheckStatus = 'pass' | 'fail' | 'warn' | 'skip'
@@ -106,6 +106,7 @@ export async function validateHwpBuffer(buffer: Buffer): Promise<ValidateResult>
   checks.push(validateIdMappings(docInfoBuffer))
   checks.push(validateContentCompleteness(docInfoBuffer, sectionStreams))
   checks.push(validateParagraphCompleteness(sectionStreams))
+  checks.push(validateTableStructure(sectionStreams))
 
   return {
     valid: checks.every((check) => check.status !== 'fail'),
@@ -594,6 +595,143 @@ function validateParagraphCompleteness(sectionStreams: StreamRef[]): CheckResult
   }
 
   return { name: 'paragraph_completeness', status: 'pass' }
+}
+
+// Minimum sizes observed in well-formed Hancom-created HWP files.
+// Our broken table add produces truncated records that the Hancom Viewer rejects.
+const TABLE_CTRL_HEADER_MIN_SIZE = 44
+const TABLE_RECORD_MIN_SIZE = 34
+const TABLE_CELL_LIST_HEADER_MIN_SIZE = 46
+
+function validateTableStructure(sectionStreams: StreamRef[]): CheckResult {
+  const issues: string[] = []
+
+  for (const stream of sectionStreams) {
+    const records = parseRecords(stream.buffer)
+    let tableCtrlLevel: number | null = null
+    let expectedCellCount = 0
+    let gridCoverage = 0
+    let tableStartIndex = -1
+
+    for (let i = 0; i < records.length; i++) {
+      const record = records[i]
+
+      // Detect table CTRL_HEADER or end table context on sibling controls
+      if (record.tagId === TAG.CTRL_HEADER && record.data.length >= 4) {
+        const controlType = readControlId(record.data)
+        if (controlType === 'tbl ') {
+          // Flush previous table context if any
+          if (tableCtrlLevel !== null && expectedCellCount > 0 && gridCoverage !== expectedCellCount) {
+            issues.push(
+              `${stream.name} table at record ${tableStartIndex}: expected grid coverage ${expectedCellCount}, got ${gridCoverage}`,
+            )
+          }
+
+          tableCtrlLevel = record.level
+          expectedCellCount = 0
+          gridCoverage = 0
+          tableStartIndex = i
+
+          if (record.data.length < TABLE_CTRL_HEADER_MIN_SIZE) {
+            issues.push(
+              `${stream.name} table CTRL_HEADER at record ${i}: size ${record.data.length} < minimum ${TABLE_CTRL_HEADER_MIN_SIZE}`,
+            )
+          }
+          continue
+        }
+
+        // Non-table CTRL_HEADER at same level ends the table context
+        if (tableCtrlLevel !== null && record.level <= tableCtrlLevel) {
+          if (expectedCellCount > 0 && gridCoverage !== expectedCellCount) {
+            issues.push(
+              `${stream.name} table at record ${tableStartIndex}: expected grid coverage ${expectedCellCount}, got ${gridCoverage}`,
+            )
+          }
+          tableCtrlLevel = null
+          expectedCellCount = 0
+          gridCoverage = 0
+        }
+      }
+
+      // End table context when we leave the table subtree
+      if (tableCtrlLevel !== null && record.tagId === TAG.PARA_HEADER && record.level === 0) {
+        if (expectedCellCount > 0 && gridCoverage !== expectedCellCount) {
+          issues.push(
+            `${stream.name} table at record ${tableStartIndex}: expected grid coverage ${expectedCellCount}, got ${gridCoverage}`,
+          )
+        }
+        tableCtrlLevel = null
+        expectedCellCount = 0
+        gridCoverage = 0
+      }
+
+      if (tableCtrlLevel === null) {
+        continue
+      }
+
+      // Validate TABLE record
+      if (record.tagId === TAG.TABLE && record.level === tableCtrlLevel + 1) {
+        if (record.data.length < TABLE_RECORD_MIN_SIZE) {
+          issues.push(
+            `${stream.name} TABLE record at record ${i}: size ${record.data.length} < minimum ${TABLE_RECORD_MIN_SIZE}`,
+          )
+        }
+        if (record.data.length >= 8) {
+          const rows = record.data.readUInt16LE(4)
+          const cols = record.data.readUInt16LE(6)
+          expectedCellCount = rows * cols
+        }
+        continue
+      }
+
+      // Validate cell LIST_HEADER
+      if (record.tagId === TAG.LIST_HEADER && record.level === tableCtrlLevel + 1) {
+        // Compute grid coverage: use colSpan*rowSpan if available, otherwise 1
+        const CELL_SPAN_OFFSET = 12 // colSpan at offset 12, rowSpan at offset 14 in LIST_HEADER data
+        if (record.data.length >= CELL_SPAN_OFFSET + 4) {
+          const colSpan = record.data.readUInt16LE(CELL_SPAN_OFFSET)
+          const rowSpan = record.data.readUInt16LE(CELL_SPAN_OFFSET + 2)
+          gridCoverage += Math.max(1, colSpan) * Math.max(1, rowSpan)
+        } else {
+          gridCoverage += 1
+        }
+        if (record.data.length < TABLE_CELL_LIST_HEADER_MIN_SIZE) {
+          issues.push(
+            `${stream.name} cell LIST_HEADER at record ${i}: size ${record.data.length} < minimum ${TABLE_CELL_LIST_HEADER_MIN_SIZE}`,
+          )
+        }
+      }
+
+      if (issues.length >= 10) {
+        break
+      }
+    }
+
+    // Flush last table context
+    if (tableCtrlLevel !== null && expectedCellCount > 0 && gridCoverage !== expectedCellCount) {
+      issues.push(
+        `${stream.name} table at record ${tableStartIndex}: expected grid coverage ${expectedCellCount}, got ${gridCoverage}`,
+      )
+    }
+
+    if (issues.length >= 10) {
+      break
+    }
+  }
+
+  if (issues.length === 0) {
+    return { name: 'table_structure', status: 'pass' }
+  }
+
+  return {
+    name: 'table_structure',
+    status: 'fail',
+    message: issues[0],
+    details: {
+      issueCount: issues.length,
+      examples: issues.slice(0, 10),
+    },
+  }
 }
 
 function collectSectionEntries(cfb: CFB.CFB$Container): StreamRef[] {

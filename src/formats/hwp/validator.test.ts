@@ -2,8 +2,9 @@ import { afterEach, describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import CFB from 'cfb'
 import { createTestHwpBinary, createTestHwpCfb, createTestHwpx } from '../../test-helpers'
+import { controlIdBuffer } from './control-id'
 import { iterateRecords } from './record-parser'
-import { buildRecord, replaceRecordData } from './record-serializer'
+import { buildCellListHeaderData, buildRecord, buildTableData, replaceRecordData } from './record-serializer'
 import { TAG } from './tag-ids'
 import { validateHwp, validateHwpBuffer } from './validator'
 
@@ -488,6 +489,173 @@ describe('validateHwp', () => {
       expect(result.format).toBe('hwp')
       expect(result.file).toBe('<buffer>')
       expect(result.checks.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('Section H — Layer 8: Table Structure', () => {
+    it('passes on valid fixture with proper tables', async () => {
+      const result = await validateHwp('e2e/fixtures/폭행죄(고소장).hwp')
+
+      expect(getCheckStatus(result, 'table_structure')).toBe('pass')
+    })
+
+    it('passes on file without any tables', async () => {
+      const filePath = await writeTempHwp(await createTestHwpBinary({ paragraphs: ['hello'] }), 'validator-h-no-tables')
+
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'table_structure')).toBe('pass')
+    })
+
+    it('detects truncated CTRL_HEADER for table control', async () => {
+      // Build section with a table CTRL_HEADER that only has the 4-byte control ID
+      // (our broken table add produces this — real tables need >= 44 bytes)
+      const paraHeader = Buffer.alloc(24)
+      paraHeader.writeUInt32LE((0x80000000 | 1) >>> 0, 0)
+
+      const tableParaCharShape = Buffer.alloc(8)
+      const tableParaLineSeg = Buffer.alloc(36)
+
+      const section0 = Buffer.concat([
+        buildRecord(TAG.PARA_HEADER, 0, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 1, Buffer.from('\x0b\x00', 'binary')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape),
+        buildRecord(TAG.PARA_LINE_SEG, 1, tableParaLineSeg),
+        // Truncated table CTRL_HEADER — only 4 bytes (control ID)
+        buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')),
+        buildRecord(TAG.TABLE, 2, buildTableData(1, 1)),
+        buildRecord(TAG.LIST_HEADER, 2, buildCellListHeaderData(0, 0, 1, 1)),
+        buildRecord(TAG.PARA_HEADER, 3, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 3, Buffer.from('A', 'utf16le')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 3, tableParaCharShape),
+        buildRecord(TAG.PARA_LINE_SEG, 3, tableParaLineSeg),
+      ])
+
+      const filePath = await writeTempHwp(await buildHwpWithCustomSection0(section0), 'validator-h-truncated-ctrl')
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'table_structure')).toBe('fail')
+      expect(getCheckMessage(result, 'table_structure')).toContain('CTRL_HEADER')
+    })
+
+    it('detects truncated TABLE record', async () => {
+      // Build section with TABLE record that only has 8 bytes instead of >= 34
+      const paraHeader = Buffer.alloc(24)
+      paraHeader.writeUInt32LE((0x80000000 | 1) >>> 0, 0)
+
+      const tableParaCharShape = Buffer.alloc(8)
+      const tableParaLineSeg = Buffer.alloc(36)
+      // Full 44-byte CTRL_HEADER (enough to pass the ctrl header check)
+      const fullCtrlHeader = Buffer.alloc(44)
+      controlIdBuffer('tbl ').copy(fullCtrlHeader, 0)
+
+      const section0 = Buffer.concat([
+        buildRecord(TAG.PARA_HEADER, 0, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 1, Buffer.from('\x0b\x00', 'binary')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape),
+        buildRecord(TAG.PARA_LINE_SEG, 1, tableParaLineSeg),
+        buildRecord(TAG.CTRL_HEADER, 1, fullCtrlHeader),
+        // Truncated TABLE record — only 8 bytes (intentionally small for test)
+        buildRecord(TAG.TABLE, 2, Buffer.alloc(8)),
+        buildRecord(TAG.LIST_HEADER, 2, buildCellListHeaderData(0, 0, 1, 1)),
+        buildRecord(TAG.PARA_HEADER, 3, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 3, Buffer.from('A', 'utf16le')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 3, tableParaCharShape),
+        buildRecord(TAG.PARA_LINE_SEG, 3, tableParaLineSeg),
+      ])
+
+      const filePath = await writeTempHwp(await buildHwpWithCustomSection0(section0), 'validator-h-truncated-table')
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'table_structure')).toBe('fail')
+      expect(getCheckMessage(result, 'table_structure')).toContain('TABLE record')
+    })
+
+    it('detects truncated cell LIST_HEADER', async () => {
+      // Build section with cell LIST_HEADER that only has 32 bytes instead of >= 46
+      const paraHeader = Buffer.alloc(24)
+      paraHeader.writeUInt32LE((0x80000000 | 1) >>> 0, 0)
+
+      const tableParaCharShape = Buffer.alloc(8)
+      const tableParaLineSeg = Buffer.alloc(36)
+      const fullCtrlHeader = Buffer.alloc(44)
+      controlIdBuffer('tbl ').copy(fullCtrlHeader, 0)
+      // Full TABLE record (34 bytes)
+      const fullTableData = Buffer.alloc(34)
+      fullTableData.writeUInt16LE(1, 4) // rows
+      fullTableData.writeUInt16LE(1, 6) // cols
+
+      const section0 = Buffer.concat([
+        buildRecord(TAG.PARA_HEADER, 0, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 1, Buffer.from('\x0b\x00', 'binary')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape),
+        buildRecord(TAG.PARA_LINE_SEG, 1, tableParaLineSeg),
+        buildRecord(TAG.CTRL_HEADER, 1, fullCtrlHeader),
+        buildRecord(TAG.TABLE, 2, fullTableData),
+        // Truncated cell LIST_HEADER — only 32 bytes (intentionally small for test)
+        buildRecord(TAG.LIST_HEADER, 2, Buffer.alloc(32)),
+        buildRecord(TAG.PARA_HEADER, 3, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 3, Buffer.from('A', 'utf16le')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 3, tableParaCharShape),
+        buildRecord(TAG.PARA_LINE_SEG, 3, tableParaLineSeg),
+      ])
+
+      const filePath = await writeTempHwp(
+        await buildHwpWithCustomSection0(section0),
+        'validator-h-truncated-listheader',
+      )
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'table_structure')).toBe('fail')
+      expect(getCheckMessage(result, 'table_structure')).toContain('LIST_HEADER')
+    })
+
+    it('detects cell count mismatch', async () => {
+      // Build section with TABLE declaring 2x2=4 cells but only 2 LIST_HEADER records
+      const paraHeader = Buffer.alloc(24)
+      paraHeader.writeUInt32LE((0x80000000 | 1) >>> 0, 0)
+
+      const tableParaCharShape = Buffer.alloc(8)
+      const tableParaLineSeg = Buffer.alloc(36)
+      const fullCtrlHeader = Buffer.alloc(44)
+      controlIdBuffer('tbl ').copy(fullCtrlHeader, 0)
+      const fullTableData = Buffer.alloc(34)
+      fullTableData.writeUInt16LE(2, 4) // rows
+      fullTableData.writeUInt16LE(2, 6) // cols → expects 4 cells
+
+      // Full-size LIST_HEADER (46 bytes)
+      const fullCellHeader = Buffer.alloc(46)
+      fullCellHeader.writeInt32LE(1, 0)
+      fullCellHeader.writeUInt16LE(0, 8) // col
+      fullCellHeader.writeUInt16LE(0, 10) // row
+      fullCellHeader.writeUInt16LE(1, 12) // colSpan
+      fullCellHeader.writeUInt16LE(1, 14) // rowSpan
+
+      const section0 = Buffer.concat([
+        buildRecord(TAG.PARA_HEADER, 0, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 1, Buffer.from('\x0b\x00', 'binary')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape),
+        buildRecord(TAG.PARA_LINE_SEG, 1, tableParaLineSeg),
+        buildRecord(TAG.CTRL_HEADER, 1, fullCtrlHeader),
+        buildRecord(TAG.TABLE, 2, fullTableData),
+        // Only 2 cells instead of 4
+        buildRecord(TAG.LIST_HEADER, 2, fullCellHeader),
+        buildRecord(TAG.PARA_HEADER, 3, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 3, Buffer.from('A', 'utf16le')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 3, tableParaCharShape),
+        buildRecord(TAG.PARA_LINE_SEG, 3, tableParaLineSeg),
+        buildRecord(TAG.LIST_HEADER, 2, fullCellHeader),
+        buildRecord(TAG.PARA_HEADER, 3, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 3, Buffer.from('B', 'utf16le')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 3, tableParaCharShape),
+        buildRecord(TAG.PARA_LINE_SEG, 3, tableParaLineSeg),
+      ])
+
+      const filePath = await writeTempHwp(await buildHwpWithCustomSection0(section0), 'validator-h-cell-count')
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'table_structure')).toBe('fail')
+      expect(getCheckMessage(result, 'table_structure')).toContain('expected grid coverage 4')
     })
   })
 })

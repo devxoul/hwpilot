@@ -2,10 +2,9 @@ import { afterEach, describe, expect, it, spyOn } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import CFB from 'cfb'
 import { buildCellListHeaderData, buildMergedTable, createTestHwpBinary, createTestHwpCfb } from '../../test-helpers'
-import { controlIdBuffer } from './control-id'
 import { loadHwp } from './reader'
 import { iterateRecords } from './record-parser'
-import { buildRecord } from './record-serializer'
+import { buildRecord, buildTableCtrlHeaderData } from './record-serializer'
 import { decompressStream, getCompressionFlag } from './stream-util'
 import { TAG } from './tag-ids'
 import * as validatorModule from './validator'
@@ -277,10 +276,10 @@ describe('editHwp', () => {
     expect(cells[1]).toEqual({ col: 2, row: 0, text: 'EDITED' })
   })
 
-  it('setTableCell falls back to sequential cell matching when LIST_HEADER is empty', async () => {
-    const filePath = tmpPath('writer-table-cell-empty-list-header')
+  it('setTableCell matches cells by address in LIST_HEADER', async () => {
+    const filePath = tmpPath('writer-table-cell-addressed-list-header')
     TMP_FILES.push(filePath)
-    const fixture = await createTestHwpBinaryWithSection0(buildTableWithEmptyListHeaders(['A', 'B']))
+    const fixture = await createTestHwpBinaryWithSection0(buildTableWithAddressedListHeaders(['A', 'B']))
     await Bun.write(filePath, fixture)
 
     await editHwp(filePath, [{ type: 'setTableCell', ref: 's0.t0.r0.c1', text: 'EDITED' }])
@@ -576,9 +575,9 @@ async function createTestHwpBinaryWithSection0(section0: Buffer): Promise<Buffer
   return Buffer.from(CFB.write(cfb, { type: 'buffer' }))
 }
 
-function buildTableWithEmptyListHeaders(cells: string[]): Buffer {
+function buildTableWithAddressedListHeaders(cells: string[]): Buffer {
   const records: Buffer[] = []
-  const tableData = Buffer.alloc(8)
+  const tableData = Buffer.alloc(34)
   tableData.writeUInt16LE(1, 4)
   tableData.writeUInt16LE(cells.length, 6)
 
@@ -590,16 +589,17 @@ function buildTableWithEmptyListHeaders(cells: string[]): Buffer {
   records.push(buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape))
   records.push(buildRecord(TAG.PARA_TEXT, 1, Buffer.from([0x0b, 0x00])))
   records.push(buildRecord(TAG.PARA_LINE_SEG, 1, buildParaLineSegDataForTest()))
-  records.push(buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')))
+  records.push(buildRecord(TAG.CTRL_HEADER, 1, buildTableCtrlHeaderData()))
   records.push(buildRecord(TAG.TABLE, 2, tableData))
 
-  for (const cellText of cells) {
+  for (let cellIndex = 0; cellIndex < cells.length; cellIndex++) {
+    const cellText = cells[cellIndex]
     const cellTextData = Buffer.from(cellText, 'utf16le')
     const cellParaHeader = Buffer.alloc(24)
     cellParaHeader.writeUInt32LE((0x80000000 | (cellTextData.length / 2)) >>> 0, 0)
     const cellParaCharShape = Buffer.alloc(6)
     cellParaCharShape.writeUInt16LE(0, 4)
-    records.push(buildRecord(TAG.LIST_HEADER, 2, Buffer.alloc(0)))
+    records.push(buildRecord(TAG.LIST_HEADER, 2, buildCellListHeaderData(cellIndex, 0, 1, 1)))
     records.push(buildRecord(TAG.PARA_HEADER, 3, cellParaHeader))
     records.push(buildRecord(TAG.PARA_CHAR_SHAPE, 3, cellParaCharShape))
     records.push(buildRecord(TAG.PARA_TEXT, 3, cellTextData))
@@ -620,7 +620,7 @@ function buildSameLevelTable(rows: string[][], colCount: number, rowCount: numbe
   records.push(buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape))
   records.push(buildRecord(TAG.PARA_TEXT, 1, Buffer.from([0x0b, 0x00])))
   records.push(buildRecord(TAG.PARA_LINE_SEG, 1, buildParaLineSegDataForTest()))
-  records.push(buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')))
+  records.push(buildRecord(TAG.CTRL_HEADER, 1, buildTableCtrlHeaderData()))
   records.push(buildRecord(TAG.TABLE, 2, buildTableDataLocal(rowCount, colCount)))
 
   for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
@@ -644,7 +644,7 @@ function buildSameLevelTable(rows: string[][], colCount: number, rowCount: numbe
 }
 
 function buildTableDataLocal(rowCount: number, colCount: number): Buffer {
-  const table = Buffer.alloc(8)
+  const table = Buffer.alloc(34)
   table.writeUInt16LE(rowCount, 4)
   table.writeUInt16LE(colCount, 6)
   return table

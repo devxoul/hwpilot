@@ -1,7 +1,12 @@
 import CFB from 'cfb'
 import JSZip from 'jszip'
 import { controlIdBuffer } from '@/formats/hwp/control-id'
-import { buildCellListHeaderData, buildRecord, buildTableData } from '@/formats/hwp/record-serializer'
+import {
+  buildCellListHeaderData,
+  buildRecord,
+  buildTableCtrlHeaderData,
+  buildTableData,
+} from '@/formats/hwp/record-serializer'
 import { compressStream } from '@/formats/hwp/stream-util'
 import { TAG } from '@/formats/hwp/tag-ids'
 
@@ -302,7 +307,7 @@ function buildSection0Stream(paragraphs: string[], tables: TestTable[], textBoxe
     records.push(buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape))
     records.push(buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x000b])))
     records.push(buildRecord(TAG.PARA_LINE_SEG, 1, buildParaLineSeg()))
-    records.push(buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')))
+    records.push(buildRecord(TAG.CTRL_HEADER, 1, buildTableCtrlHeaderData()))
     records.push(buildRecord(TAG.TABLE, 2, buildTableData(table.rows.length, table.rows[0]?.length ?? 0)))
     for (let rowIndex = 0; rowIndex < table.rows.length; rowIndex++) {
       for (let colIndex = 0; colIndex < table.rows[rowIndex].length; colIndex++) {
@@ -357,7 +362,7 @@ export function buildMergedTable(rows: MergedTableRow[], colCount: number, rowCo
   records.push(buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape))
   records.push(buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x000b])))
   records.push(buildRecord(TAG.PARA_LINE_SEG, 1, buildParaLineSeg()))
-  records.push(buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')))
+  records.push(buildRecord(TAG.CTRL_HEADER, 1, buildTableCtrlHeaderData()))
   records.push(buildRecord(TAG.TABLE, 2, buildTableData(rowCount, colCount)))
 
   for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
@@ -427,7 +432,7 @@ function buildTextBoxRecord(level: number, text: string): Buffer {
     buildRecord(TAG.CTRL_HEADER, level, controlIdBuffer('gso ')),
     buildRecord(TAG.SHAPE_COMPONENT, level + 1, shapeComponentData),
     buildRecord(TAG.SHAPE_COMPONENT_RECTANGLE, level + 2, Buffer.alloc(0)),
-    buildRecord(TAG.LIST_HEADER, level + 1, Buffer.alloc(0)),
+    buildRecord(TAG.LIST_HEADER, level + 1, Buffer.alloc(46)),
     buildRecord(TAG.PARA_HEADER, level + 2, paraHeader),
     buildRecord(TAG.PARA_CHAR_SHAPE, level + 3, paraCharShape),
     buildRecord(TAG.PARA_TEXT, level + 3, textData),
