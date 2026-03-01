@@ -149,3 +149,73 @@ describe('createCommand', () => {
     expect(output).toEqual({ file, success: true })
   })
 })
+
+import { describe, expect, it } from 'bun:test'
+import JSZip from 'jszip'
+import { createTestHwpx } from '@/test-helpers'
+import { parseHeader } from '@/formats/hwpx/header-parser'
+
+describe('createTestHwpx — heading styles', () => {
+  async function getHeader() {
+    const buf = await createTestHwpx()
+    const zip = await JSZip.loadAsync(buf)
+    const headerXml = await zip.file('Contents/header.xml')!.async('string')
+    return parseHeader(headerXml)
+  }
+
+  it('has 8 styles total', async () => {
+    const header = await getHeader()
+    expect(header.styles).toHaveLength(8)
+  })
+
+  it('has Normal as style 0', async () => {
+    const header = await getHeader()
+    expect(header.styles[0].id).toBe(0)
+    expect(header.styles[0].name).toBe('Normal')
+  })
+
+  it('has 개요 1 through 개요 7 as styles 1-7', async () => {
+    const header = await getHeader()
+    for (let i = 1; i <= 7; i++) {
+      expect(header.styles[i].id).toBe(i)
+      expect(header.styles[i].name).toBe(`개요 ${i}`)
+      expect(header.styles[i].charShapeRef).toBe(i)
+      expect(header.styles[i].paraShapeRef).toBe(i)
+      expect(header.styles[i].type).toBe('PARA')
+    }
+  })
+
+  it('has 8 charPr entries with heading charShapes bold and sized', async () => {
+    const header = await getHeader()
+    expect(header.charShapes).toHaveLength(8)
+
+    // body charShape
+    expect(header.charShapes[0].id).toBe(0)
+    expect(header.charShapes[0].bold).toBe(false)
+
+    // heading charShapes: bold, decreasing sizes
+    const expectedSizes = [22, 18, 16, 14, 13, 12, 11]
+    for (let i = 1; i <= 7; i++) {
+      expect(header.charShapes[i].id).toBe(i)
+      expect(header.charShapes[i].bold).toBe(true)
+      expect(header.charShapes[i].fontSize).toBe(expectedSizes[i - 1])
+    }
+  })
+
+  it('has 8 paraPr entries with heading levels', async () => {
+    const header = await getHeader()
+    expect(header.paraShapes).toHaveLength(8)
+
+    // body paraPr
+    expect(header.paraShapes[0].id).toBe(0)
+    expect(header.paraShapes[0].align).toBe('justify')
+    expect(header.paraShapes[0].headingLevel).toBeUndefined()
+
+    // heading paraPrs
+    for (let i = 1; i <= 7; i++) {
+      expect(header.paraShapes[i].id).toBe(i)
+      expect(header.paraShapes[i].align).toBe('left')
+      expect(header.paraShapes[i].headingLevel).toBe(i)
+    }
+  })
+})

@@ -310,7 +310,7 @@ describe('mutateHwpxZip', () => {
 
       const sectionXml = await zip.file('Contents/section0.xml')!.async('string')
       expect(sectionXml).toContain('Bold Paragraph')
-      expect(sectionXml).toContain('hp:charPrIDRef="1"')
+      expect(sectionXml).toContain('hp:charPrIDRef="8"')
     } finally {
       await unlink(filePath)
     }
