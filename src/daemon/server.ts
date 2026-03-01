@@ -274,7 +274,10 @@ async function handleRequest(
         const rows = numberArg(msg.args.rows, 0)
         const cols = numberArg(msg.args.cols, 0)
         const data = Array.isArray(msg.args.data) ? (msg.args.data as string[][]) : undefined
-        const position = (typeof msg.args.position === 'string' ? msg.args.position : 'end') as 'before' | 'after' | 'end'
+        const position = (typeof msg.args.position === 'string' ? msg.args.position : 'end') as
+          | 'before'
+          | 'after'
+          | 'end'
         const parsedRef = parseRef(ref)
         const tableCount = sections[parsedRef.section]?.tables.length ?? 0
         await holder.applyOperations([{ type: 'addTable', ref, rows, cols, data, position }])

@@ -178,7 +178,16 @@ describe('Table Add — HWPX (created document)', () => {
     expect((parseOutput(createResult) as any).success).toBe(true)
 
     // when — add a table
-    const addResult = await runCli(['table', 'add', hwpxFile, 's0', '2', '3', '--data', '[["A","B","C"],["D","E","F"]]'])
+    const addResult = await runCli([
+      'table',
+      'add',
+      hwpxFile,
+      's0',
+      '2',
+      '3',
+      '--data',
+      '[["A","B","C"],["D","E","F"]]',
+    ])
     const addOutput = parseOutput(addResult) as any
     expect(addOutput.success).toBe(true)
     expect(addOutput.ref).toBe('s0.t0')
@@ -220,9 +229,16 @@ describe('E. Positional Table Add', () => {
 
       // when — add table before first paragraph
       const addResult = await runCli([
-        'table', 'add', hwpxFile, 's0.p0', '1', '2',
-        '--position', 'before',
-        '--data', '[["TBL_BEFORE_A","TBL_BEFORE_B"]]',
+        'table',
+        'add',
+        hwpxFile,
+        's0.p0',
+        '1',
+        '2',
+        '--position',
+        'before',
+        '--data',
+        '[["TBL_BEFORE_A","TBL_BEFORE_B"]]',
       ])
       expect((parseOutput(addResult) as any).success).toBe(true)
 
@@ -247,9 +263,16 @@ describe('E. Positional Table Add', () => {
 
       // when — add table after first paragraph
       const addResult = await runCli([
-        'table', 'add', hwpxFile, 's0.p0', '1', '2',
-        '--position', 'after',
-        '--data', '[["TBL_AFTER_A","TBL_AFTER_B"]]',
+        'table',
+        'add',
+        hwpxFile,
+        's0.p0',
+        '1',
+        '2',
+        '--position',
+        'after',
+        '--data',
+        '[["TBL_AFTER_A","TBL_AFTER_B"]]',
       ])
       expect((parseOutput(addResult) as any).success).toBe(true)
 
@@ -273,9 +296,16 @@ describe('E. Positional Table Add', () => {
 
       // when — add table before first paragraph
       const addResult = await runCli([
-        'table', 'add', temp, 's0.p0', '1', '2',
-        '--position', 'before',
-        '--data', '[["HWP_BEFORE_A","HWP_BEFORE_B"]]',
+        'table',
+        'add',
+        temp,
+        's0.p0',
+        '1',
+        '2',
+        '--position',
+        'before',
+        '--data',
+        '[["HWP_BEFORE_A","HWP_BEFORE_B"]]',
       ])
       expect((parseOutput(addResult) as any).success).toBe(true)
 
@@ -291,9 +321,16 @@ describe('E. Positional Table Add', () => {
 
       // when — add table after first paragraph
       const addResult = await runCli([
-        'table', 'add', temp, 's0.p0', '1', '2',
-        '--position', 'after',
-        '--data', '[["HWP_AFTER_A","HWP_AFTER_B"]]',
+        'table',
+        'add',
+        temp,
+        's0.p0',
+        '1',
+        '2',
+        '--position',
+        'after',
+        '--data',
+        '[["HWP_AFTER_A","HWP_AFTER_B"]]',
       ])
       expect((parseOutput(addResult) as any).success).toBe(true)
 
@@ -313,9 +350,16 @@ describe('E. Positional Table Add', () => {
 
       // when — add table at specific position in HWP
       await runCli([
-        'table', 'add', temp, 's0.p0', '1', '2',
-        '--position', 'before',
-        '--data', JSON.stringify([[marker, 'cross-val']]),
+        'table',
+        'add',
+        temp,
+        's0.p0',
+        '1',
+        '2',
+        '--position',
+        'before',
+        '--data',
+        JSON.stringify([[marker, 'cross-val']]),
       ])
 
       // then — marker survives HWP→HWPX conversion

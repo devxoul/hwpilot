@@ -323,7 +323,11 @@ describe('mutateHwpCfb addTable', () => {
     const cfb = CFB.read(fixture, { type: 'buffer' })
     const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
 
-    mutateHwpCfb(cfb, [{ type: 'addTable', ref: 's0', rows: 1, cols: 1, position: 'end', data: [['Cell']] }], compressed)
+    mutateHwpCfb(
+      cfb,
+      [{ type: 'addTable', ref: 's0', rows: 1, cols: 1, position: 'end', data: [['Cell']] }],
+      compressed,
+    )
 
     const outPath = tmpPath('mutator-addTable-preserve')
     await writeFile(outPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
@@ -347,7 +351,10 @@ describe('mutateHwpCfb addTable', () => {
 
     const outPath = tmpPath('mutator-addTable-position-end-out')
     await writeFile(outPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
-    const hwpxPath = join(tmpdir(), `mutator-addTable-position-end-${Date.now()}-${Math.random().toString(36).slice(2)}.hwpx`)
+    const hwpxPath = join(
+      tmpdir(),
+      `mutator-addTable-position-end-${Date.now()}-${Math.random().toString(36).slice(2)}.hwpx`,
+    )
 
     try {
       const doc = await loadHwp(outPath)
@@ -374,7 +381,10 @@ describe('mutateHwpCfb addTable', () => {
 
     const outPath = tmpPath('mutator-addTable-position-before-out')
     await writeFile(outPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
-    const hwpxPath = join(tmpdir(), `mutator-addTable-position-before-${Date.now()}-${Math.random().toString(36).slice(2)}.hwpx`)
+    const hwpxPath = join(
+      tmpdir(),
+      `mutator-addTable-position-before-${Date.now()}-${Math.random().toString(36).slice(2)}.hwpx`,
+    )
 
     try {
       const doc = await loadHwp(outPath)
@@ -401,12 +411,19 @@ describe('mutateHwpCfb addTable', () => {
 
     const outPath = tmpPath('mutator-addTable-position-after-out')
     await writeFile(outPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
-    const hwpxPath = join(tmpdir(), `mutator-addTable-position-after-${Date.now()}-${Math.random().toString(36).slice(2)}.hwpx`)
+    const hwpxPath = join(
+      tmpdir(),
+      `mutator-addTable-position-after-${Date.now()}-${Math.random().toString(36).slice(2)}.hwpx`,
+    )
 
     try {
       const doc = await loadHwp(outPath)
       expect(doc.sections[0].tables).toHaveLength(1)
-      expect(doc.sections[0].paragraphs.map((p) => p.runs.map((r) => r.text).join(''))).toEqual(['PARA_A', '', 'PARA_B'])
+      expect(doc.sections[0].paragraphs.map((p) => p.runs.map((r) => r.text).join(''))).toEqual([
+        'PARA_A',
+        '',
+        'PARA_B',
+      ])
 
       await convertCommand(outPath, hwpxPath, { force: true })
       const zip = await JSZip.loadAsync(await readFile(hwpxPath))

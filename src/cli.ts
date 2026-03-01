@@ -138,9 +138,17 @@ tableCmd
   .option('--position <pos>', 'Insertion position: before|after|end', 'end')
   .option('--data <json>', 'Cell data as JSON array of arrays')
   .option('--pretty', 'Pretty-print JSON output')
-  .action(async (file: string, ref: string, rows: string, cols: string, options: { position?: string; data?: string; pretty?: boolean }) => {
-    await tableAddCommand(file, ref, Number(rows), Number(cols), options)
-  })
+  .action(
+    async (
+      file: string,
+      ref: string,
+      rows: string,
+      cols: string,
+      options: { position?: string; data?: string; pretty?: boolean },
+    ) => {
+      await tableAddCommand(file, ref, Number(rows), Number(cols), options)
+    },
+  )
 
 // hwpilot paragraph
 const paragraphCmd = program.command('paragraph').description('Paragraph operations')

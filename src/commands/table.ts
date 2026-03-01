@@ -149,9 +149,7 @@ export async function tableAddCommand(
     const parsedRef = parseRef(ref)
 
     if ((position === 'before' || position === 'after') && parsedRef.paragraph === undefined) {
-      throw new Error(
-        `table add with position '${position}' requires a paragraph reference (e.g., s0.p0)`,
-      )
+      throw new Error(`table add with position '${position}' requires a paragraph reference (e.g., s0.p0)`)
     }
 
     const data: string[][] | undefined = options.data ? JSON.parse(options.data) : undefined
