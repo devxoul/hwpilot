@@ -1,5 +1,5 @@
 import { describe, it } from 'bun:test'
-import type { DocumentHeader, HwpDocument, Image, Section, Table, TextBox } from './types'
+import type { DocumentHeader, HwpDocument, Image, ParaShape, Section, Style, Table, TextBox } from './types'
 
 describe('types', () => {
   it('HwpDocument type is correct', () => {
@@ -72,6 +72,20 @@ describe('types', () => {
       styles: [{ id: 0, name: 'Normal', charShapeRef: 0, paraShapeRef: 0 }],
     }
     void header
+  })
+
+  it('ParaShape supports optional headingLevel', () => {
+    const body: ParaShape = { id: 0, align: 'left' }
+    const heading: ParaShape = { id: 1, align: 'left', headingLevel: 1 }
+    void body
+    void heading
+  })
+
+  it('Style supports optional type field', () => {
+    const body: Style = { id: 0, name: 'Normal', charShapeRef: 0, paraShapeRef: 0 }
+    const heading: Style = { id: 1, name: '개요 1', charShapeRef: 1, paraShapeRef: 1, type: 'PARA' }
+    void body
+    void heading
   })
 
   it('TextBox type is correct', () => {
