@@ -276,6 +276,7 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
     {
       runs: Run[]
       charShapeRef: number
+      charShapeEntries: Array<{ pos: number; ref: number }> | null
       paraShapeRef: number
       styleRef: number
       target: 'section' | 'cell' | 'textBox'
@@ -365,6 +366,7 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
   ): {
     runs: Run[]
     charShapeRef: number
+    charShapeEntries: Array<{ pos: number; ref: number }> | null
     paraShapeRef: number
     styleRef: number
     target: 'section' | 'cell' | 'textBox'
@@ -402,6 +404,7 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
       activeParagraphs.set(header.level, {
         runs: [],
         charShapeRef: 0,
+        charShapeEntries: null,
         paraShapeRef,
         styleRef,
         target,
@@ -415,8 +418,33 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
         continue
       }
 
-      if (data.length >= 6) {
-        paragraph.charShapeRef = data.readUInt16LE(4)
+      // Parse all (pos: uint32, ref: uint32) entries
+      const entries: Array<{ pos: number; ref: number }> = []
+      if (data.length >= 8 && data.length % 8 === 0) {
+        for (let i = 0; i < data.length; i += 8) {
+          entries.push({ pos: data.readUInt32LE(i), ref: data.readUInt32LE(i + 4) })
+        }
+      } else if (data.length >= 6) {
+        // Legacy short format: 6 bytes with charShapeRef as uint16 at offset 4
+        entries.push({ pos: data.readUInt16LE(0), ref: data.readUInt16LE(4) })
+      }
+
+      if (entries.length > 0) {
+        paragraph.charShapeRef = entries[0].ref
+        paragraph.charShapeEntries = entries
+      }
+
+      // Retroactively update runs if PARA_TEXT was already processed
+      if (paragraph.runs.length > 0) {
+        if (entries.length <= 1) {
+          for (const run of paragraph.runs) {
+            run.charShapeRef = paragraph.charShapeRef
+          }
+        } else {
+          // Multiple entries — split the single run into multiple runs by char position
+          const fullText = paragraph.runs.map((r) => r.text).join('')
+          paragraph.runs = splitTextByCharShapeEntries(fullText, entries)
+        }
       }
       continue
     }
@@ -429,7 +457,14 @@ function parseSection(buffer: Buffer, sectionIndex: number, binDataById: Map<num
 
       const text = extractParaText(data)
       if (text) {
-        paragraph.runs.push({ text, charShapeRef: paragraph.charShapeRef })
+        if (paragraph.charShapeEntries && paragraph.charShapeEntries.length > 1) {
+          // PARA_CHAR_SHAPE was already processed with multiple entries
+          for (const run of splitTextByCharShapeEntries(text, paragraph.charShapeEntries)) {
+            paragraph.runs.push(run)
+          }
+        } else {
+          paragraph.runs.push({ text, charShapeRef: paragraph.charShapeRef })
+        }
       }
       continue
     }
@@ -689,4 +724,17 @@ export function extractParaText(data: Buffer): string {
   }
 
   return chars.join('')
+}
+
+function splitTextByCharShapeEntries(text: string, entries: Array<{ pos: number; ref: number }>): Run[] {
+  const runs: Run[] = []
+  for (let i = 0; i < entries.length; i++) {
+    const start = entries[i].pos
+    const end = i + 1 < entries.length ? entries[i + 1].pos : text.length
+    const slice = text.substring(start, end)
+    if (slice) {
+      runs.push({ text: slice, charShapeRef: entries[i].ref })
+    }
+  }
+  return runs.length > 0 ? runs : [{ text, charShapeRef: entries[0]?.ref ?? 0 }]
 }

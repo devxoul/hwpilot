@@ -429,6 +429,120 @@ describe('loadHwp', () => {
   })
 })
 
+describe('PARA_CHAR_SHAPE reading', () => {
+  function paraCharShapeData(...entries: Array<{ pos: number; ref: number }>): Buffer {
+    const buf = Buffer.alloc(entries.length * 8)
+    for (let i = 0; i < entries.length; i++) {
+      buf.writeUInt32LE(entries[i].pos, i * 8)
+      buf.writeUInt32LE(entries[i].ref, i * 8 + 4)
+    }
+    return buf
+  }
+
+  function paragraphWithCharShape(
+    level: number,
+    text: string,
+    charShapeEntries: Array<{ pos: number; ref: number }>,
+  ): Buffer {
+    // Real HWP record order: PARA_HEADER, PARA_TEXT, PARA_CHAR_SHAPE, PARA_LINE_SEG
+    return Buffer.concat([
+      buildRecord(TAG.PARA_HEADER, level, Buffer.alloc(0)),
+      buildRecord(TAG.PARA_TEXT, level + 1, encodeUint16([...text].map((ch) => ch.charCodeAt(0)).concat(0x0000))),
+      buildRecord(TAG.PARA_CHAR_SHAPE, level + 1, paraCharShapeData(...charShapeEntries)),
+    ])
+  }
+
+  it('reads charShapeRef when PARA_TEXT appears before PARA_CHAR_SHAPE', async () => {
+    const filePath = '/tmp/test-hwp-charshape-ordering.hwp'
+    TMP_FILES.push(filePath)
+
+    const sectionRecords = Buffer.concat([paragraphWithCharShape(0, 'Hello', [{ pos: 0, ref: 5 }])])
+
+    const buffer = createHwpCfbBufferWithRecords(0, Buffer.alloc(0), sectionRecords)
+    await Bun.write(filePath, buffer)
+
+    const doc = await loadHwp(filePath)
+    const run = doc.sections[0].paragraphs[0].runs[0]
+
+    expect(run.charShapeRef).toBe(5)
+  })
+
+  it('reads charShapeRef when PARA_CHAR_SHAPE appears before PARA_TEXT', async () => {
+    const filePath = '/tmp/test-hwp-charshape-before-text.hwp'
+    TMP_FILES.push(filePath)
+
+    // Reversed order: PARA_HEADER, PARA_CHAR_SHAPE, PARA_TEXT
+    const sectionRecords = Buffer.concat([
+      buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)),
+      buildRecord(TAG.PARA_CHAR_SHAPE, 1, paraCharShapeData({ pos: 0, ref: 3 })),
+      buildRecord(TAG.PARA_TEXT, 1, encodeUint16([...'World'].map((ch) => ch.charCodeAt(0)).concat(0x0000))),
+    ])
+
+    const buffer = createHwpCfbBufferWithRecords(0, Buffer.alloc(0), sectionRecords)
+    await Bun.write(filePath, buffer)
+
+    const doc = await loadHwp(filePath)
+    const run = doc.sections[0].paragraphs[0].runs[0]
+
+    expect(run.charShapeRef).toBe(3)
+  })
+
+  it('splits text into multiple runs for inline formatting', async () => {
+    const filePath = '/tmp/test-hwp-charshape-inline.hwp'
+    TMP_FILES.push(filePath)
+
+    // 'Hello World' with two charShape entries: pos 0 ref 1, pos 5 ref 2
+    const sectionRecords = Buffer.concat([
+      paragraphWithCharShape(0, 'Hello World', [
+        { pos: 0, ref: 1 },
+        { pos: 5, ref: 2 },
+      ]),
+    ])
+
+    const buffer = createHwpCfbBufferWithRecords(0, Buffer.alloc(0), sectionRecords)
+    await Bun.write(filePath, buffer)
+
+    const doc = await loadHwp(filePath)
+    const runs = doc.sections[0].paragraphs[0].runs
+
+    expect(runs).toHaveLength(2)
+    expect(runs[0].text).toBe('Hello')
+    expect(runs[0].charShapeRef).toBe(1)
+    expect(runs[1].text).toBe(' World')
+    expect(runs[1].charShapeRef).toBe(2)
+  })
+
+  it('handles large charShapeRef values exceeding uint16 range', async () => {
+    const filePath = '/tmp/test-hwp-charshape-large-ref.hwp'
+    TMP_FILES.push(filePath)
+
+    const sectionRecords = Buffer.concat([paragraphWithCharShape(0, 'Test', [{ pos: 0, ref: 70000 }])])
+
+    const buffer = createHwpCfbBufferWithRecords(0, Buffer.alloc(0), sectionRecords)
+    await Bun.write(filePath, buffer)
+
+    const doc = await loadHwp(filePath)
+    const run = doc.sections[0].paragraphs[0].runs[0]
+
+    expect(run.charShapeRef).toBe(70000)
+  })
+
+  it('defaults to charShapeRef 0 when no PARA_CHAR_SHAPE record exists', async () => {
+    const filePath = '/tmp/test-hwp-charshape-missing.hwp'
+    TMP_FILES.push(filePath)
+
+    const sectionRecords = paragraphRecord(0, 'No charshape')
+
+    const buffer = createHwpCfbBufferWithRecords(0, Buffer.alloc(0), sectionRecords)
+    await Bun.write(filePath, buffer)
+
+    const doc = await loadHwp(filePath)
+    const run = doc.sections[0].paragraphs[0].runs[0]
+
+    expect(run.charShapeRef).toBe(0)
+  })
+})
+
 describe('extractParaText', () => {
   it('extracts UTF-16LE text and skips inline control payload', () => {
     const data = encodeUint16([
