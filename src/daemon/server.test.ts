@@ -109,6 +109,43 @@ describe('daemon server', () => {
     const sections = await parseSections(archive)
     expect(sections[0]?.paragraphs[0]?.runs[0]?.text).toBe('After')
   })
+
+  test('forwards heading and style options in paragraph-add', async () => {
+    const filePath = await createTempHwpxFile(['Body text'])
+    const daemon = await startTestDaemon(filePath, {
+      HWPILOT_DAEMON_IDLE_MS: '10000',
+      HWPILOT_DAEMON_FLUSH_MS: '50',
+    })
+
+    const response = await sendRequest(daemon.port, daemon.token, {
+      command: 'paragraph-add',
+      args: {
+        ref: 's0',
+        text: 'Heading paragraph',
+        position: 'end',
+        heading: 1,
+      },
+    })
+
+    expect(response.success).toBe(true)
+    if (response.success) {
+      expect(response.data).toMatchObject({
+        ref: 's0',
+        text: 'Heading paragraph',
+        position: 'end',
+        success: true,
+      })
+    }
+
+    await sleep(200)
+    await daemon.stop()
+    removeDaemon(daemon)
+
+    const archive = await loadHwpx(filePath)
+    const sections = await parseSections(archive)
+    const lastPara = sections[0]?.paragraphs[sections[0].paragraphs.length - 1]
+    expect(lastPara?.runs[0]?.text).toBe('Heading paragraph')
+  })
 })
 
 async function createTempHwpxFile(paragraphs: string[]): Promise<string> {

@@ -107,6 +107,8 @@ function patchDocInfo(
   const parts: Buffer[] = []
   let faceNameIndex = 0
   let charShapeIndex = 0
+  let paraShapeIndex = 0
+  let styleIndex = 0
   for (const { header, data, offset } of iterateRecords(stream)) {
     const recordBuf = stream.subarray(offset, offset + header.headerSize + header.size)
     if (header.tagId === TAG.FACE_NAME && font) {
@@ -125,16 +127,64 @@ function patchDocInfo(
         if (font) patched.writeUInt16LE(0, 0)
         if (fontSize) patched.writeUInt32LE(fontSize, 42)
         parts.push(buildRecord(TAG.CHAR_SHAPE, header.level, patched))
+        // Add 7 heading charShapes after body
+        for (const headingCharShape of buildHeadingCharShapes(data)) {
+          parts.push(buildRecord(TAG.CHAR_SHAPE, header.level, headingCharShape))
+        }
       }
       charShapeIndex++
+      continue
+    }
+
+    if (header.tagId === TAG.PARA_SHAPE) {
+      if (paraShapeIndex === 0) {
+        parts.push(recordBuf)
+        // Add 7 heading paraShapes after body
+        for (const headingParaShape of buildHeadingParaShapes()) {
+          parts.push(buildRecord(TAG.PARA_SHAPE, header.level, headingParaShape))
+        }
+      }
+      paraShapeIndex++
+      continue
+    }
+
+    if (header.tagId === TAG.STYLE) {
+      if (styleIndex === 0) {
+        // Patch body style refs to 0/0
+        const patched = Buffer.from(data)
+        const nameLen = patched.readUInt16LE(0)
+        let refOffset = 2 + nameLen * 2
+        if (refOffset + 2 <= patched.length) {
+          const englishNameLen = patched.readUInt16LE(refOffset)
+          refOffset += 2 + englishNameLen * 2
+        }
+        if (refOffset + 4 <= patched.length) {
+          patched.writeUInt16LE(0, refOffset) // charShapeRef = 0
+          patched.writeUInt16LE(0, refOffset + 2) // paraShapeRef = 0
+        }
+        parts.push(buildRecord(TAG.STYLE, header.level, patched))
+        // Add 7 heading styles after body
+        for (const headingStyle of buildHeadingStyles()) {
+          parts.push(buildRecord(TAG.STYLE, header.level, headingStyle))
+        }
+      }
+      styleIndex++
       continue
     }
 
     if (header.tagId === TAG.ID_MAPPINGS) {
       const patched = Buffer.from(data)
       const charShapeByteOffset = 9 * 4
+      const paraShapeByteOffset = 13 * 4
+      const styleByteOffset = 14 * 4
       if (patched.length >= charShapeByteOffset + 4) {
-        patched.writeUInt32LE(1, charShapeByteOffset)
+        patched.writeUInt32LE(8, charShapeByteOffset)
+      }
+      if (patched.length >= paraShapeByteOffset + 4) {
+        patched.writeUInt32LE(8, paraShapeByteOffset)
+      }
+      if (patched.length >= styleByteOffset + 4) {
+        patched.writeUInt32LE(8, styleByteOffset)
       }
       parts.push(buildRecord(header.tagId, header.level, patched))
       continue
@@ -144,6 +194,42 @@ function patchDocInfo(
   }
 
   return { docInfo: Buffer.concat(parts) }
+}
+
+const HEADING_FONT_SIZES = [2200, 1800, 1600, 1400, 1300, 1200, 1100]
+
+function buildHeadingCharShapes(bodyCharShapeData: Buffer): Buffer[] {
+  return HEADING_FONT_SIZES.map((size) => {
+    const cs = Buffer.from(bodyCharShapeData)
+    cs.writeUInt32LE(size, 42)
+    // Set bold bit (bit 0) in attribute flags at offset 46
+    const attrBits = cs.readUInt32LE(46)
+    cs.writeUInt32LE((attrBits | 0x1) >>> 0, 46)
+    return cs
+  })
+}
+
+function buildHeadingParaShapes(): Buffer[] {
+  return Array.from({ length: 7 }, (_, i) => {
+    const level = i + 1
+    const buf = Buffer.alloc(4)
+    // bits 2-4: alignment=1 (left), bits 25-27: heading level
+    buf.writeUInt32LE(((level << 25) | (1 << 2)) >>> 0, 0)
+    return buf
+  })
+}
+
+function buildHeadingStyles(): Buffer[] {
+  return Array.from({ length: 7 }, (_, i) => {
+    const level = i + 1
+    const koreanName = encodeLengthPrefixedUtf16(`\uAC1C\uC694 ${level}`)
+    const englishNameLen = Buffer.alloc(2)
+    englishNameLen.writeUInt16LE(0, 0)
+    const refs = Buffer.alloc(4)
+    refs.writeUInt16LE(level, 0) // charShapeRef
+    refs.writeUInt16LE(level, 2) // paraShapeRef
+    return Buffer.concat([koreanName, englishNameLen, refs])
+  })
 }
 
 function encodeLengthPrefixedUtf16(text: string): Buffer {

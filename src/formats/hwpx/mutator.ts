@@ -72,8 +72,8 @@ export async function mutateHwpxZip(zip: JSZip, archive: HwpxArchive, operations
         if (!headerTree) {
           headerTree = parseXml(await archive.getHeaderXml())
         }
-        addParagraphToSection(sectionTree, headerTree, op.text, op.position, ref, op.format)
-        if (op.format) headerChanged = true
+        addParagraphToSection(sectionTree, headerTree, op.text, op.position, ref, op.format, op.heading, op.style)
+        if (op.format || op.heading !== undefined || op.style !== undefined) headerChanged = true
         continue
       }
 
@@ -243,7 +243,13 @@ function addParagraphToSection(
   position: 'before' | 'after' | 'end',
   ref: ParsedRef,
   format?: FormatOptions,
+  heading?: number,
+  style?: string | number,
 ): void {
+  if (heading !== undefined && style !== undefined) {
+    throw new Error('Cannot specify both heading and style')
+  }
+
   const sectionRoot = getSectionRootNode(sectionTree)
   const elementName = getElementName(sectionRoot)
   const sectionChildren = getElementChildren(sectionRoot, elementName)
@@ -256,6 +262,24 @@ function addParagraphToSection(
   const paraNode: XmlNode = {
     'hp:p': [runNode],
     ':@': { 'hp:id': '0', 'hp:paraPrIDRef': '0', 'hp:styleIDRef': '0' },
+  }
+
+  if (heading !== undefined) {
+    const styleNode = lookupStyle(headerTree, { heading })
+    setAttr(paraNode, 'styleIDRef', getAttr(styleNode, 'id')!, 'hp:styleIDRef')
+    setAttr(paraNode, 'paraPrIDRef', getAttr(styleNode, 'paraPrIDRef')!, 'hp:paraPrIDRef')
+    const charPrIDRef = getAttr(styleNode, 'charPrIDRef')
+    if (charPrIDRef) {
+      setAttr(runNode, 'charPrIDRef', charPrIDRef, 'hp:charPrIDRef')
+    }
+  } else if (style !== undefined) {
+    const styleNode = lookupStyle(headerTree, { style })
+    setAttr(paraNode, 'styleIDRef', getAttr(styleNode, 'id')!, 'hp:styleIDRef')
+    setAttr(paraNode, 'paraPrIDRef', getAttr(styleNode, 'paraPrIDRef')!, 'hp:paraPrIDRef')
+    const charPrIDRef = getAttr(styleNode, 'charPrIDRef')
+    if (charPrIDRef) {
+      setAttr(runNode, 'charPrIDRef', charPrIDRef, 'hp:charPrIDRef')
+    }
   }
 
   if (format) {
@@ -645,6 +669,44 @@ function getRefListNode(headerTree: XmlNode[]): XmlNode {
     throw new Error('hh:refList not found in header.xml')
   }
   return refListNode
+}
+
+function getStylesNode(headerTree: XmlNode[]): XmlNode {
+  const refListNode = getRefListNode(headerTree)
+  const stylesNode = getChildElements(getElementChildren(refListNode, 'hh:refList'), 'hh:styles')[0]
+  if (!stylesNode) {
+    throw new Error('hh:styles not found in header.xml')
+  }
+  return stylesNode
+}
+
+function lookupStyle(headerTree: XmlNode[], query: { heading: number } | { style: string | number }): XmlNode {
+  const stylesNode = getStylesNode(headerTree)
+  const styleNodes = getChildElements(getElementChildren(stylesNode, 'hh:styles'), 'hh:style')
+
+  if ('heading' in query) {
+    const name = `\uAC1C\uC694 ${query.heading}`
+    const found = styleNodes.find((node) => getAttr(node, 'name') === name)
+    if (!found) {
+      throw new Error(`Heading style not found: \uAC1C\uC694 ${query.heading}`)
+    }
+    return found
+  }
+
+  const { style } = query
+  if (typeof style === 'number') {
+    const found = styleNodes.find((node) => getAttr(node, 'id') === String(style))
+    if (!found) {
+      throw new Error(`Style not found with id: ${style}`)
+    }
+    return found
+  }
+
+  const found = styleNodes.find((node) => getAttr(node, 'name') === style)
+  if (!found) {
+    throw new Error(`Style not found with name: ${style}`)
+  }
+  return found
 }
 
 function getElementName(node: XmlNode): string {

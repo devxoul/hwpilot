@@ -537,3 +537,144 @@ function shapePictureData(binId: number, noiseIdAtZero = 0): Buffer {
   data.writeUInt16LE(binId, 4 * 17 + 3)
   return data
 }
+
+// Test for STYLE record with non-empty English name
+describe('STYLE record parsing', () => {
+  it('parses STYLE record with non-empty English name correctly', async () => {
+    const filePath = '/tmp/test-hwp-style-english-name.hwp'
+    const _TMP_FILES: string[] = [filePath]
+
+    // Build STYLE record with Korean name "스타일" and English name "Heading 1"
+    const koreanName = Buffer.from('스타일', 'utf16le')
+    const koreanNameLen = Buffer.alloc(2)
+    koreanNameLen.writeUInt16LE(3, 0) // "스타일" is 3 characters
+
+    const englishName = Buffer.from('Heading 1', 'utf16le')
+    const englishNameLen = Buffer.alloc(2)
+    englishNameLen.writeUInt16LE(9, 0) // "Heading 1" is 9 characters
+
+    const charShapeRef = Buffer.alloc(2)
+    charShapeRef.writeUInt16LE(5, 0)
+
+    const paraShapeRef = Buffer.alloc(2)
+    paraShapeRef.writeUInt16LE(3, 0)
+
+    const styleData = Buffer.concat([
+      koreanNameLen,
+      koreanName,
+      englishNameLen,
+      englishName,
+      charShapeRef,
+      paraShapeRef,
+    ])
+
+    const docInfoRecords = buildRecord(TAG.STYLE, 1, styleData)
+    const sectionRecords = Buffer.concat([
+      buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)),
+      buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x0000])),
+    ])
+
+    const buffer = createHwpCfbBufferWithRecords(0, docInfoRecords, sectionRecords)
+    await Bun.write(filePath, buffer)
+
+    const doc = await loadHwp(filePath)
+    const style = doc.header.styles[0]
+
+    expect(style.name).toBe('스타일')
+    expect(style.charShapeRef).toBe(5)
+    expect(style.paraShapeRef).toBe(3)
+
+    // Cleanup
+    await Bun.file(filePath).delete()
+  })
+})
+
+// Test for PARA_SHAPE record with heading level
+describe('PARA_SHAPE record parsing', () => {
+  it('parses PARA_SHAPE with heading level 1 set in bits 25-27', async () => {
+    const filePath = '/tmp/test-hwp-para-shape-heading-1.hwp'
+    const _TMP_FILES: string[] = [filePath]
+
+    // Build PARA_SHAPE record with heading level 1 in bits 25-27
+    // First DWORD: bits 25-27 = 1 (heading level 1)
+    // Bits 25-27 means: (1 << 25) = 0x02000000
+    const dword = Buffer.alloc(4)
+    dword.writeUInt32LE(0x02000000, 0) // heading level 1 in bits 25-27
+
+    const paraShapeData = dword
+
+    const docInfoRecords = buildRecord(TAG.PARA_SHAPE, 1, paraShapeData)
+    const sectionRecords = Buffer.concat([
+      buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)),
+      buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x0000])),
+    ])
+
+    const buffer = createHwpCfbBufferWithRecords(0, docInfoRecords, sectionRecords)
+    await Bun.write(filePath, buffer)
+
+    const doc = await loadHwp(filePath)
+    const paraShape = doc.header.paraShapes[0]
+
+    expect(paraShape.headingLevel).toBe(1)
+
+    // Cleanup
+    await Bun.file(filePath).delete()
+  })
+
+  it('parses PARA_SHAPE with heading level 0 (body text) as undefined', async () => {
+    const filePath = '/tmp/test-hwp-para-shape-heading-0.hwp'
+    const _TMP_FILES: string[] = [filePath]
+
+    // Build PARA_SHAPE record with heading level 0 (body text)
+    const dword = Buffer.alloc(4)
+    dword.writeUInt32LE(0x00000000, 0) // heading level 0 (body text)
+
+    const paraShapeData = dword
+
+    const docInfoRecords = buildRecord(TAG.PARA_SHAPE, 1, paraShapeData)
+    const sectionRecords = Buffer.concat([
+      buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)),
+      buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x0000])),
+    ])
+
+    const buffer = createHwpCfbBufferWithRecords(0, docInfoRecords, sectionRecords)
+    await Bun.write(filePath, buffer)
+
+    const doc = await loadHwp(filePath)
+    const paraShape = doc.header.paraShapes[0]
+
+    expect(paraShape.headingLevel).toBeUndefined()
+
+    // Cleanup
+    await Bun.file(filePath).delete()
+  })
+
+  it('parses PARA_SHAPE with heading level 3 set in bits 25-27', async () => {
+    const filePath = '/tmp/test-hwp-para-shape-heading-3.hwp'
+    const _TMP_FILES: string[] = [filePath]
+
+    // Build PARA_SHAPE record with heading level 3 in bits 25-27
+    // Bits 25-27 = 3 means: (3 << 25) = 0x06000000
+    const dword = Buffer.alloc(4)
+    dword.writeUInt32LE(0x06000000, 0) // heading level 3 in bits 25-27
+
+    const paraShapeData = dword
+
+    const docInfoRecords = buildRecord(TAG.PARA_SHAPE, 1, paraShapeData)
+    const sectionRecords = Buffer.concat([
+      buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)),
+      buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x0000])),
+    ])
+
+    const buffer = createHwpCfbBufferWithRecords(0, docInfoRecords, sectionRecords)
+    await Bun.write(filePath, buffer)
+
+    const doc = await loadHwp(filePath)
+    const paraShape = doc.header.paraShapes[0]
+
+    expect(paraShape.headingLevel).toBe(3)
+
+    // Cleanup
+    await Bun.file(filePath).delete()
+  })
+})

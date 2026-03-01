@@ -180,3 +180,183 @@ describe('generateHwpx', () => {
     expect(sections[0].paragraphs[0].runs[0].text).toBe('Hello')
   })
 })
+
+describe('generateHwpx - heading level and style type', () => {
+  it('writes hh:heading element with level attribute when paraShape has headingLevel > 0', async () => {
+    const doc: HwpDocument = {
+      format: 'hwp',
+      sections: [
+        {
+          paragraphs: [
+            {
+              ref: 's0.p0',
+              runs: [{ text: 'Heading 1', charShapeRef: 0 }],
+              paraShapeRef: 0,
+              styleRef: 0,
+            },
+          ],
+          tables: [],
+          images: [],
+        },
+      ],
+      header: {
+        fonts: [{ id: 0, name: '맑은 고딕' }],
+        charShapes: [
+          {
+            id: 0,
+            fontRef: 0,
+            fontSize: 10,
+            bold: false,
+            italic: false,
+            underline: false,
+            color: '#000000',
+          },
+        ],
+        paraShapes: [{ id: 0, align: 'left', headingLevel: 1 }],
+        styles: [{ id: 0, name: 'Normal', charShapeRef: 0, paraShapeRef: 0 }],
+      },
+    }
+
+    const hwpxBuffer = await generateHwpx(doc)
+    const zip = await JSZip.loadAsync(hwpxBuffer)
+    const headerXml = await zip.file('Contents/header.xml')?.async('text')
+
+    expect(headerXml).toBeDefined()
+    expect(headerXml).toContain('<hh:heading')
+    expect(headerXml).toContain('level="1"')
+    expect(headerXml).toContain('type="OUTLINE"')
+    expect(headerXml).toContain('idRef="0"')
+  })
+
+  it('does not write hh:heading element when paraShape has no headingLevel', async () => {
+    const doc: HwpDocument = {
+      format: 'hwp',
+      sections: [
+        {
+          paragraphs: [
+            {
+              ref: 's0.p0',
+              runs: [{ text: 'Body text', charShapeRef: 0 }],
+              paraShapeRef: 0,
+              styleRef: 0,
+            },
+          ],
+          tables: [],
+          images: [],
+        },
+      ],
+      header: {
+        fonts: [{ id: 0, name: '맑은 고딕' }],
+        charShapes: [
+          {
+            id: 0,
+            fontRef: 0,
+            fontSize: 10,
+            bold: false,
+            italic: false,
+            underline: false,
+            color: '#000000',
+          },
+        ],
+        paraShapes: [{ id: 0, align: 'left' }],
+        styles: [{ id: 0, name: 'Normal', charShapeRef: 0, paraShapeRef: 0 }],
+      },
+    }
+
+    const hwpxBuffer = await generateHwpx(doc)
+    const zip = await JSZip.loadAsync(hwpxBuffer)
+    const headerXml = await zip.file('Contents/header.xml')?.async('text')
+
+    expect(headerXml).toBeDefined()
+    expect(headerXml).not.toContain('<hh:heading')
+  })
+
+  it('writes type attribute on hh:style when style has type defined', async () => {
+    const doc: HwpDocument = {
+      format: 'hwp',
+      sections: [
+        {
+          paragraphs: [
+            {
+              ref: 's0.p0',
+              runs: [{ text: 'Test', charShapeRef: 0 }],
+              paraShapeRef: 0,
+              styleRef: 0,
+            },
+          ],
+          tables: [],
+          images: [],
+        },
+      ],
+      header: {
+        fonts: [{ id: 0, name: '맑은 고딕' }],
+        charShapes: [
+          {
+            id: 0,
+            fontRef: 0,
+            fontSize: 10,
+            bold: false,
+            italic: false,
+            underline: false,
+            color: '#000000',
+          },
+        ],
+        paraShapes: [{ id: 0, align: 'left' }],
+        styles: [{ id: 0, name: 'Heading 1', charShapeRef: 0, paraShapeRef: 0, type: 'PARA' }],
+      },
+    }
+
+    const hwpxBuffer = await generateHwpx(doc)
+    const zip = await JSZip.loadAsync(hwpxBuffer)
+    const headerXml = await zip.file('Contents/header.xml')?.async('text')
+
+    expect(headerXml).toBeDefined()
+    expect(headerXml).toContain('type="PARA"')
+  })
+
+  it('does not write type attribute on hh:style when style has no type', async () => {
+    const doc: HwpDocument = {
+      format: 'hwp',
+      sections: [
+        {
+          paragraphs: [
+            {
+              ref: 's0.p0',
+              runs: [{ text: 'Test', charShapeRef: 0 }],
+              paraShapeRef: 0,
+              styleRef: 0,
+            },
+          ],
+          tables: [],
+          images: [],
+        },
+      ],
+      header: {
+        fonts: [{ id: 0, name: '맑은 고딕' }],
+        charShapes: [
+          {
+            id: 0,
+            fontRef: 0,
+            fontSize: 10,
+            bold: false,
+            italic: false,
+            underline: false,
+            color: '#000000',
+          },
+        ],
+        paraShapes: [{ id: 0, align: 'left' }],
+        styles: [{ id: 0, name: 'Normal', charShapeRef: 0, paraShapeRef: 0 }],
+      },
+    }
+
+    const hwpxBuffer = await generateHwpx(doc)
+    const zip = await JSZip.loadAsync(hwpxBuffer)
+    const headerXml = await zip.file('Contents/header.xml')?.async('text')
+
+    expect(headerXml).toBeDefined()
+    // Should not have type attribute on style (only hh:id, hh:name, etc.)
+    const styleMatch = headerXml?.match(/<hh:style[^>]*>/)
+    expect(styleMatch).toBeDefined()
+    expect(styleMatch?.[0]).not.toContain('type=')
+  })
+})

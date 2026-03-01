@@ -551,3 +551,187 @@ describe('mutateHwpCfb addParagraph', () => {
     }
   })
 })
+
+async function getParagraphHeaderData(
+  cfb: CFB.CFB$Container,
+  compressed: boolean,
+  paragraphTarget: number,
+): Promise<Buffer | null> {
+  let sectionStream = getEntryBuffer(cfb, '/BodyText/Section0')
+  if (compressed) {
+    const { decompressStream } = await import('./stream-util')
+    sectionStream = decompressStream(sectionStream)
+  }
+
+  let paragraphIndex = -1
+  for (const { header, data } of iterateRecords(sectionStream)) {
+    if (header.tagId === TAG.PARA_HEADER && header.level === 0) {
+      paragraphIndex += 1
+      if (paragraphIndex === paragraphTarget) {
+        return data
+      }
+    }
+  }
+
+  return null
+}
+
+describe('mutateHwpCfb addParagraph heading/style', () => {
+  const readParagraphTexts = async (path: string): Promise<string[]> => {
+    const doc = await loadHwp(path)
+    return doc.sections[0].paragraphs.map((paragraph) => paragraph.runs.map((run) => run.text).join(''))
+  }
+
+  it('sets paraShapeRef and styleRef when heading is specified', async () => {
+    const hwpPath = tmpPath('mutator-addParagraph-heading')
+    await writeFile(hwpPath, await createHwp())
+
+    try {
+      const buffer = await readFile(hwpPath)
+      const cfb = CFB.read(buffer, { type: 'buffer' })
+      const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+      mutateHwpCfb(
+        cfb,
+        [{ type: 'addParagraph', ref: 's0', text: 'Heading 1', position: 'end', heading: 1 }],
+        compressed,
+      )
+
+      // Paragraph 0 is the empty initial paragraph, paragraph 1 is the new one
+      const headerData = await getParagraphHeaderData(cfb, compressed, 1)
+      expect(headerData).not.toBeNull()
+      // byte 8: paraShapeRef (uint16) = 1 (개요 1 paraShape)
+      expect(headerData!.readUInt16LE(8)).toBe(1)
+      // byte 10: styleRef (uint8) = 1 (개요 1 style index)
+      expect(headerData!.readUInt8(10)).toBe(1)
+
+      await writeFile(hwpPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
+      const texts = await readParagraphTexts(hwpPath)
+      expect(texts).toContain('Heading 1')
+    } finally {
+      await unlink(hwpPath)
+    }
+  })
+
+  it('sets paraShapeRef and styleRef for heading level 3', async () => {
+    const hwpPath = tmpPath('mutator-addParagraph-heading3')
+    await writeFile(hwpPath, await createHwp())
+
+    try {
+      const buffer = await readFile(hwpPath)
+      const cfb = CFB.read(buffer, { type: 'buffer' })
+      const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+      mutateHwpCfb(
+        cfb,
+        [{ type: 'addParagraph', ref: 's0', text: 'Heading 3', position: 'end', heading: 3 }],
+        compressed,
+      )
+
+      const headerData = await getParagraphHeaderData(cfb, compressed, 1)
+      expect(headerData).not.toBeNull()
+      expect(headerData!.readUInt16LE(8)).toBe(3)
+      expect(headerData!.readUInt8(10)).toBe(3)
+    } finally {
+      await unlink(hwpPath)
+    }
+  })
+
+  it('looks up style by name', async () => {
+    const hwpPath = tmpPath('mutator-addParagraph-style-name')
+    await writeFile(hwpPath, await createHwp())
+
+    try {
+      const buffer = await readFile(hwpPath)
+      const cfb = CFB.read(buffer, { type: 'buffer' })
+      const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+      mutateHwpCfb(
+        cfb,
+        [{ type: 'addParagraph', ref: 's0', text: 'Styled', position: 'end', style: '개요 2' }],
+        compressed,
+      )
+
+      const headerData = await getParagraphHeaderData(cfb, compressed, 1)
+      expect(headerData).not.toBeNull()
+      // 개요 2 is style index 2, paraShapeRef=2
+      expect(headerData!.readUInt16LE(8)).toBe(2)
+      expect(headerData!.readUInt8(10)).toBe(2)
+    } finally {
+      await unlink(hwpPath)
+    }
+  })
+
+  it('looks up style by numeric ID', async () => {
+    const hwpPath = tmpPath('mutator-addParagraph-style-id')
+    await writeFile(hwpPath, await createHwp())
+
+    try {
+      const buffer = await readFile(hwpPath)
+      const cfb = CFB.read(buffer, { type: 'buffer' })
+      const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+      mutateHwpCfb(cfb, [{ type: 'addParagraph', ref: 's0', text: 'Styled', position: 'end', style: 4 }], compressed)
+
+      const headerData = await getParagraphHeaderData(cfb, compressed, 1)
+      expect(headerData).not.toBeNull()
+      // Style index 4 = 개요 4, paraShapeRef=4
+      expect(headerData!.readUInt16LE(8)).toBe(4)
+      expect(headerData!.readUInt8(10)).toBe(4)
+    } finally {
+      await unlink(hwpPath)
+    }
+  })
+
+  it('throws when both heading and style are specified', async () => {
+    const hwpPath = tmpPath('mutator-addParagraph-heading-style-conflict')
+    await writeFile(hwpPath, await createHwp())
+
+    try {
+      const buffer = await readFile(hwpPath)
+      const cfb = CFB.read(buffer, { type: 'buffer' })
+      const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+      expect(() => {
+        mutateHwpCfb(
+          cfb,
+          [{ type: 'addParagraph', ref: 's0', text: 'Bad', position: 'end', heading: 1, style: '개요 1' }],
+          compressed,
+        )
+      }).toThrow('Cannot specify both heading and style')
+    } finally {
+      await unlink(hwpPath)
+    }
+  })
+
+  it('throws when heading style not found in document', async () => {
+    // createTestHwpBinary only has 'Normal' style, no heading styles
+    const buf = await createTestHwpBinary({ paragraphs: ['Hello'] })
+    const cfb = CFB.read(buf, { type: 'buffer' })
+    const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+    expect(() => {
+      mutateHwpCfb(cfb, [{ type: 'addParagraph', ref: 's0', text: 'Bad', position: 'end', heading: 1 }], compressed)
+    }).toThrow('개요 1')
+  })
+
+  it('defaults to paraShapeRef=0 and styleRef=0 without heading/style', async () => {
+    const hwpPath = tmpPath('mutator-addParagraph-default-refs')
+    await writeFile(hwpPath, await createHwp())
+
+    try {
+      const buffer = await readFile(hwpPath)
+      const cfb = CFB.read(buffer, { type: 'buffer' })
+      const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+      mutateHwpCfb(cfb, [{ type: 'addParagraph', ref: 's0', text: 'Plain', position: 'end' }], compressed)
+
+      const headerData = await getParagraphHeaderData(cfb, compressed, 1)
+      expect(headerData).not.toBeNull()
+      expect(headerData!.readUInt16LE(8)).toBe(0)
+      expect(headerData!.readUInt8(10)).toBe(0)
+    } finally {
+      await unlink(hwpPath)
+    }
+  })
+})

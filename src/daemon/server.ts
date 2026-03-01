@@ -18,6 +18,7 @@ import {
 } from '@/shared/document-ops'
 import type { FormatOptions } from '@/shared/edit-types'
 import { detectFormat } from '@/shared/format-detector'
+import type { DocumentHeader, Paragraph } from '@/types'
 
 const DEFAULT_IDLE_MS = 15 * 60 * 1000
 const DEFAULT_FLUSH_MS = 500
@@ -162,14 +163,15 @@ async function handleRequest(
     switch (msg.command) {
       case 'read': {
         const ref = typeof msg.args.ref === 'string' ? msg.args.ref : undefined
+        const header = await holder.getHeader()
         if (ref) {
-          return { success: true, data: resolveRef(ref, sections) }
+          const resolved = resolveRef(ref, sections)
+          return { success: true, data: enrichReadResult(resolved, header) }
         }
 
         const offset = numberArg(msg.args.offset, 0)
         const limit = numberArg(msg.args.limit, Number.POSITIVE_INFINITY)
         const hasPagination = msg.args.offset !== undefined || msg.args.limit !== undefined
-        const header = await holder.getHeader()
 
         return {
           success: true,
@@ -186,7 +188,7 @@ async function handleRequest(
                   totalImages: section.images.length,
                   totalTextBoxes: section.textBoxes.length,
                 }),
-                paragraphs,
+                paragraphs: paragraphs.map((paragraph) => enrichParagraph(paragraph, header)),
                 tables: section.tables,
                 images: section.images,
                 textBoxes: section.textBoxes,
@@ -282,8 +284,10 @@ async function handleRequest(
         const text = stringArg(msg.args.text, 'text')
         const position = stringArg(msg.args.position, 'position')
         const format = msg.args.format as FormatOptions | undefined
+        const heading = msg.args.heading as number | undefined
+        const style = msg.args.style as string | number | undefined
         await holder.applyOperations([
-          { type: 'addParagraph', ref, text, position: position as 'before' | 'after' | 'end', format },
+          { type: 'addParagraph', ref, text, position: position as 'before' | 'after' | 'end', format, heading, style },
         ])
         await scheduler.flushNow()
         return { success: true, data: { ref, text, position, success: true } }
@@ -364,4 +368,35 @@ function isValidRequest(msg: unknown): msg is { token: string; command: string; 
     typeof (msg as { args: unknown }).args === 'object' &&
     (msg as { args: unknown }).args !== null
   )
+}
+
+function enrichReadResult(resolved: unknown, header: DocumentHeader): unknown {
+  if (!resolved || typeof resolved !== 'object') {
+    return resolved
+  }
+
+  if ('ref' in resolved && 'runs' in resolved) {
+    return enrichParagraph(resolved as Paragraph, header)
+  }
+
+  return resolved
+}
+
+function enrichParagraph(
+  para: Paragraph,
+  header: DocumentHeader,
+): Paragraph & { headingLevel?: number; styleName?: string } {
+  const enriched: Paragraph & { headingLevel?: number; styleName?: string } = { ...para }
+
+  const paraShape = header.paraShapes.find((shape) => shape.id === para.paraShapeRef)
+  if (paraShape?.headingLevel && paraShape.headingLevel > 0) {
+    enriched.headingLevel = paraShape.headingLevel
+  }
+
+  const style = header.styles.find((item) => item.id === para.styleRef)
+  if (style) {
+    enriched.styleName = style.name
+  }
+
+  return enriched
 }

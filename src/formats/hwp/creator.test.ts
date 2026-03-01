@@ -110,4 +110,64 @@ describe('createHwp', () => {
       expect(headerContent).toContain('바탕')
     })
   })
+
+  describe('heading styles', () => {
+    it('creates 8 charShapes (body + 7 headings)', async () => {
+      const filePath = createTempFilePath()
+      const fixture = await createHwp()
+      await Bun.write(filePath, fixture)
+
+      const doc = await loadHwp(filePath)
+      expect(doc.header.charShapes).toHaveLength(8)
+
+      // Body charShape at index 0 is not bold
+      expect(doc.header.charShapes[0]?.bold).toBe(false)
+
+      // Heading charShapes 1-7 are all bold with decreasing font sizes
+      const expectedSizes = [22, 18, 16, 14, 13, 12, 11]
+      for (let i = 1; i <= 7; i++) {
+        expect(doc.header.charShapes[i]?.bold).toBe(true)
+        expect(doc.header.charShapes[i]?.fontSize).toBe(expectedSizes[i - 1])
+      }
+    })
+
+    it('creates 8 paraShapes (body + 7 headings with heading levels)', async () => {
+      const filePath = createTempFilePath()
+      const fixture = await createHwp()
+      await Bun.write(filePath, fixture)
+
+      const doc = await loadHwp(filePath)
+      expect(doc.header.paraShapes).toHaveLength(8)
+
+      // Body paraShape has no heading level
+      expect(doc.header.paraShapes[0]?.headingLevel).toBeUndefined()
+
+      // Heading paraShapes 1-7 have heading levels 1-7
+      for (let i = 1; i <= 7; i++) {
+        expect(doc.header.paraShapes[i]?.headingLevel).toBe(i)
+      }
+    })
+
+    it('creates 8 styles (Normal + 개요 1-7)', async () => {
+      const filePath = createTempFilePath()
+      const fixture = await createHwp()
+      await Bun.write(filePath, fixture)
+
+      const doc = await loadHwp(filePath)
+      expect(doc.header.styles).toHaveLength(8)
+
+      // Style 0 is Normal/바탕글
+      const normalStyle = doc.header.styles[0]
+      expect(normalStyle?.charShapeRef).toBe(0)
+      expect(normalStyle?.paraShapeRef).toBe(0)
+
+      // Styles 1-7 are 개요 1 through 개요 7
+      for (let i = 1; i <= 7; i++) {
+        const style = doc.header.styles[i]
+        expect(style?.name).toBe(`개요 ${i}`)
+        expect(style?.charShapeRef).toBe(i)
+        expect(style?.paraShapeRef).toBe(i)
+      }
+    })
+  })
 })

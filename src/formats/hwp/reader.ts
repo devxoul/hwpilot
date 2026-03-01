@@ -215,14 +215,20 @@ function parseDocInfo(buffer: Buffer): DocInfoParseResult {
         continue
       }
 
-      const alignBits = data.readUInt32LE(0) & 0x3
+      const dword = data.readUInt32LE(0)
+      const alignBits = dword & 0x3
+      const headingLevelBits = (dword >>> 25) & 0x7
       const alignMap: Record<number, 'left' | 'right' | 'center' | 'justify'> = {
         0: 'justify',
         1: 'left',
         2: 'right',
         3: 'center',
       }
-      paraShapes.push({ id: paraShapeId, align: alignMap[alignBits] ?? 'left' })
+      const paraShape: ParaShape = { id: paraShapeId, align: alignMap[alignBits] ?? 'left' }
+      if (headingLevelBits > 0) {
+        paraShape.headingLevel = headingLevelBits
+      }
+      paraShapes.push(paraShape)
       paraShapeId += 1
       continue
     }
@@ -233,14 +239,20 @@ function parseDocInfo(buffer: Buffer): DocInfoParseResult {
       }
 
       const nameLen = data.readUInt16LE(0)
-      const baseOffset = 2 + nameLen * 2
-      if (baseOffset + 6 > data.length) {
+      let offset = 2 + nameLen * 2
+      // Skip English name if present
+      if (offset + 2 <= data.length) {
+        const englishNameLen = data.readUInt16LE(offset)
+        offset += 2 + englishNameLen * 2
+      }
+
+      if (offset + 4 > data.length) {
         continue
       }
 
-      const name = data.subarray(2, baseOffset).toString('utf16le')
-      const charShapeRef = data.readUInt16LE(baseOffset + 2)
-      const paraShapeRef = data.readUInt16LE(baseOffset + 4)
+      const name = data.subarray(2, 2 + nameLen * 2).toString('utf16le')
+      const charShapeRef = data.readUInt16LE(offset)
+      const paraShapeRef = data.readUInt16LE(offset + 2)
       styles.push({ id: styleId, name, charShapeRef, paraShapeRef })
       styleId += 1
     }

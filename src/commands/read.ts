@@ -7,6 +7,7 @@ import { resolveRef } from '@/shared/document-ops'
 import { handleError } from '@/shared/error-handler'
 import { detectFormat } from '@/shared/format-detector'
 import { formatOutput } from '@/shared/output'
+import { DocumentHeader, Paragraph } from '@/types'
 
 type ReadOptions = {
   pretty?: boolean
@@ -42,7 +43,13 @@ export async function readCommand(file: string, ref: string | undefined, options
 
     if (ref) {
       const result = resolveRef(ref, doc.sections)
-      console.log(formatOutput(result, options.pretty))
+      // Enrich paragraph results with heading level and style name
+      if (result && typeof result === 'object' && 'ref' in result && 'runs' in result) {
+        const enriched = enrichParagraph(result as Paragraph, doc.header)
+        console.log(formatOutput(enriched, options.pretty))
+      } else {
+        console.log(formatOutput(result, options.pretty))
+      }
       return
     }
 
@@ -63,7 +70,7 @@ export async function readCommand(file: string, ref: string | undefined, options
             totalImages: section.images.length,
             totalTextBoxes: section.textBoxes.length,
           }),
-          paragraphs,
+          paragraphs: paragraphs.map((p) => enrichParagraph(p, doc.header)),
           tables: section.tables,
           images: section.images,
           textBoxes: section.textBoxes,
@@ -76,6 +83,27 @@ export async function readCommand(file: string, ref: string | undefined, options
   } catch (e) {
     handleError(e)
   }
+}
+
+function enrichParagraph(
+  para: Paragraph,
+  header: DocumentHeader,
+): Paragraph & { headingLevel?: number; styleName?: string } {
+  const enriched: Paragraph & { headingLevel?: number; styleName?: string } = { ...para }
+
+  // Resolve heading level from paraShapeRef
+  const paraShape = header.paraShapes.find((ps) => ps.id === para.paraShapeRef)
+  if (paraShape?.headingLevel && paraShape.headingLevel > 0) {
+    enriched.headingLevel = paraShape.headingLevel
+  }
+
+  // Resolve style name from styleRef
+  const style = header.styles.find((s) => s.id === para.styleRef)
+  if (style) {
+    enriched.styleName = style.name
+  }
+
+  return enriched
 }
 
 async function loadHwpxDocument(file: string) {

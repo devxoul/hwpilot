@@ -310,7 +310,7 @@ describe('mutateHwpxZip', () => {
 
       const sectionXml = await zip.file('Contents/section0.xml')!.async('string')
       expect(sectionXml).toContain('Bold Paragraph')
-      expect(sectionXml).toContain('hp:charPrIDRef="1"')
+      expect(sectionXml).toContain('hp:charPrIDRef="8"')
     } finally {
       await unlink(filePath)
     }
@@ -338,6 +338,190 @@ describe('mutateHwpxZip', () => {
       expect(texts[2]).toBe('Second')
 
       await unlink(outPath)
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('addParagraph with heading sets correct styleIDRef and paraPrIDRef', async () => {
+    const filePath = tmpPath('mutator-addParagraph-heading')
+    const fixture = await createTestHwpx({ paragraphs: ['Body text'] })
+    await Bun.write(filePath, fixture)
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await mutateHwpxZip(zip, archive, [
+        { type: 'addParagraph', ref: 's0', text: 'Heading 1', position: 'end', heading: 1 },
+      ])
+
+      const sectionXml = await zip.file('Contents/section0.xml')!.async('string')
+      // 개요 1 style has id=1, charPrIDRef=1, paraPrIDRef=1
+      expect(sectionXml).toContain('Heading 1')
+      expect(sectionXml).toMatch(/hp:styleIDRef="1".*Heading 1|Heading 1.*hp:styleIDRef="1"/s)
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('addParagraph with heading: 3 sets style/paraPr refs to 3', async () => {
+    const filePath = tmpPath('mutator-addParagraph-heading3')
+    const fixture = await createTestHwpx({ paragraphs: ['Body text'] })
+    await Bun.write(filePath, fixture)
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await mutateHwpxZip(zip, archive, [
+        { type: 'addParagraph', ref: 's0', text: 'Heading 3', position: 'end', heading: 3 },
+      ])
+
+      const sectionXml = await zip.file('Contents/section0.xml')!.async('string')
+      expect(sectionXml).toContain('Heading 3')
+      // The paragraph containing 'Heading 3' should have styleIDRef=3 and paraPrIDRef=3
+      expect(sectionXml).toMatch(/hp:paraPrIDRef="3"[^>]*hp:styleIDRef="3"/)
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('addParagraph with heading also sets charPrIDRef on run', async () => {
+    const filePath = tmpPath('mutator-addParagraph-heading-charPr')
+    const fixture = await createTestHwpx({ paragraphs: ['Body text'] })
+    await Bun.write(filePath, fixture)
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await mutateHwpxZip(zip, archive, [
+        { type: 'addParagraph', ref: 's0', text: 'Heading 2', position: 'end', heading: 2 },
+      ])
+
+      const sectionXml = await zip.file('Contents/section0.xml')!.async('string')
+      // Run should have charPrIDRef matching the heading's charPrIDRef (2 for heading 2)
+      expect(sectionXml).toMatch(/hp:charPrIDRef="2"[^>]*>\s*<hp:t>Heading 2/s)
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('addParagraph with style by name sets correct refs', async () => {
+    const filePath = tmpPath('mutator-addParagraph-style-name')
+    const fixture = await createTestHwpx({ paragraphs: ['Body text'] })
+    await Bun.write(filePath, fixture)
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await mutateHwpxZip(zip, archive, [
+        { type: 'addParagraph', ref: 's0', text: 'Styled text', position: 'end', style: '개요 2' },
+      ])
+
+      const sectionXml = await zip.file('Contents/section0.xml')!.async('string')
+      expect(sectionXml).toContain('Styled text')
+      expect(sectionXml).toMatch(/hp:paraPrIDRef="2"[^>]*hp:styleIDRef="2"/)
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('addParagraph with style by numeric ID sets correct refs', async () => {
+    const filePath = tmpPath('mutator-addParagraph-style-id')
+    const fixture = await createTestHwpx({ paragraphs: ['Body text'] })
+    await Bun.write(filePath, fixture)
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await mutateHwpxZip(zip, archive, [
+        { type: 'addParagraph', ref: 's0', text: 'Style by ID', position: 'end', style: 3 },
+      ])
+
+      const sectionXml = await zip.file('Contents/section0.xml')!.async('string')
+      expect(sectionXml).toContain('Style by ID')
+      // Style id=3 is 개요 3 with charPrIDRef=3, paraPrIDRef=3
+      expect(sectionXml).toMatch(/hp:paraPrIDRef="3"[^>]*hp:styleIDRef="3"/)
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('addParagraph throws when both heading and style are specified', async () => {
+    const filePath = tmpPath('mutator-addParagraph-both')
+    const fixture = await createTestHwpx({ paragraphs: ['Body text'] })
+    await Bun.write(filePath, fixture)
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await expect(
+        mutateHwpxZip(zip, archive, [
+          { type: 'addParagraph', ref: 's0', text: 'Bad', position: 'end', heading: 1, style: 'Normal' },
+        ]),
+      ).rejects.toThrow('Cannot specify both heading and style')
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('addParagraph throws when heading style not found', async () => {
+    const filePath = tmpPath('mutator-addParagraph-heading-missing')
+    const fixture = await createTestHwpx({ paragraphs: ['Body text'] })
+    await Bun.write(filePath, fixture)
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await expect(
+        mutateHwpxZip(zip, archive, [{ type: 'addParagraph', ref: 's0', text: 'Bad', position: 'end', heading: 99 }]),
+      ).rejects.toThrow('개요 99')
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('addParagraph throws when style name not found', async () => {
+    const filePath = tmpPath('mutator-addParagraph-style-missing')
+    const fixture = await createTestHwpx({ paragraphs: ['Body text'] })
+    await Bun.write(filePath, fixture)
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await expect(
+        mutateHwpxZip(zip, archive, [
+          { type: 'addParagraph', ref: 's0', text: 'Bad', position: 'end', style: 'NonExistent' },
+        ]),
+      ).rejects.toThrow('NonExistent')
+    } finally {
+      await unlink(filePath)
+    }
+  })
+
+  it('addParagraph with heading marks headerChanged', async () => {
+    const filePath = tmpPath('mutator-addParagraph-heading-header')
+    const fixture = await createTestHwpx({ paragraphs: ['Body text'] })
+    await Bun.write(filePath, fixture)
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+
+      await mutateHwpxZip(zip, archive, [
+        { type: 'addParagraph', ref: 's0', text: 'Heading', position: 'end', heading: 1 },
+      ])
+
+      // Verify header.xml is still valid (mutator loaded and processed it)
+      const headerXml = await zip.file('Contents/header.xml')!.async('string')
+      expect(headerXml).toContain('hh:head')
     } finally {
       await unlink(filePath)
     }

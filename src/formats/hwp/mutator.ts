@@ -49,6 +49,8 @@ type SectionAddParagraphOperation = {
   text: string
   position: 'before' | 'after' | 'end'
   format?: FormatOptions
+  heading?: number
+  style?: string | number
   ref: string
 }
 
@@ -228,6 +230,8 @@ function groupOperationsBySection(operations: EditOperation[]): Map<number, Sect
         text: operation.text,
         position: operation.position,
         format: operation.format,
+        heading: operation.heading,
+        style: operation.style,
         ref: operation.ref,
       })
       grouped.set(ref.section, sectionOperations)
@@ -280,6 +284,77 @@ function appendTableRecords(stream: Buffer, op: SectionAddTableOperation): Buffe
   return Buffer.concat(records)
 }
 
+function resolveStyleRefs(
+  cfb: CFB.CFB$Container,
+  compressed: boolean,
+  heading?: number,
+  style?: string | number,
+): { paraShapeRef: number; styleIndex: number } {
+  if (heading !== undefined && style !== undefined) {
+    throw new Error('Cannot specify both heading and style')
+  }
+  if (heading === undefined && style === undefined) {
+    return { paraShapeRef: 0, styleIndex: 0 }
+  }
+
+  const docInfoPath = '/DocInfo'
+  let docInfoStream = getEntryBuffer(cfb, docInfoPath)
+  if (compressed) {
+    docInfoStream = decompressStream(docInfoStream)
+  }
+
+  const targetName = heading !== undefined ? `\uAC1C\uC694 ${heading}` : typeof style === 'string' ? style : undefined
+  const targetIndex = typeof style === 'number' ? style : undefined
+
+  let styleIdx = 0
+  for (const { header, data } of iterateRecords(docInfoStream)) {
+    if (header.tagId !== TAG.STYLE) {
+      continue
+    }
+
+    if (targetIndex !== undefined && styleIdx === targetIndex) {
+      const paraShapeRef = parseStyleParaShapeRef(data)
+      return { paraShapeRef, styleIndex: styleIdx }
+    }
+
+    if (targetName !== undefined) {
+      const name = parseStyleKoreanName(data)
+      if (name === targetName) {
+        const paraShapeRef = parseStyleParaShapeRef(data)
+        return { paraShapeRef, styleIndex: styleIdx }
+      }
+    }
+
+    styleIdx++
+  }
+
+  if (heading !== undefined) {
+    throw new Error(`Heading style '\uAC1C\uC694 ${heading}' not found in document`)
+  }
+  if (targetName !== undefined) {
+    throw new Error(`Style '${targetName}' not found in document`)
+  }
+  throw new Error(`Style index ${targetIndex} not found in document`)
+}
+
+function parseStyleKoreanName(data: Buffer): string {
+  if (data.length < 2) return ''
+  const nameLen = data.readUInt16LE(0)
+  if (data.length < 2 + nameLen * 2) return ''
+  return data.subarray(2, 2 + nameLen * 2).toString('utf16le')
+}
+
+function parseStyleParaShapeRef(data: Buffer): number {
+  const nameLen = data.readUInt16LE(0)
+  let offset = 2 + nameLen * 2
+  if (offset + 2 > data.length) return 0
+  const englishNameLen = data.readUInt16LE(offset)
+  offset += 2 + englishNameLen * 2
+  // charShapeRef (uint16) + paraShapeRef (uint16)
+  if (offset + 4 > data.length) return 0
+  return data.readUInt16LE(offset + 2)
+}
+
 function appendParagraphRecords(
   stream: Buffer,
   op: SectionAddParagraphOperation,
@@ -289,6 +364,8 @@ function appendParagraphRecords(
 ): Buffer {
   void sectionIndex
 
+  const { paraShapeRef, styleIndex } = resolveStyleRefs(cfb, compressed, op.heading, op.style)
+
   const charShapeRef =
     op.format && hasFormatOptions(op.format) ? addCharShapeWithFormat(cfb, compressed, 0, op.format) : 0
 
@@ -297,6 +374,8 @@ function appendParagraphRecords(
 
   const paraHeaderData = Buffer.alloc(24)
   paraHeaderData.writeUInt32LE(nChars & 0x7fffffff, 0)
+  paraHeaderData.writeUInt16LE(paraShapeRef, 8)
+  paraHeaderData.writeUInt8(styleIndex, 10)
   paraHeaderData.writeUInt32LE(1, 16)
 
   const paraTextData = Buffer.concat([textData, Buffer.from([0x0d, 0x00])])

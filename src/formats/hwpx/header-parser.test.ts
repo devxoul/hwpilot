@@ -69,6 +69,84 @@ describe('parseHeader', () => {
     expect(header.styles[1]).toEqual({ id: 1, name: 'Heading 1', charShapeRef: 1, paraShapeRef: 1 })
   })
 
+  it('parses paraShapes with heading level', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head">
+  <hh:refList>
+    <hh:paraProperties>
+      <hh:paraPr hh:id="0" hh:align="LEFT">
+        <hh:heading hh:level="1"/>
+      </hh:paraPr>
+      <hh:paraPr hh:id="1" hh:align="LEFT">
+        <hh:heading hh:level="2"/>
+      </hh:paraPr>
+    </hh:paraProperties>
+    <hh:fontfaces/>
+    <hh:charProperties/>
+    <hh:styles/>
+  </hh:refList>
+</hh:head>`
+    const header = parseHeader(xml)
+    expect(header.paraShapes).toHaveLength(2)
+    expect(header.paraShapes[0]).toEqual({ id: 0, align: 'left', headingLevel: 1 })
+    expect(header.paraShapes[1]).toEqual({ id: 1, align: 'left', headingLevel: 2 })
+  })
+
+  it('parses paraShapes without heading level', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head">
+  <hh:refList>
+    <hh:paraProperties>
+      <hh:paraPr hh:id="0" hh:align="LEFT"/>
+    </hh:paraProperties>
+    <hh:fontfaces/>
+    <hh:charProperties/>
+    <hh:styles/>
+  </hh:refList>
+</hh:head>`
+    const header = parseHeader(xml)
+    expect(header.paraShapes).toHaveLength(1)
+    expect(header.paraShapes[0]).toEqual({ id: 0, align: 'left' })
+    expect(header.paraShapes[0].headingLevel).toBeUndefined()
+  })
+
+  it('parses styles with type attribute', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head">
+  <hh:refList>
+    <hh:styles>
+      <hh:style hh:id="0" hh:name="Normal" hh:charPrIDRef="0" hh:paraPrIDRef="0" hh:type="PARA"/>
+      <hh:style hh:id="1" hh:name="Emphasis" hh:charPrIDRef="1" hh:paraPrIDRef="1" hh:type="CHAR"/>
+    </hh:styles>
+    <hh:fontfaces/>
+    <hh:charProperties/>
+    <hh:paraProperties/>
+  </hh:refList>
+</hh:head>`
+    const header = parseHeader(xml)
+    expect(header.styles).toHaveLength(2)
+    expect(header.styles[0]).toEqual({ id: 0, name: 'Normal', charShapeRef: 0, paraShapeRef: 0, type: 'PARA' })
+    expect(header.styles[1]).toEqual({ id: 1, name: 'Emphasis', charShapeRef: 1, paraShapeRef: 1, type: 'CHAR' })
+  })
+
+  it('parses styles without type attribute', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head">
+  <hh:refList>
+    <hh:styles>
+      <hh:style hh:id="0" hh:name="Normal" hh:charPrIDRef="0" hh:paraPrIDRef="0"/>
+    </hh:styles>
+    <hh:fontfaces/>
+    <hh:charProperties/>
+    <hh:paraProperties/>
+  </hh:refList>
+</hh:head>`
+    const header = parseHeader(xml)
+    expect(header.styles).toHaveLength(1)
+    expect(header.styles[0]).toEqual({ id: 0, name: 'Normal', charShapeRef: 0, paraShapeRef: 0 })
+    expect(header.styles[0].type).toBeUndefined()
+  })
+
   it('handles empty refList', () => {
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head">
