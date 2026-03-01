@@ -18,6 +18,7 @@ import {
 } from '@/shared/document-ops'
 import type { FormatOptions } from '@/shared/edit-types'
 import { detectFormat } from '@/shared/format-detector'
+import { buildRef, parseRef } from '@/shared/refs'
 import type { DocumentHeader, Paragraph } from '@/types'
 
 const DEFAULT_IDLE_MS = 15 * 60 * 1000
@@ -269,13 +270,16 @@ async function handleRequest(
       }
 
       case 'table-add': {
+        const ref = stringArg(msg.args.ref, 'ref')
         const rows = numberArg(msg.args.rows, 0)
         const cols = numberArg(msg.args.cols, 0)
         const data = Array.isArray(msg.args.data) ? (msg.args.data as string[][]) : undefined
-        const tableCount = sections[0]?.tables.length ?? 0
-        await holder.applyOperations([{ type: 'addTable', ref: 's0', rows, cols, data }])
+        const position = (typeof msg.args.position === 'string' ? msg.args.position : 'end') as 'before' | 'after' | 'end'
+        const parsedRef = parseRef(ref)
+        const tableCount = sections[parsedRef.section]?.tables.length ?? 0
+        await holder.applyOperations([{ type: 'addTable', ref, rows, cols, data, position }])
         await scheduler.flushNow()
-        const newRef = `s0.t${tableCount}`
+        const newRef = buildRef({ section: parsedRef.section, table: tableCount })
         return { success: true, data: { ref: newRef, rows, cols, success: true } }
       }
 

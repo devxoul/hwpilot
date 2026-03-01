@@ -3,6 +3,8 @@ import { readFile, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import CFB from 'cfb'
+import JSZip from 'jszip'
+import { convertCommand } from '../../commands/convert'
 import { createTestHwpBinary } from '../../test-helpers'
 import { createHwp } from './creator'
 import { getEntryBuffer, mutateHwpCfb } from './mutator'
@@ -268,6 +270,7 @@ describe('mutateHwpCfb addTable', () => {
           ref: 's0',
           rows: 2,
           cols: 2,
+          position: 'end',
           data: [
             ['A', 'B'],
             ['C', 'D'],
@@ -298,7 +301,7 @@ describe('mutateHwpCfb addTable', () => {
     const cfb = CFB.read(fixture, { type: 'buffer' })
     const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
 
-    mutateHwpCfb(cfb, [{ type: 'addTable', ref: 's0', rows: 1, cols: 3 }], compressed)
+    mutateHwpCfb(cfb, [{ type: 'addTable', ref: 's0', rows: 1, cols: 3, position: 'end' }], compressed)
 
     const outPath = tmpPath('mutator-addTable-empty')
     await writeFile(outPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
@@ -320,7 +323,7 @@ describe('mutateHwpCfb addTable', () => {
     const cfb = CFB.read(fixture, { type: 'buffer' })
     const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
 
-    mutateHwpCfb(cfb, [{ type: 'addTable', ref: 's0', rows: 1, cols: 1, data: [['Cell']] }], compressed)
+    mutateHwpCfb(cfb, [{ type: 'addTable', ref: 's0', rows: 1, cols: 1, position: 'end', data: [['Cell']] }], compressed)
 
     const outPath = tmpPath('mutator-addTable-preserve')
     await writeFile(outPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
@@ -332,6 +335,90 @@ describe('mutateHwpCfb addTable', () => {
       expect(doc.sections[0].tables).toHaveLength(1)
     } finally {
       await unlink(outPath)
+    }
+  })
+
+  it('addTable with position=end appends to document', async () => {
+    const fixture = await createTestHwpBinary({ paragraphs: ['END_ANCHOR'] })
+    const cfb = CFB.read(fixture, { type: 'buffer' })
+    const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+    mutateHwpCfb(cfb, [{ type: 'addTable', ref: 's0', rows: 1, cols: 2, position: 'end' }], compressed)
+
+    const outPath = tmpPath('mutator-addTable-position-end-out')
+    await writeFile(outPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
+    const hwpxPath = join(tmpdir(), `mutator-addTable-position-end-${Date.now()}-${Math.random().toString(36).slice(2)}.hwpx`)
+
+    try {
+      const doc = await loadHwp(outPath)
+      expect(doc.sections[0].tables).toHaveLength(1)
+
+      await convertCommand(outPath, hwpxPath, { force: true })
+      const zip = await JSZip.loadAsync(await readFile(hwpxPath))
+      const sectionXml = await zip.file('Contents/section0.xml')!.async('string')
+      const paragraphIndex = sectionXml.indexOf('END_ANCHOR')
+      const tableIndex = sectionXml.lastIndexOf('<hp:tbl>')
+      expect(tableIndex).toBeGreaterThan(paragraphIndex)
+    } finally {
+      await unlink(outPath)
+      await unlink(hwpxPath).catch(() => {})
+    }
+  })
+
+  it('addTable with position=before inserts before paragraph 0', async () => {
+    const fixture = await createTestHwpBinary({ paragraphs: ['FIRST_PARAGRAPH'] })
+    const cfb = CFB.read(fixture, { type: 'buffer' })
+    const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+    mutateHwpCfb(cfb, [{ type: 'addTable', ref: 's0.p0', rows: 1, cols: 1, position: 'before' }], compressed)
+
+    const outPath = tmpPath('mutator-addTable-position-before-out')
+    await writeFile(outPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
+    const hwpxPath = join(tmpdir(), `mutator-addTable-position-before-${Date.now()}-${Math.random().toString(36).slice(2)}.hwpx`)
+
+    try {
+      const doc = await loadHwp(outPath)
+      expect(doc.sections[0].tables).toHaveLength(1)
+      expect(doc.sections[0].paragraphs.map((p) => p.runs.map((r) => r.text).join(''))).toEqual(['', 'FIRST_PARAGRAPH'])
+
+      await convertCommand(outPath, hwpxPath, { force: true })
+      const zip = await JSZip.loadAsync(await readFile(hwpxPath))
+      const sectionXml = await zip.file('Contents/section0.xml')!.async('string')
+      expect(sectionXml).toContain('<hp:tbl>')
+      expect(sectionXml).toContain('FIRST_PARAGRAPH')
+    } finally {
+      await unlink(outPath)
+      await unlink(hwpxPath).catch(() => {})
+    }
+  })
+
+  it('addTable with position=after inserts after paragraph 0', async () => {
+    const fixture = await createTestHwpBinary({ paragraphs: ['PARA_A', 'PARA_B'] })
+    const cfb = CFB.read(fixture, { type: 'buffer' })
+    const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+    mutateHwpCfb(cfb, [{ type: 'addTable', ref: 's0.p0', rows: 1, cols: 1, position: 'after' }], compressed)
+
+    const outPath = tmpPath('mutator-addTable-position-after-out')
+    await writeFile(outPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
+    const hwpxPath = join(tmpdir(), `mutator-addTable-position-after-${Date.now()}-${Math.random().toString(36).slice(2)}.hwpx`)
+
+    try {
+      const doc = await loadHwp(outPath)
+      expect(doc.sections[0].tables).toHaveLength(1)
+      expect(doc.sections[0].paragraphs.map((p) => p.runs.map((r) => r.text).join(''))).toEqual(['PARA_A', '', 'PARA_B'])
+
+      await convertCommand(outPath, hwpxPath, { force: true })
+      const zip = await JSZip.loadAsync(await readFile(hwpxPath))
+      const sectionXml = await zip.file('Contents/section0.xml')!.async('string')
+      const firstParagraphIndex = sectionXml.indexOf('PARA_A')
+      const secondParagraphIndex = sectionXml.indexOf('PARA_B')
+      expect(firstParagraphIndex).toBeGreaterThan(-1)
+      expect(secondParagraphIndex).toBeGreaterThan(firstParagraphIndex)
+      expect(sectionXml).toContain('<hp:tbl>')
+    } finally {
+      await unlink(outPath)
+      await unlink(hwpxPath).catch(() => {})
     }
   })
 })
@@ -424,7 +511,7 @@ describe('mutateHwpCfb addParagraph', () => {
       const firstCfb = CFB.read(firstBuffer, { type: 'buffer' })
       const firstCompressed = getCompressionFlag(getEntryBuffer(firstCfb, '/FileHeader'))
 
-      mutateHwpCfb(firstCfb, [{ type: 'addTable', ref: 's0', rows: 2, cols: 2 }], firstCompressed)
+      mutateHwpCfb(firstCfb, [{ type: 'addTable', ref: 's0', rows: 2, cols: 2, position: 'end' }], firstCompressed)
       await writeFile(hwpPath, Buffer.from(CFB.write(firstCfb, { type: 'buffer' })))
 
       const secondBuffer = await readFile(hwpPath)
@@ -461,7 +548,7 @@ describe('mutateHwpCfb addParagraph', () => {
       mutateHwpCfb(
         cfb,
         [
-          { type: 'addTable', ref: 's0', rows: 2, cols: 2 },
+          { type: 'addTable', ref: 's0', rows: 2, cols: 2, position: 'end' },
           { type: 'addParagraph', ref: 's0', text: 'After table', position: 'end' },
         ],
         compressed,
@@ -488,7 +575,7 @@ describe('mutateHwpCfb addParagraph', () => {
       const firstCfb = CFB.read(firstBuffer, { type: 'buffer' })
       const firstCompressed = getCompressionFlag(getEntryBuffer(firstCfb, '/FileHeader'))
 
-      mutateHwpCfb(firstCfb, [{ type: 'addTable', ref: 's0', rows: 1, cols: 1 }], firstCompressed)
+      mutateHwpCfb(firstCfb, [{ type: 'addTable', ref: 's0', rows: 1, cols: 1, position: 'end' }], firstCompressed)
       await writeFile(hwpPath, Buffer.from(CFB.write(firstCfb, { type: 'buffer' })))
 
       const secondBuffer = await readFile(hwpPath)
