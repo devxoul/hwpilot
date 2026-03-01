@@ -47,6 +47,12 @@ export async function paragraphAddCommand(
       }
     }
 
+    // Coerce numeric style string to number for ID-based lookup
+    const styleValue =
+      options.style !== undefined && /^\d+$/.test(String(options.style))
+        ? parseInt(String(options.style), 10)
+        : options.style
+
     // Build format object from options
     const format: FormatOptions = {}
     if (options.bold !== undefined) format.bold = options.bold
@@ -62,7 +68,7 @@ export async function paragraphAddCommand(
       position,
       format: Object.keys(format).length > 0 ? format : undefined,
       heading: options.heading,
-      style: options.style,
+      style: styleValue,
     })
 
     if (daemonResult !== null) {
@@ -96,7 +102,7 @@ export async function paragraphAddCommand(
           position: position as 'before' | 'after' | 'end',
           format: Object.keys(format).length > 0 ? format : undefined,
           heading: options.heading,
-          style: options.style,
+          style: styleValue,
         },
       ])
     } else {
@@ -108,7 +114,7 @@ export async function paragraphAddCommand(
           position: position as 'before' | 'after' | 'end',
           format: Object.keys(format).length > 0 ? format : undefined,
           heading: options.heading,
-          style: options.style,
+          style: styleValue,
         },
       ])
     }
