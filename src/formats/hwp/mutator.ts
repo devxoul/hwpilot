@@ -5,6 +5,7 @@ import { readControlId } from './control-id'
 import { iterateRecords } from './record-parser'
 import {
   buildCellListHeaderData,
+  buildParaLineSegBuffer,
   buildRecord,
   buildTableCtrlHeaderData,
   buildTableData,
@@ -257,7 +258,8 @@ function groupOperationsBySection(operations: EditOperation[]): Map<number, Sect
 function appendTableRecords(stream: Buffer, op: SectionAddTableOperation): Buffer {
   const tableParaHeader = buildTableParagraphHeaderData(9, false, 0x0818, 2)
 
-  const tableParaLineSeg = buildParaLineSegData()
+  const contentWidth = extractContentWidthFromStream(stream)
+  const tableParaLineSeg = buildParaLineSegBuffer(contentWidth)
   const cellRecords: Buffer[] = []
 
   for (let row = 0; row < op.rows; row++) {
@@ -268,7 +270,7 @@ function appendTableRecords(stream: Buffer, op: SectionAddTableOperation): Buffe
       const cellParaCharShape = Buffer.alloc(8)
       cellParaCharShape.writeUInt32LE(0, 0) // position
       cellParaCharShape.writeUInt32LE(0, 4) // charShapeRef = 0 (default)
-      const cellParaLineSeg = buildParaLineSegData()
+      const cellParaLineSeg = buildParaLineSegBuffer(contentWidth)
       cellRecords.push(buildRecord(TAG.LIST_HEADER, 2, buildCellListHeaderData(col, row, 1, 1)))
       cellRecords.push(buildRecord(TAG.PARA_HEADER, 2, cellParaHeader))
       const cellTextWithEnd = Buffer.concat([cellTextData, encodeUint16([0x000d])])
@@ -433,7 +435,9 @@ function appendParagraphRecords(
   paraCharShapeData.writeUInt32LE(0, 0)
   paraCharShapeData.writeUInt32LE(charShapeRef, 4)
 
-  const paraLineSegData = buildParaLineSegData()
+  const contentWidth = extractContentWidthFromStream(stream)
+
+  const paraLineSegData = buildParaLineSegBuffer(contentWidth)
 
   const newRecords = Buffer.concat([
     buildRecord(TAG.PARA_HEADER, 0, paraHeaderData),
@@ -1172,14 +1176,16 @@ function encodeUint16(values: number[]): Buffer {
   return output
 }
 
-function buildParaLineSegData(): Buffer {
-  const buf = Buffer.alloc(36)
-  buf.writeUInt32LE(0x000009a0, 8)
-  buf.writeUInt32LE(0x000009a0, 12)
-  buf.writeUInt32LE(0x000007f8, 16)
-  buf.writeInt32LE(-0x00000690, 20)
-  buf.writeUInt16LE(0x0006, 34)
-  return buf
+function extractContentWidthFromStream(stream: Buffer): number {
+  for (const { header, data } of iterateRecords(stream)) {
+    if (header.tagId === TAG.PAGE_DEF && data.length >= 16) {
+      const pageWidth = data.readUInt32LE(0)
+      const leftMargin = data.readUInt32LE(8)
+      const rightMargin = data.readUInt32LE(12)
+      return pageWidth - leftMargin - rightMargin
+    }
+  }
+  return 48190
 }
 
 export function getEntryBuffer(cfb: CFB.CFB$Container, path: string): Buffer {

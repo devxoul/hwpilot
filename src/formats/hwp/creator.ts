@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import CFB from 'cfb'
 import { iterateRecords } from './record-parser'
-import { buildRecord } from './record-serializer'
+import { buildParaLineSegBuffer, buildRecord } from './record-serializer'
 import { compressStream, decompressStream, getCompressionFlag } from './stream-util'
 import { TAG } from './tag-ids'
 
@@ -240,6 +240,7 @@ function encodeLengthPrefixedUtf16(text: string): Buffer {
 }
 
 function buildSection0Stream(sectionDef: Buffer): Buffer {
+  const contentWidth = extractContentWidthFromRecords(sectionDef)
   // Single empty paragraph with section definition
   const sectionCtrlChar = Buffer.alloc(16)
   sectionCtrlChar.writeUInt16LE(0x0002, 0)
@@ -253,7 +254,7 @@ function buildSection0Stream(sectionDef: Buffer): Buffer {
     buildRecord(TAG.PARA_HEADER, 0, paraHeader),
     buildRecord(TAG.PARA_TEXT, 1, paraText),
     buildRecord(TAG.PARA_CHAR_SHAPE, 1, buildParaCharShape(0, nChars)),
-    buildRecord(TAG.PARA_LINE_SEG, 1, buildParaLineSeg()),
+    buildRecord(TAG.PARA_LINE_SEG, 1, buildParaLineSegBuffer(contentWidth)),
     sectionDef,
   ])
 }
@@ -292,19 +293,16 @@ function buildParaCharShape(charShapeRef: number, nChars?: number): Buffer {
   return buf
 }
 
-// HWP 5.0 PARA_LINE_SEG binary layout (36 bytes per segment):
-// [0:4] textStartPos  [4:8] lineVerticalPos  [8:12] lineHeight
-// [12:16] textPartHeight  [16:20] distanceFromBaseline
-// [20:24] lineSpacing  [24:28] columnStart  [28:32] segmentWidth
-// [32:34] tag  [34:36] flags
-function buildParaLineSeg(): Buffer {
-  const buf = Buffer.alloc(36)
-  buf.writeUInt32LE(0x000009a0, 8)
-  buf.writeUInt32LE(0x000009a0, 12)
-  buf.writeUInt32LE(0x000007f8, 16)
-  buf.writeInt32LE(-0x00000690, 20)
-  buf.writeUInt16LE(0x0006, 34)
-  return buf
+function extractContentWidthFromRecords(recordStream: Buffer): number {
+  for (const { header, data } of iterateRecords(recordStream)) {
+    if (header.tagId === TAG.PAGE_DEF && data.length >= 16) {
+      const pageWidth = data.readUInt32LE(0)
+      const leftMargin = data.readUInt32LE(8)
+      const rightMargin = data.readUInt32LE(12)
+      return pageWidth - leftMargin - rightMargin
+    }
+  }
+  return 48190
 }
 
 function createHwpFileHeader(compressed: boolean): Buffer {
