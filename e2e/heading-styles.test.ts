@@ -141,8 +141,8 @@ describe('Heading Styles — HWP and conversion', () => {
 
       expect(para).toBeDefined()
       expect(para.styleName).toBe('개요 2')
-      expect(para.styleRef).toBe(2)
-      expect(para.paraShapeRef).toBe(2)
+      expect(para.styleRef).toBe(3)
+      expect(para.paraShapeRef).toBe(6)
     })
   })
 })
@@ -344,7 +344,7 @@ describe('Heading Styles — HWP→HWPX conversion headingLevel', () => {
     expect(para).toBeDefined()
     expect(para.headingLevel).toBe(3)
     expect(para.styleName).toBe('개요 3')
-    expect(para.styleRef).toBe(3)
+    expect(para.styleRef).toBe(4)
   })
 })
 

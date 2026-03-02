@@ -91,19 +91,36 @@ function enrichParagraph(
 ): Paragraph & { headingLevel?: number; styleName?: string } {
   const enriched: Paragraph & { headingLevel?: number; styleName?: string } = { ...para }
 
-  // Resolve heading level from paraShapeRef
-  const paraShape = header.paraShapes.find((ps) => ps.id === para.paraShapeRef)
-  if (paraShape?.headingLevel && paraShape.headingLevel > 0) {
-    enriched.headingLevel = paraShape.headingLevel
-  }
-
-  // Resolve style name from styleRef
+  // Resolve style name and heading level from styleRef
+  // Style name is the authoritative source for heading level (e.g. '개요 1' = heading 1)
+  // because Hancom templates may share a single paraShapeRef across multiple heading styles
   const style = header.styles.find((s) => s.id === para.styleRef)
   if (style) {
     enriched.styleName = style.name
+    const level = headingLevelFromStyleName(style.name)
+    if (level !== undefined) {
+      enriched.headingLevel = level
+    }
+  }
+
+  // Fall back to paraShape heading bits if style didn't provide heading level
+  if (enriched.headingLevel === undefined) {
+    const paraShape = header.paraShapes.find((ps) => ps.id === para.paraShapeRef)
+    if (paraShape?.headingLevel && paraShape.headingLevel > 0) {
+      enriched.headingLevel = paraShape.headingLevel
+    }
   }
 
   return enriched
+}
+
+const HEADING_STYLE_RE = /^(?:개요|Outline|Heading)\s+(\d+)$/i
+
+function headingLevelFromStyleName(name: string): number | undefined {
+  const match = HEADING_STYLE_RE.exec(name)
+  if (!match) return undefined
+  const level = Number(match[1])
+  return level >= 1 && level <= 7 ? level : undefined
 }
 
 async function loadHwpxDocument(file: string) {
