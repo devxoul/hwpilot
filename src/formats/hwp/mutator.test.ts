@@ -717,6 +717,31 @@ describe('mutateHwpCfb addParagraph heading/style', () => {
     }
   })
 
+  it('uses heading charShapeRef in PARA_CHAR_SHAPE record', async () => {
+    const hwpPath = tmpPath('mutator-addParagraph-heading-charshape')
+    await writeFile(hwpPath, await createHwp())
+
+    try {
+      const buffer = await readFile(hwpPath)
+      const cfb = CFB.read(buffer, { type: 'buffer' })
+      const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+      mutateHwpCfb(
+        cfb,
+        [{ type: 'addParagraph', ref: 's0', text: 'Heading 2', position: 'end', heading: 2 }],
+        compressed,
+      )
+
+      // PARA_CHAR_SHAPE should reference charShape 2 (개요 2 heading charShape)
+      const charShapeData = await getParagraphCharShapeData(cfb, compressed, 1)
+      expect(charShapeData).not.toBeNull()
+      // 8-byte entry: [uint32 position=0][uint32 charShapeRef=2]
+      expect(charShapeData!.readUInt32LE(4)).toBe(2)
+    } finally {
+      await unlink(hwpPath)
+    }
+  })
+
   it('sets paraShapeRef and styleRef for heading level 3', async () => {
     const hwpPath = tmpPath('mutator-addParagraph-heading3')
     await writeFile(hwpPath, await createHwp())

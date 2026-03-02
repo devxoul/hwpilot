@@ -3,10 +3,12 @@ import { readFile } from 'node:fs/promises'
 import CFB from 'cfb'
 import { createTestHwpBinary, createTestHwpCfb, createTestHwpx } from '../../test-helpers'
 import { controlIdBuffer } from './control-id'
+import { createHwp } from './creator'
 import { iterateRecords } from './record-parser'
 import { buildCellListHeaderData, buildRecord, buildTableData, replaceRecordData } from './record-serializer'
 import { TAG } from './tag-ids'
 import { validateHwp, validateHwpBuffer } from './validator'
+import { editHwp } from './writer'
 
 const TMP_FILES: string[] = []
 
@@ -350,6 +352,32 @@ describe('validateHwp', () => {
       const result = await validateHwp(filePath)
 
       // Guard kicks in: 1 < 10 → check skipped → pass
+      expect(getCheckStatus(result, 'content_completeness')).toBe('pass')
+    })
+
+    it('passes on created HWP with formatted paragraphs (pre-allocated heading charShapes)', async () => {
+      // createHwp declares 8 charShapes (1 body + 7 heading) and 8 styles.
+      // Adding formatted paragraphs pushes the count past the threshold of 10.
+      // Style-referenced charShapes should count toward coverage.
+      const filePath = tmpPath('validator-f-created-formatted')
+      TMP_FILES.push(filePath)
+      await Bun.write(filePath, await createHwp())
+
+      // Add formatting that creates new charShapes (pushing total to 10+)
+      await editHwp(filePath, [{ type: 'setFormat', ref: 's0.p0', format: { bold: true, fontSize: 22 } }])
+      await editHwp(filePath, [
+        {
+          type: 'addParagraph',
+          ref: 's0',
+          text: 'heading text',
+          position: 'end',
+          format: { bold: true, fontSize: 16 },
+        },
+      ])
+
+      const result = await validateHwp(filePath)
+
+      // Should pass because style-referenced charShapes (headings 1-7) count toward coverage
       expect(getCheckStatus(result, 'content_completeness')).toBe('pass')
     })
   })
