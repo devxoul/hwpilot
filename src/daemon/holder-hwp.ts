@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import CFB from 'cfb'
 import type { FlushScheduler } from '@/daemon/flush'
@@ -17,6 +17,7 @@ export class HwpHolder {
   private headerCache: DocumentHeader | null = null
   private dirty = false
   private fileStats: { ino: number; mtimeMs: number; size: number } | null = null
+  private contentDigest: string | null = null
 
   constructor(filePath: string) {
     this.filePath = filePath
@@ -31,6 +32,7 @@ export class HwpHolder {
     this.dirty = false
     const stats = await stat(this.filePath)
     this.fileStats = { ino: stats.ino, mtimeMs: stats.mtimeMs, size: stats.size }
+    this.contentDigest = createHash('sha256').update(buffer).digest('hex')
   }
 
   async getSections(): Promise<Section[]> {
@@ -137,11 +139,19 @@ export class HwpHolder {
     if (!this.fileStats) return
     try {
       const stats = await stat(this.filePath)
-      if (
-        stats.ino !== this.fileStats.ino ||
-        stats.mtimeMs > this.fileStats.mtimeMs ||
-        stats.size !== this.fileStats.size
-      ) {
+      let changed =
+        stats.ino !== this.fileStats.ino || stats.mtimeMs > this.fileStats.mtimeMs || stats.size !== this.fileStats.size
+
+      // When stats look unchanged but we have dirty state, verify content
+      // hasn't changed. Stat metadata can match after fast delete+recreate
+      // (inode reuse on tmpfs + same-ms mtime + same CFB-padded file size).
+      if (!changed && this.dirty && this.contentDigest) {
+        const buffer = await readFile(this.filePath)
+        const digest = createHash('sha256').update(buffer).digest('hex')
+        changed = digest !== this.contentDigest
+      }
+
+      if (changed) {
         if (this.dirty) {
           console.warn(`File replaced externally while holder had unflushed changes: ${this.filePath}`)
         }
