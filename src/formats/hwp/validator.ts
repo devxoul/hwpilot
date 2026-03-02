@@ -474,12 +474,25 @@ function validateIdMappings(docInfoBuffer: Buffer): CheckResult {
 }
 
 function validateContentCompleteness(docInfoBuffer: Buffer, sectionStreams: StreamRef[]): CheckResult {
-  const declaredCharShapeCount = parseRecords(docInfoBuffer).filter((record) => record.tagId === TAG.CHAR_SHAPE).length
+  const docInfoRecords = parseRecords(docInfoBuffer)
+  const declaredCharShapeCount = docInfoRecords.filter((record) => record.tagId === TAG.CHAR_SHAPE).length
   if (declaredCharShapeCount < 10) {
     return { name: 'content_completeness', status: 'pass' }
   }
 
   const uniqueRefs = new Set<number>()
+
+  // Count charShapes referenced by STYLE records in DocInfo.
+  // Pre-allocated styles (e.g. heading charShapes) are legitimately declared even if no
+  // body paragraph uses them yet.
+  for (const record of docInfoRecords) {
+    if (record.tagId !== TAG.STYLE) continue
+    const ref = parseStyleCharShapeRef(record.data)
+    if (ref >= 0 && ref < declaredCharShapeCount) {
+      uniqueRefs.add(ref)
+    }
+  }
+
   for (const stream of sectionStreams) {
     const records = parseRecords(stream.buffer)
     for (const record of records) {
@@ -513,6 +526,19 @@ function validateContentCompleteness(docInfoBuffer: Buffer, sectionStreams: Stre
   }
 
   return { name: 'content_completeness', status: 'pass' }
+}
+
+// Extract charShapeRef from a STYLE record's binary data.
+// Layout: [uint16 koreanNameLen][koreanName][uint16 englishNameLen][englishName][uint16 charShapeRef][uint16 paraShapeRef]
+function parseStyleCharShapeRef(data: Buffer): number {
+  if (data.length < 2) return -1
+  const nameLen = data.readUInt16LE(0)
+  let offset = 2 + nameLen * 2
+  if (offset + 2 > data.length) return -1
+  const englishNameLen = data.readUInt16LE(offset)
+  offset += 2 + englishNameLen * 2
+  if (offset + 2 > data.length) return -1
+  return data.readUInt16LE(offset)
 }
 
 function validateParagraphCompleteness(sectionStreams: StreamRef[]): CheckResult {
