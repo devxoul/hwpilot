@@ -140,9 +140,7 @@ export class HwpHolder {
     try {
       const stats = await stat(this.filePath)
       let changed =
-        stats.ino !== this.fileStats.ino ||
-        stats.mtimeMs > this.fileStats.mtimeMs ||
-        stats.size !== this.fileStats.size
+        stats.ino !== this.fileStats.ino || stats.mtimeMs > this.fileStats.mtimeMs || stats.size !== this.fileStats.size
 
       // When stats look unchanged but we have dirty state, verify content
       // hasn't changed. Stat metadata can match after fast delete+recreate
