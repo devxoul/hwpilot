@@ -110,10 +110,10 @@ export class HwpxHolder {
       let changed =
         stats.ino !== this.fileStats.ino || stats.mtimeMs > this.fileStats.mtimeMs || stats.size !== this.fileStats.size
 
-      // When stats look unchanged but we have dirty state, verify content
-      // hasn't changed. Stat metadata can match after fast delete+recreate
-      // (inode reuse on tmpfs + same-ms mtime + same file size).
-      if (!changed && this.dirty && this.contentDigest) {
+      // When stats look unchanged, verify content hasn't changed via digest.
+      // Stat metadata can match after fast delete+recreate on tmpfs
+      // (inode reuse + same-ms mtime + same file size).
+      if (!changed && this.contentDigest) {
         const buffer = await readFile(this.filePath)
         const digest = createHash('sha256').update(buffer).digest('hex')
         changed = digest !== this.contentDigest
