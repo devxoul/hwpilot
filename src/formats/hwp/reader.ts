@@ -240,19 +240,26 @@ function parseDocInfo(buffer: Buffer): DocInfoParseResult {
 
       const nameLen = data.readUInt16LE(0)
       let offset = 2 + nameLen * 2
-      // Skip English name if present
       if (offset + 2 <= data.length) {
         const englishNameLen = data.readUInt16LE(offset)
         offset += 2 + englishNameLen * 2
       }
+      const name = data.subarray(2, 2 + nameLen * 2).toString('utf16le')
+      const remaining = data.length - offset
 
-      if (offset + 4 > data.length) {
+      let charShapeRef: number
+      let paraShapeRef: number
+
+      if (remaining >= 10) {
+        charShapeRef = data.readUInt16LE(offset + 4)
+        paraShapeRef = data.readUInt16LE(offset + 6)
+      } else if (remaining >= 4) {
+        charShapeRef = data.readUInt16LE(offset)
+        paraShapeRef = data.readUInt16LE(offset + 2)
+      } else {
         continue
       }
 
-      const name = data.subarray(2, 2 + nameLen * 2).toString('utf16le')
-      const charShapeRef = data.readUInt16LE(offset)
-      const paraShapeRef = data.readUInt16LE(offset + 2)
       styles.push({ id: styleId, name, charShapeRef, paraShapeRef })
       styleId += 1
     }

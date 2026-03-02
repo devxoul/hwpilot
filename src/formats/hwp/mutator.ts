@@ -402,9 +402,14 @@ function parseStyleParaShapeRef(data: Buffer): number {
   if (offset + 2 > data.length) return 0
   const englishNameLen = data.readUInt16LE(offset)
   offset += 2 + englishNameLen * 2
-  // charShapeRef (uint16) + paraShapeRef (uint16)
-  if (offset + 4 > data.length) return 0
-  return data.readUInt16LE(offset + 2)
+  const remaining = data.length - offset
+  if (remaining >= 10) {
+    return data.readUInt16LE(offset + 6)
+  }
+  if (remaining >= 4) {
+    return data.readUInt16LE(offset + 2)
+  }
+  return 0
 }
 
 function parseStyleCharShapeRef(data: Buffer): number {
@@ -413,8 +418,14 @@ function parseStyleCharShapeRef(data: Buffer): number {
   if (offset + 2 > data.length) return 0
   const englishNameLen = data.readUInt16LE(offset)
   offset += 2 + englishNameLen * 2
-  if (offset + 2 > data.length) return 0
-  return data.readUInt16LE(offset)
+  const remaining = data.length - offset
+  if (remaining >= 10) {
+    return data.readUInt16LE(offset + 4)
+  }
+  if (remaining >= 2) {
+    return data.readUInt16LE(offset)
+  }
+  return 0
 }
 
 function appendParagraphRecords(
@@ -832,24 +843,31 @@ function applySetFormat(
   const clonedCharShape = Buffer.from(sourceCharShape)
   applyFormatToCharShape(clonedCharShape, format)
 
-  const idMappings = findIdMappingsRecord(docInfoStream)
-  if (!idMappings || idMappings.data.length < 8) {
-    throw new Error('ID_MAPPINGS record not found or malformed')
-  }
+  const existingCharShapeRef = findCharShapeRecordIndex(docInfoStream, clonedCharShape)
+  const targetCharShapeRef =
+    existingCharShapeRef ??
+    (() => {
+      const idMappings = findIdMappingsRecord(docInfoStream)
+      if (!idMappings || idMappings.data.length < 8) {
+        throw new Error('ID_MAPPINGS record not found or malformed')
+      }
 
-  const charShapeCountOffset = findCharShapeCountOffset(idMappings.data, charShapeRecords.length)
-  const currentCharShapeCount = idMappings.data.readUInt32LE(charShapeCountOffset)
-  const patchedIdMappings = Buffer.from(idMappings.data)
-  patchedIdMappings.writeUInt32LE(currentCharShapeCount + 1, charShapeCountOffset)
-  docInfoStream = replaceRecordData(docInfoStream, idMappings.offset, patchedIdMappings)
+      const charShapeCountOffset = findCharShapeCountOffset(idMappings.data, charShapeRecords.length)
+      const currentCharShapeCount = idMappings.data.readUInt32LE(charShapeCountOffset)
+      const patchedIdMappings = Buffer.from(idMappings.data)
+      patchedIdMappings.writeUInt32LE(currentCharShapeCount + 1, charShapeCountOffset)
+      docInfoStream = replaceRecordData(docInfoStream, idMappings.offset, patchedIdMappings)
 
-  const insertionOffset = findLastCharShapeRecordEnd(docInfoStream)
-  const newRecord = buildRecord(TAG.CHAR_SHAPE, 1, clonedCharShape)
-  docInfoStream = Buffer.concat([
-    docInfoStream.subarray(0, insertionOffset),
-    newRecord,
-    docInfoStream.subarray(insertionOffset),
-  ])
+      const insertionOffset = findLastCharShapeRecordEnd(docInfoStream)
+      const newRecord = buildRecord(TAG.CHAR_SHAPE, 1, clonedCharShape)
+      docInfoStream = Buffer.concat([
+        docInfoStream.subarray(0, insertionOffset),
+        newRecord,
+        docInfoStream.subarray(insertionOffset),
+      ])
+
+      return currentCharShapeCount
+    })()
 
   const hasInlineRange = start !== undefined || end !== undefined
   if (hasInlineRange && (start === undefined || end === undefined)) {
@@ -868,7 +886,7 @@ function applySetFormat(
     if (start > 0) {
       entries.push({ pos: 0, ref: sourceCharShapeId })
     }
-    entries.push({ pos: start, ref: currentCharShapeCount })
+    entries.push({ pos: start, ref: targetCharShapeRef })
     if (end < textLength) {
       entries.push({ pos: end, ref: sourceCharShapeId })
     }
@@ -879,7 +897,7 @@ function applySetFormat(
       patchedParaCharShape.writeUInt32LE(entries[i].ref, i * 8 + 4)
     }
   } else {
-    patchedParaCharShape = writeParagraphCharShapeRef(paraCharShapeMatch.data, currentCharShapeCount)
+    patchedParaCharShape = writeParagraphCharShapeRef(paraCharShapeMatch.data, targetCharShapeRef)
   }
 
   sectionStream = replaceRecordData(sectionStream, paraCharShapeMatch.offset, patchedParaCharShape)
@@ -1114,6 +1132,11 @@ function addCharShapeWithFormat(
   const clonedCharShape = Buffer.from(sourceCharShape)
   applyFormatToCharShape(clonedCharShape, format)
 
+  const existingCharShapeRef = findCharShapeRecordIndex(docInfoStream, clonedCharShape)
+  if (existingCharShapeRef !== null) {
+    return existingCharShapeRef
+  }
+
   const idMappings = findIdMappingsRecord(docInfoStream)
   if (!idMappings || idMappings.data.length < 8) {
     throw new Error('ID_MAPPINGS record not found or malformed')
@@ -1135,6 +1158,19 @@ function addCharShapeWithFormat(
 
   CFB.utils.cfb_add(cfb, docInfoPath, compressed ? compressStream(docInfoStream) : docInfoStream)
   return currentCharShapeCount
+}
+
+function findCharShapeRecordIndex(stream: Buffer, target: Buffer): number | null {
+  let index = 0
+  for (const { header, data } of iterateRecords(stream)) {
+    if (header.tagId === TAG.CHAR_SHAPE) {
+      if (Buffer.compare(data, target) === 0) {
+        return index
+      }
+      index += 1
+    }
+  }
+  return null
 }
 
 function applyFormatToCharShape(charShape: Buffer, format: FormatOptions): void {

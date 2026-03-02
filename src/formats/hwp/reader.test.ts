@@ -701,6 +701,45 @@ describe('STYLE record parsing', () => {
     // Cleanup
     await Bun.file(filePath).delete()
   })
+
+  it('parses STYLE record with full trailing fields correctly', async () => {
+    const filePath = '/tmp/test-hwp-style-full-trailing.hwp'
+    const _TMP_FILES: string[] = [filePath]
+
+    const koreanName = Buffer.from('스타일', 'utf16le')
+    const koreanNameLen = Buffer.alloc(2)
+    koreanNameLen.writeUInt16LE(3, 0)
+
+    const englishNameLen = Buffer.alloc(2)
+    englishNameLen.writeUInt16LE(0, 0)
+
+    const trailing = Buffer.alloc(10)
+    trailing.writeUInt8(0, 0)
+    trailing.writeUInt8(1, 1)
+    trailing.writeInt16LE(0x0412, 2)
+    trailing.writeUInt16LE(5, 4)
+    trailing.writeUInt16LE(3, 6)
+    trailing.writeUInt16LE(0, 8)
+
+    const styleData = Buffer.concat([koreanNameLen, koreanName, englishNameLen, trailing])
+    const docInfoRecords = buildRecord(TAG.STYLE, 1, styleData)
+    const sectionRecords = Buffer.concat([
+      buildRecord(TAG.PARA_HEADER, 0, Buffer.alloc(0)),
+      buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x0000])),
+    ])
+
+    const buffer = createHwpCfbBufferWithRecords(0, docInfoRecords, sectionRecords)
+    await Bun.write(filePath, buffer)
+
+    const doc = await loadHwp(filePath)
+    const style = doc.header.styles[0]
+
+    expect(style.name).toBe('스타일')
+    expect(style.charShapeRef).toBe(5)
+    expect(style.paraShapeRef).toBe(3)
+
+    await Bun.file(filePath).delete()
+  })
 })
 
 // Test for PARA_SHAPE record with heading level
