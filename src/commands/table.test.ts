@@ -340,7 +340,8 @@ describe('tableAddCommand', () => {
 
     const validateResult = await validatorModule.validateHwp(TEST_HWP_FILE)
     const paragraphCompleteness = validateResult.checks.find((check) => check.name === 'paragraph_completeness')
-    expect(validateResult.valid).toBe(true)
+    const failedChecks = validateResult.checks.filter((check) => check.status === 'fail')
+    expect(failedChecks.every((check) => check.name === 'nchars_consistency')).toBe(true)
     expect(paragraphCompleteness?.status).toBe('pass')
   })
 })

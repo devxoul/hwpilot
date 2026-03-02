@@ -363,7 +363,8 @@ export function buildMergedTable(rows: MergedTableRow[], colCount: number, rowCo
   records.push(buildRecord(TAG.PARA_TEXT, 1, encodeUint16([0x000b])))
   records.push(buildRecord(TAG.PARA_LINE_SEG, 1, buildParaLineSeg()))
   records.push(buildRecord(TAG.CTRL_HEADER, 1, buildTableCtrlHeaderData()))
-  records.push(buildRecord(TAG.TABLE, 2, buildTableData(rowCount, colCount)))
+  const cellsPerRow = rows.map((row) => row.length)
+  records.push(buildRecord(TAG.TABLE, 2, buildTableData(rowCount, colCount, cellsPerRow)))
 
   for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
     for (let colIndex = 0; colIndex < rows[rowIndex].length; colIndex++) {
