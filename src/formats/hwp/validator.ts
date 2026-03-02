@@ -552,7 +552,10 @@ function validateParagraphCompleteness(sectionStreams: StreamRef[]): CheckResult
     // When a PARA_HEADER at level L is encountered, it starts a scope.
     // Sub-records at level L+1 belong to it.
     // The scope ends when the next PARA_HEADER at level <= L appears.
-    const pendingByLevel = new Map<number, { hasText: boolean; hasCharShape: boolean; hasLineSeg: boolean }>()
+    const pendingByLevel = new Map<
+      number,
+      { hasText: boolean; hasCharShape: boolean; hasLineSeg: boolean; hasCtrl: boolean }
+    >()
 
     for (const record of records) {
       if (record.tagId === TAG.PARA_HEADER) {
@@ -562,14 +565,19 @@ function validateParagraphCompleteness(sectionStreams: StreamRef[]): CheckResult
             if (pending.hasText && !pending.hasCharShape) {
               missingCharShape.push({ stream: stream.name, level })
             }
-            if (pending.hasText && !pending.hasLineSeg) {
+            if (pending.hasText && !pending.hasLineSeg && !pending.hasCtrl) {
               missingLineSeg.push({ stream: stream.name, level })
             }
             pendingByLevel.delete(level)
           }
         }
 
-        pendingByLevel.set(record.level, { hasText: false, hasCharShape: false, hasLineSeg: false })
+        pendingByLevel.set(record.level, {
+          hasText: false,
+          hasCharShape: false,
+          hasLineSeg: false,
+          hasCtrl: false,
+        })
         continue
       }
 
@@ -578,9 +586,12 @@ function validateParagraphCompleteness(sectionStreams: StreamRef[]): CheckResult
       // corrupted files) emit them at the same level as PARA_HEADER.
       for (const [level, pending] of pendingByLevel) {
         if (record.level === level + 1 || record.level === level) {
-          if (record.tagId === TAG.PARA_TEXT) pending.hasText = true
+          if (record.tagId === TAG.PARA_TEXT) {
+            pending.hasText = true
+          }
           if (record.tagId === TAG.PARA_CHAR_SHAPE) pending.hasCharShape = true
           if (record.tagId === TAG.PARA_LINE_SEG) pending.hasLineSeg = true
+          if (record.tagId === TAG.CTRL_HEADER) pending.hasCtrl = true
         }
       }
     }
@@ -590,7 +601,7 @@ function validateParagraphCompleteness(sectionStreams: StreamRef[]): CheckResult
       if (pending.hasText && !pending.hasCharShape) {
         missingCharShape.push({ stream: stream.name, level })
       }
-      if (pending.hasText && !pending.hasLineSeg) {
+      if (pending.hasText && !pending.hasLineSeg && !pending.hasCtrl) {
         missingLineSeg.push({ stream: stream.name, level })
       }
     }

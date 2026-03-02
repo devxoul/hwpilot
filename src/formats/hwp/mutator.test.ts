@@ -704,10 +704,10 @@ describe('mutateHwpCfb addParagraph heading/style', () => {
       // Paragraph 0 is the empty initial paragraph, paragraph 1 is the new one
       const headerData = await getParagraphHeaderData(cfb, compressed, 1)
       expect(headerData).not.toBeNull()
-      // byte 8: paraShapeRef (uint16) = 1 (개요 1 paraShape)
-      expect(headerData!.readUInt16LE(8)).toBe(1)
-      // byte 10: styleRef (uint8) = 1 (개요 1 style index)
-      expect(headerData!.readUInt8(10)).toBe(1)
+      // byte 8: paraShapeRef (uint16) = 6 (개요 1 shares paraShape 6 in Hancom template)
+      expect(headerData!.readUInt16LE(8)).toBe(6)
+      // byte 10: styleRef (uint8) = 2 (개요 1 is style index 2 in Hancom template)
+      expect(headerData!.readUInt8(10)).toBe(2)
 
       await writeFile(hwpPath, Buffer.from(CFB.write(cfb, { type: 'buffer' })))
       const texts = await readParagraphTexts(hwpPath)
@@ -732,11 +732,11 @@ describe('mutateHwpCfb addParagraph heading/style', () => {
         compressed,
       )
 
-      // PARA_CHAR_SHAPE should reference charShape 2 (개요 2 heading charShape)
+      // PARA_CHAR_SHAPE should reference charShape 3 (개요 2 heading charShape in Hancom template)
       const charShapeData = await getParagraphCharShapeData(cfb, compressed, 1)
       expect(charShapeData).not.toBeNull()
-      // 8-byte entry: [uint32 position=0][uint32 charShapeRef=2]
-      expect(charShapeData!.readUInt32LE(4)).toBe(2)
+      // 8-byte entry: [uint32 position=0][uint32 charShapeRef=3]
+      expect(charShapeData!.readUInt32LE(4)).toBe(3)
     } finally {
       await unlink(hwpPath)
     }
@@ -759,8 +759,8 @@ describe('mutateHwpCfb addParagraph heading/style', () => {
 
       const headerData = await getParagraphHeaderData(cfb, compressed, 1)
       expect(headerData).not.toBeNull()
-      expect(headerData!.readUInt16LE(8)).toBe(3)
-      expect(headerData!.readUInt8(10)).toBe(3)
+      expect(headerData!.readUInt16LE(8)).toBe(6)
+      expect(headerData!.readUInt8(10)).toBe(4)
     } finally {
       await unlink(hwpPath)
     }
@@ -783,9 +783,9 @@ describe('mutateHwpCfb addParagraph heading/style', () => {
 
       const headerData = await getParagraphHeaderData(cfb, compressed, 1)
       expect(headerData).not.toBeNull()
-      // 개요 2 is style index 2, paraShapeRef=2
-      expect(headerData!.readUInt16LE(8)).toBe(2)
-      expect(headerData!.readUInt8(10)).toBe(2)
+      // 개요 2 is style index 3 in Hancom template, paraShapeRef=6
+      expect(headerData!.readUInt16LE(8)).toBe(6)
+      expect(headerData!.readUInt8(10)).toBe(3)
     } finally {
       await unlink(hwpPath)
     }
@@ -804,8 +804,8 @@ describe('mutateHwpCfb addParagraph heading/style', () => {
 
       const headerData = await getParagraphHeaderData(cfb, compressed, 1)
       expect(headerData).not.toBeNull()
-      // Style index 4 = 개요 4, paraShapeRef=4
-      expect(headerData!.readUInt16LE(8)).toBe(4)
+      // Style index 4 = 개요 3 in Hancom template, paraShapeRef=6
+      expect(headerData!.readUInt16LE(8)).toBe(6)
       expect(headerData!.readUInt8(10)).toBe(4)
     } finally {
       await unlink(hwpPath)
