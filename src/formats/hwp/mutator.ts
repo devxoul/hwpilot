@@ -339,12 +339,12 @@ function resolveStyleRefs(
   compressed: boolean,
   heading?: number,
   style?: string | number,
-): { paraShapeRef: number; styleIndex: number } {
+): { paraShapeRef: number; styleIndex: number; charShapeRef: number } {
   if (heading !== undefined && style !== undefined) {
     throw new Error('Cannot specify both heading and style')
   }
   if (heading === undefined && style === undefined) {
-    return { paraShapeRef: 0, styleIndex: 0 }
+    return { paraShapeRef: 0, styleIndex: 0, charShapeRef: 0 }
   }
 
   const docInfoPath = '/DocInfo'
@@ -364,14 +364,16 @@ function resolveStyleRefs(
 
     if (targetIndex !== undefined && styleIdx === targetIndex) {
       const paraShapeRef = parseStyleParaShapeRef(data)
-      return { paraShapeRef, styleIndex: styleIdx }
+      const charShapeRef = parseStyleCharShapeRef(data)
+      return { paraShapeRef, styleIndex: styleIdx, charShapeRef }
     }
 
     if (targetName !== undefined) {
       const name = parseStyleKoreanName(data)
       if (name === targetName) {
         const paraShapeRef = parseStyleParaShapeRef(data)
-        return { paraShapeRef, styleIndex: styleIdx }
+        const charShapeRef = parseStyleCharShapeRef(data)
+        return { paraShapeRef, styleIndex: styleIdx, charShapeRef }
       }
     }
 
@@ -405,6 +407,16 @@ function parseStyleParaShapeRef(data: Buffer): number {
   return data.readUInt16LE(offset + 2)
 }
 
+function parseStyleCharShapeRef(data: Buffer): number {
+  const nameLen = data.readUInt16LE(0)
+  let offset = 2 + nameLen * 2
+  if (offset + 2 > data.length) return 0
+  const englishNameLen = data.readUInt16LE(offset)
+  offset += 2 + englishNameLen * 2
+  if (offset + 2 > data.length) return 0
+  return data.readUInt16LE(offset)
+}
+
 function appendParagraphRecords(
   stream: Buffer,
   op: SectionAddParagraphOperation,
@@ -414,10 +426,16 @@ function appendParagraphRecords(
 ): Buffer {
   void sectionIndex
 
-  const { paraShapeRef, styleIndex } = resolveStyleRefs(cfb, compressed, op.heading, op.style)
+  const {
+    paraShapeRef,
+    styleIndex,
+    charShapeRef: styleCharShapeRef,
+  } = resolveStyleRefs(cfb, compressed, op.heading, op.style)
 
   const charShapeRef =
-    op.format && hasFormatOptions(op.format) ? addCharShapeWithFormat(cfb, compressed, 0, op.format) : 0
+    op.format && hasFormatOptions(op.format)
+      ? addCharShapeWithFormat(cfb, compressed, styleCharShapeRef, op.format)
+      : styleCharShapeRef
 
   const textData = Buffer.from(op.text, 'utf16le')
   const isEmpty = textData.length === 0
