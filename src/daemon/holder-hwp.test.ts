@@ -1,5 +1,5 @@
 import { describe, expect, it, mock, spyOn } from 'bun:test'
-import { access, mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises'
+import { access, mkdtemp, readFile, rm, unlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { loadHwp } from '../formats/hwp/reader'
@@ -183,10 +183,13 @@ describe('HwpHolder file change detection', () => {
       const sections = await holder.getSections()
       expect(sections[0].paragraphs[0].runs[0].text).toBe('Original content')
 
-      // delete and recreate file with different content at same path
+      // delete and recreate file with different content at same path;
+      // bump mtime so stat-based detection works on tmpfs where inode/size can match
       await unlink(filePath)
       const newBuffer = await createTestHwpBinary({ paragraphs: ['Replaced content'] })
       await writeFile(filePath, newBuffer)
+      const future = new Date(Date.now() + 1000)
+      await utimes(filePath, future, future)
 
       // getSections should detect the replacement and return new content
       const freshSections = await holder.getSections()
