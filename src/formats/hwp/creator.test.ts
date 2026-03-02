@@ -116,22 +116,22 @@ describe('createHwp', () => {
   })
 
   describe('heading styles', () => {
-    it('preserves 7 template charShapes', async () => {
+    it('preserves 8 template charShapes', async () => {
       const filePath = createTempFilePath()
       const fixture = await createHwp()
       await Bun.write(filePath, fixture)
 
       const doc = await loadHwp(filePath)
-      expect(doc.header.charShapes).toHaveLength(7)
+      expect(doc.header.charShapes).toHaveLength(8)
     })
 
-    it('preserves 19 template paraShapes', async () => {
+    it('preserves 20 template paraShapes', async () => {
       const filePath = createTempFilePath()
       const fixture = await createHwp()
       await Bun.write(filePath, fixture)
 
       const doc = await loadHwp(filePath)
-      expect(doc.header.paraShapes).toHaveLength(19)
+      expect(doc.header.paraShapes).toHaveLength(20)
     })
 
     it('preserves 21 template styles', async () => {
@@ -182,9 +182,9 @@ describe('createHwp', () => {
         }
       }
 
-      expect(paraShapeSizes.length).toBeGreaterThanOrEqual(19)
+      expect(paraShapeSizes.length).toBeGreaterThanOrEqual(20)
       expect(paraShapeSizes[0]).toBe(58)
-      for (const size of paraShapeSizes.slice(1, 19)) {
+      for (const size of paraShapeSizes.slice(1, 20)) {
         expect(size).toBe(58)
       }
 
@@ -214,7 +214,7 @@ describe('createHwp', () => {
       expect(paraCharShape).toBeDefined()
       const charShapeRef = paraCharShape!.data.readUInt32LE(4)
       expect(charShapeRef).toBeGreaterThanOrEqual(0)
-      expect(charShapeRef).toBeLessThan(7)
+      expect(charShapeRef).toBeLessThan(8)
 
       const dlocCtrlHeader = [...iterateRecords(section0)].find(
         ({ header, data }) =>

@@ -142,7 +142,7 @@ describe('Heading Styles — HWP and conversion', () => {
       expect(para).toBeDefined()
       expect(para.styleName).toBe('개요 2')
       expect(para.styleRef).toBe(3)
-      expect(para.paraShapeRef).toBe(6)
+      expect(para.paraShapeRef).toBe(7)
     })
   })
 })

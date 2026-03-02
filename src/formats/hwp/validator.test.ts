@@ -356,7 +356,7 @@ describe('validateHwp', () => {
     })
 
     it('passes on created HWP with formatted paragraphs (pre-allocated heading charShapes)', async () => {
-      // createHwp declares 8 charShapes (1 body + 7 heading) and 8 styles.
+      // createHwp declares 8 charShapes (1 body + 7 heading) and 21 styles.
       // Adding formatted paragraphs pushes the count past the threshold of 10.
       // Style-referenced charShapes should count toward coverage.
       const filePath = tmpPath('validator-f-created-formatted')
@@ -371,7 +371,16 @@ describe('validateHwp', () => {
           ref: 's0',
           text: 'heading text',
           position: 'end',
-          format: { bold: true, fontSize: 16 },
+          heading: 1,
+        },
+      ])
+      await editHwp(filePath, [
+        {
+          type: 'addParagraph',
+          ref: 's0',
+          text: 'heading 2 text',
+          position: 'end',
+          heading: 2,
         },
       ])
 
