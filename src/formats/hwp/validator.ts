@@ -742,6 +742,18 @@ function validateTableStructure(sectionStreams: StreamRef[]): CheckResult {
             issues.push(
               `${stream.name} TABLE record at record ${i}: size ${record.data.length} < required ${dynamicMinSize} for ${rows} rows`,
             )
+          } else if (rows > 0) {
+            // Validate rowSpanCounts values: must be non-zero (cells per row)
+            let allZero = true
+            for (let r = 0; r < rows; r++) {
+              const cellsInRow = record.data.readUInt16LE(TABLE_RECORD_BASE_SIZE + r * 2)
+              if (cellsInRow > 0) allZero = false
+            }
+            if (allZero && cols > 0) {
+              issues.push(
+                `${stream.name} TABLE record at record ${i}: rowSpanCounts are all zero (${rows} rows, ${cols} cols)`,
+              )
+            }
           }
         }
         continue

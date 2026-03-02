@@ -588,6 +588,7 @@ describe('validateHwp', () => {
       const fullTableData = Buffer.alloc(34)
       fullTableData.writeUInt16LE(1, 4) // rows
       fullTableData.writeUInt16LE(1, 6) // cols
+      fullTableData.writeUInt16LE(1, 18) // rowSpanCounts[0] = 1 cell
 
       const section0 = Buffer.concat([
         buildRecord(TAG.PARA_HEADER, 0, paraHeader),
@@ -628,6 +629,8 @@ describe('validateHwp', () => {
       const fullTableData = Buffer.alloc(34)
       fullTableData.writeUInt16LE(2, 4) // rows
       fullTableData.writeUInt16LE(2, 6) // cols → expects 4 cells
+      fullTableData.writeUInt16LE(2, 18) // rowSpanCounts[0] = 2 cells
+      fullTableData.writeUInt16LE(2, 20) // rowSpanCounts[1] = 2 cells
 
       // Full-size LIST_HEADER (46 bytes)
       const fullCellHeader = Buffer.alloc(46)
@@ -750,6 +753,7 @@ describe('validateHwp', () => {
       const fullTableData = Buffer.alloc(34)
       fullTableData.writeUInt16LE(1, 4) // rows
       fullTableData.writeUInt16LE(1, 6) // cols
+      fullTableData.writeUInt16LE(1, 18) // rowSpanCounts[0] = 1 cell
 
       // Cell LIST_HEADER with zero width and height
       const zeroCellHeader = Buffer.alloc(46)
