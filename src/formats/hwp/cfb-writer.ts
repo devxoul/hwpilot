@@ -38,9 +38,13 @@ export function writeCfb(cfb: CFB.CFB$Container): Buffer {
   const regularStreamSectorCounts = regularStreams.map((s) => Math.ceil((s.content?.length ?? 0) / SECTOR_SIZE))
   const totalRegularStreamSectors = regularStreamSectorCounts.reduce((a, b) => a + b, 0)
 
-  const totalSectors = 1 + dirSectors + miniFatSectors + miniStreamSectors + totalRegularStreamSectors
-  const fatSectors = Math.ceil(totalSectors / (SECTOR_SIZE / 4))
-  const finalTotalSectors = fatSectors + dirSectors + miniFatSectors + miniStreamSectors + totalRegularStreamSectors
+  const dataSectors = dirSectors + miniFatSectors + miniStreamSectors + totalRegularStreamSectors
+  const entriesPerFatSector = SECTOR_SIZE / 4
+  let fatSectors = Math.ceil((dataSectors + 1) / entriesPerFatSector)
+  while (fatSectors + dataSectors > fatSectors * entriesPerFatSector) {
+    fatSectors++
+  }
+  const finalTotalSectors = fatSectors + dataSectors
 
   const fat = new Int32Array(Math.max(finalTotalSectors, fatSectors * (SECTOR_SIZE / 4)))
   fat.fill(-1)
@@ -118,13 +122,11 @@ export function writeCfb(cfb: CFB.CFB$Container): Buffer {
     miniStreamData.copy(output, (miniStreamSectorStart + 1) * SECTOR_SIZE)
   }
 
-  let regIdx = 0
   for (let si = 0; si < regularStreams.length; si++) {
     const data = regularStreams[si].content
     if (data && data.length > 0) {
       Buffer.from(data).copy(output, (regularSectorStarts[si] + 1) * SECTOR_SIZE)
     }
-    regIdx++
   }
 
   return output
@@ -448,7 +450,8 @@ function writeDirectoryEntries(
 
     if (entry.type === 5) {
       // Root Entry
-      writeInt32(buf,
+      writeInt32(
+        buf,
         streamInfo.miniStreamSize > 0 ? streamInfo.miniStreamSectorStart : END_OF_CHAIN,
         entryOffset + 0x74,
       )
@@ -484,7 +487,6 @@ function writeMiniFat(buf: Buffer, miniFatEntries: number[], miniFatSectorStart:
     writeInt32(buf, val, offset + i * 4)
   }
 }
-
 
 function writeInt32(buf: Buffer, value: number, offset: number): void {
   buf.writeInt32LE(value, offset)

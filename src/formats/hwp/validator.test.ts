@@ -363,25 +363,29 @@ describe('validateHwp', () => {
       TMP_FILES.push(filePath)
       await Bun.write(filePath, await createHwp())
 
-      // Add formatting that creates new charShapes (pushing total to 10+)
-      await editHwp(filePath, [{ type: 'setFormat', ref: 's0.p0', format: { bold: true, fontSize: 22 } }])
+      // Batch all operations in a single editHwp call so the internal validator
+      // runs once with all charShapes and references in place. The Hancom template
+      // shares a single charShapeRef across heading styles, so we need enough
+      // formatted paragraphs to push coverage above the 50% threshold.
       await editHwp(filePath, [
+        { type: 'setFormat', ref: 's0.p0', format: { bold: true, fontSize: 22 } },
         {
           type: 'addParagraph',
           ref: 's0',
           text: 'heading text',
           position: 'end',
           heading: 1,
+          format: { bold: true, fontSize: 16 },
         },
-      ])
-      await editHwp(filePath, [
         {
           type: 'addParagraph',
           ref: 's0',
           text: 'heading 2 text',
           position: 'end',
           heading: 2,
+          format: { bold: true, fontSize: 14 },
         },
+        { type: 'addParagraph', ref: 's0', text: 'extra formatted', position: 'end', format: { italic: true } },
       ])
 
       const result = await validateHwp(filePath)
