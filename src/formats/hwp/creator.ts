@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import CFB from 'cfb'
+import { writeCfb } from './cfb-writer'
 import { controlIdBuffer } from './control-id'
 import { iterateRecords } from './record-parser'
 import { buildRecord } from './record-serializer'
@@ -33,7 +34,7 @@ export async function createHwp(options: CreateHwpOptions = {}): Promise<Buffer>
   CFB.utils.cfb_del(cfb, '/BodyText/Section0')
   CFB.utils.cfb_add(cfb, '/BodyText/Section0', compressed ? compressStream(section0) : section0)
 
-  return Buffer.from(CFB.write(cfb, { type: 'buffer' }))
+  return writeCfb(cfb)
 }
 
 async function loadTemplate(): Promise<Buffer> {

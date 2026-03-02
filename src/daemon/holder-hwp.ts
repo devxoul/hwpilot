@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import CFB from 'cfb'
+import { writeCfb } from '@/formats/hwp/cfb-writer'
 import type { FlushScheduler } from '@/daemon/flush'
 import { mutateHwpCfb } from '@/formats/hwp/mutator'
 import { loadHwp, loadHwpSectionTexts } from '@/formats/hwp/reader'
@@ -188,7 +189,6 @@ export class HwpHolder {
   }
 
   private serializeCfb(cfb: CFB.CFB$Container): Buffer {
-    const output = CFB.write(cfb, { type: 'buffer' }) as Buffer | Uint8Array
-    return Buffer.isBuffer(output) ? output : Buffer.from(output)
+    return writeCfb(cfb)
   }
 }
