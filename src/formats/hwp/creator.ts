@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import CFB from 'cfb'
+import { controlIdBuffer } from './control-id'
 import { iterateRecords } from './record-parser'
 import { buildParaLineSegBuffer, buildRecord } from './record-serializer'
 import { compressStream, decompressStream, getCompressionFlag } from './stream-util'
@@ -109,6 +110,7 @@ function patchDocInfo(
   let charShapeIndex = 0
   let paraShapeIndex = 0
   let styleIndex = 0
+  let bodyParaShapeData: Buffer | null = null
   for (const { header, data, offset } of iterateRecords(stream)) {
     const recordBuf = stream.subarray(offset, offset + header.headerSize + header.size)
     if (header.tagId === TAG.FACE_NAME && font) {
@@ -138,9 +140,10 @@ function patchDocInfo(
 
     if (header.tagId === TAG.PARA_SHAPE) {
       if (paraShapeIndex === 0) {
+        bodyParaShapeData = Buffer.from(data)
         parts.push(recordBuf)
         // Add 7 heading paraShapes after body
-        for (const headingParaShape of buildHeadingParaShapes()) {
+        for (const headingParaShape of buildHeadingParaShapes(bodyParaShapeData)) {
           parts.push(buildRecord(TAG.PARA_SHAPE, header.level, headingParaShape))
         }
       }
@@ -158,9 +161,12 @@ function patchDocInfo(
           const englishNameLen = patched.readUInt16LE(refOffset)
           refOffset += 2 + englishNameLen * 2
         }
-        if (refOffset + 4 <= patched.length) {
-          patched.writeUInt16LE(0, refOffset) // charShapeRef = 0
-          patched.writeUInt16LE(0, refOffset + 2) // paraShapeRef = 0
+        if (refOffset + 10 <= patched.length) {
+          patched.writeUInt16LE(0, refOffset + 4)
+          patched.writeUInt16LE(0, refOffset + 6)
+        } else if (refOffset + 4 <= patched.length) {
+          patched.writeUInt16LE(0, refOffset)
+          patched.writeUInt16LE(0, refOffset + 2)
         }
         parts.push(buildRecord(TAG.STYLE, header.level, patched))
         // Add 7 heading styles after body
@@ -209,12 +215,14 @@ function buildHeadingCharShapes(bodyCharShapeData: Buffer): Buffer[] {
   })
 }
 
-function buildHeadingParaShapes(): Buffer[] {
+function buildHeadingParaShapes(bodyParaShapeData: Buffer): Buffer[] {
   return Array.from({ length: 7 }, (_, i) => {
     const level = i + 1
-    const buf = Buffer.alloc(4)
-    // bits 2-4: alignment=1 (left), bits 25-27: heading level
-    buf.writeUInt32LE(((level << 25) | (1 << 2)) >>> 0, 0)
+    const buf = Buffer.from(bodyParaShapeData)
+    const flags = buf.readUInt32LE(0)
+    const cleared = flags & ~(0x7 | (0x7 << 25))
+    const newFlags = cleared | (1 << 2) | (level << 25)
+    buf.writeUInt32LE(newFlags >>> 0, 0)
     return buf
   })
 }
@@ -222,13 +230,18 @@ function buildHeadingParaShapes(): Buffer[] {
 function buildHeadingStyles(): Buffer[] {
   return Array.from({ length: 7 }, (_, i) => {
     const level = i + 1
+    const styleIndex = level
     const koreanName = encodeLengthPrefixedUtf16(`\uAC1C\uC694 ${level}`)
     const englishNameLen = Buffer.alloc(2)
     englishNameLen.writeUInt16LE(0, 0)
-    const refs = Buffer.alloc(4)
-    refs.writeUInt16LE(level, 0) // charShapeRef
-    refs.writeUInt16LE(level, 2) // paraShapeRef
-    return Buffer.concat([koreanName, englishNameLen, refs])
+    const trailing = Buffer.alloc(10)
+    trailing.writeUInt8(0, 0)
+    trailing.writeUInt8(styleIndex, 1)
+    trailing.writeInt16LE(0x0412, 2)
+    trailing.writeUInt16LE(level, 4)
+    trailing.writeUInt16LE(level, 6)
+    trailing.writeUInt16LE(0, 8)
+    return Buffer.concat([koreanName, englishNameLen, trailing])
   })
 }
 
@@ -241,21 +254,28 @@ function encodeLengthPrefixedUtf16(text: string): Buffer {
 
 function buildSection0Stream(sectionDef: Buffer): Buffer {
   const contentWidth = extractContentWidthFromRecords(sectionDef)
-  // Single empty paragraph with section definition
   const sectionCtrlChar = Buffer.alloc(16)
   sectionCtrlChar.writeUInt16LE(0x0002, 0)
-  sectionCtrlChar.write('dces', 2, 'ascii')
+  controlIdBuffer('secd').copy(sectionCtrlChar, 2)
   sectionCtrlChar.writeUInt16LE(0x0002, 14)
-  const paraText = Buffer.concat([sectionCtrlChar, Buffer.from([0x0d, 0x00])])
+  const columnCtrlChar = Buffer.alloc(16)
+  columnCtrlChar.writeUInt16LE(0x0002, 0)
+  controlIdBuffer('dloc').copy(columnCtrlChar, 2)
+  columnCtrlChar.writeUInt16LE(0x0002, 14)
+  const paraText = Buffer.concat([sectionCtrlChar, columnCtrlChar, Buffer.from([0x0d, 0x00])])
   const nChars = paraText.length / 2
   const paraHeader = buildParaHeader(nChars, true)
-  paraHeader.writeUInt32LE(0x00080004, 4)
+  paraHeader.writeUInt32LE(0x00000004, 4)
+  const dlocCtrlData = Buffer.alloc(16)
+  controlIdBuffer('cold').copy(dlocCtrlData, 0)
+  dlocCtrlData.writeUInt32LE(0x00001004, 4)
   return Buffer.concat([
     buildRecord(TAG.PARA_HEADER, 0, paraHeader),
     buildRecord(TAG.PARA_TEXT, 1, paraText),
     buildRecord(TAG.PARA_CHAR_SHAPE, 1, buildParaCharShape(0, nChars)),
     buildRecord(TAG.PARA_LINE_SEG, 1, buildParaLineSegBuffer(contentWidth)),
     sectionDef,
+    buildRecord(TAG.CTRL_HEADER, 1, dlocCtrlData),
   ])
 }
 
@@ -308,7 +328,7 @@ function extractContentWidthFromRecords(recordStream: Buffer): number {
 function createHwpFileHeader(compressed: boolean): Buffer {
   const fileHeader = Buffer.alloc(256)
   fileHeader.write('HWP Document File', 0, 'ascii')
-  fileHeader.writeUInt32LE(0x05010001, 32)
+  fileHeader.writeUInt32LE(0x05010100, 32)
   fileHeader.writeUInt32LE(compressed ? 0x1 : 0, 36)
   fileHeader.writeUInt32LE(4, 44)
   return fileHeader
