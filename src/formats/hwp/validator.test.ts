@@ -548,6 +548,8 @@ describe('validateHwp', () => {
       // Full 44-byte CTRL_HEADER (enough to pass the ctrl header check)
       const fullCtrlHeader = Buffer.alloc(44)
       controlIdBuffer('tbl ').copy(fullCtrlHeader, 0)
+      fullCtrlHeader.writeUInt32LE(14100, 16) // width
+      fullCtrlHeader.writeUInt32LE(1000, 20) // height
 
       const section0 = Buffer.concat([
         buildRecord(TAG.PARA_HEADER, 0, paraHeader),
@@ -580,6 +582,8 @@ describe('validateHwp', () => {
       const tableParaLineSeg = Buffer.alloc(36)
       const fullCtrlHeader = Buffer.alloc(44)
       controlIdBuffer('tbl ').copy(fullCtrlHeader, 0)
+      fullCtrlHeader.writeUInt32LE(14100, 16) // width
+      fullCtrlHeader.writeUInt32LE(1000, 20) // height
       // Full TABLE record (34 bytes)
       const fullTableData = Buffer.alloc(34)
       fullTableData.writeUInt16LE(1, 4) // rows
@@ -619,6 +623,8 @@ describe('validateHwp', () => {
       const tableParaLineSeg = Buffer.alloc(36)
       const fullCtrlHeader = Buffer.alloc(44)
       controlIdBuffer('tbl ').copy(fullCtrlHeader, 0)
+      fullCtrlHeader.writeUInt32LE(14100, 16) // width
+      fullCtrlHeader.writeUInt32LE(1000, 20) // height
       const fullTableData = Buffer.alloc(34)
       fullTableData.writeUInt16LE(2, 4) // rows
       fullTableData.writeUInt16LE(2, 6) // cols → expects 4 cells
@@ -630,6 +636,8 @@ describe('validateHwp', () => {
       fullCellHeader.writeUInt16LE(0, 10) // row
       fullCellHeader.writeUInt16LE(1, 12) // colSpan
       fullCellHeader.writeUInt16LE(1, 14) // rowSpan
+      fullCellHeader.writeUInt32LE(6432, 16) // width
+      fullCellHeader.writeUInt32LE(500, 20) // height
 
       const section0 = Buffer.concat([
         buildRecord(TAG.PARA_HEADER, 0, paraHeader),
@@ -656,6 +664,119 @@ describe('validateHwp', () => {
 
       expect(getCheckStatus(result, 'table_structure')).toBe('fail')
       expect(getCheckMessage(result, 'table_structure')).toContain('expected grid coverage 4')
+    })
+
+    it('detects zero-dimension table CTRL_HEADER', async () => {
+      const paraHeader = Buffer.alloc(24)
+      paraHeader.writeUInt32LE((0x80000000 | 1) >>> 0, 0)
+
+      const tableParaCharShape = Buffer.alloc(8)
+      const tableParaLineSeg = Buffer.alloc(36)
+      // CTRL_HEADER with zero width and height (corrupted)
+      const zeroCtrlHeader = Buffer.alloc(44)
+      controlIdBuffer('tbl ').copy(zeroCtrlHeader, 0)
+      // width at offset 16 and height at offset 20 left as 0
+
+      const section0 = Buffer.concat([
+        buildRecord(TAG.PARA_HEADER, 0, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 1, Buffer.from('\x0b\x00', 'binary')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape),
+        buildRecord(TAG.PARA_LINE_SEG, 1, tableParaLineSeg),
+        buildRecord(TAG.CTRL_HEADER, 1, zeroCtrlHeader),
+        buildRecord(TAG.TABLE, 2, buildTableData(1, 1)),
+        buildRecord(TAG.LIST_HEADER, 2, buildCellListHeaderData(0, 0, 1, 1)),
+        buildRecord(TAG.PARA_HEADER, 3, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 3, Buffer.from('A', 'utf16le')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 3, tableParaCharShape),
+        buildRecord(TAG.PARA_LINE_SEG, 3, tableParaLineSeg),
+      ])
+
+      const filePath = await writeTempHwp(await buildHwpWithCustomSection0(section0), 'validator-h-zero-ctrl')
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'table_structure')).toBe('fail')
+      expect(getCheckMessage(result, 'table_structure')).toContain('zero dimensions')
+      expect(getCheckMessage(result, 'table_structure')).toContain('CTRL_HEADER')
+    })
+
+    it('detects TABLE record too small for row count', async () => {
+      const paraHeader = Buffer.alloc(24)
+      paraHeader.writeUInt32LE((0x80000000 | 1) >>> 0, 0)
+
+      const tableParaCharShape = Buffer.alloc(8)
+      const tableParaLineSeg = Buffer.alloc(36)
+      const fullCtrlHeader = Buffer.alloc(44)
+      controlIdBuffer('tbl ').copy(fullCtrlHeader, 0)
+      fullCtrlHeader.writeUInt32LE(14100, 16) // width
+      fullCtrlHeader.writeUInt32LE(1000, 20) // height
+
+      // TABLE record with 5 rows declared but only 18 bytes (needs 18 + 5*2 = 28)
+      const shortTableData = Buffer.alloc(18)
+      shortTableData.writeUInt16LE(5, 4) // rows = 5
+      shortTableData.writeUInt16LE(2, 6) // cols = 2
+
+      const section0 = Buffer.concat([
+        buildRecord(TAG.PARA_HEADER, 0, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 1, Buffer.from('\x0b\x00', 'binary')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape),
+        buildRecord(TAG.PARA_LINE_SEG, 1, tableParaLineSeg),
+        buildRecord(TAG.CTRL_HEADER, 1, fullCtrlHeader),
+        buildRecord(TAG.TABLE, 2, shortTableData),
+        buildRecord(TAG.LIST_HEADER, 2, buildCellListHeaderData(0, 0, 1, 1)),
+        buildRecord(TAG.PARA_HEADER, 3, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 3, Buffer.from('A', 'utf16le')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 3, tableParaCharShape),
+        buildRecord(TAG.PARA_LINE_SEG, 3, tableParaLineSeg),
+      ])
+
+      const filePath = await writeTempHwp(await buildHwpWithCustomSection0(section0), 'validator-h-dynamic-table-size')
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'table_structure')).toBe('fail')
+      expect(getCheckMessage(result, 'table_structure')).toContain('5 rows')
+    })
+
+    it('detects zero-dimension cell LIST_HEADER', async () => {
+      const paraHeader = Buffer.alloc(24)
+      paraHeader.writeUInt32LE((0x80000000 | 1) >>> 0, 0)
+
+      const tableParaCharShape = Buffer.alloc(8)
+      const tableParaLineSeg = Buffer.alloc(36)
+      const fullCtrlHeader = Buffer.alloc(44)
+      controlIdBuffer('tbl ').copy(fullCtrlHeader, 0)
+      fullCtrlHeader.writeUInt32LE(14100, 16) // width
+      fullCtrlHeader.writeUInt32LE(1000, 20) // height
+
+      const fullTableData = Buffer.alloc(34)
+      fullTableData.writeUInt16LE(1, 4) // rows
+      fullTableData.writeUInt16LE(1, 6) // cols
+
+      // Cell LIST_HEADER with zero width and height
+      const zeroCellHeader = Buffer.alloc(46)
+      zeroCellHeader.writeUInt16LE(1, 12) // colSpan
+      zeroCellHeader.writeUInt16LE(1, 14) // rowSpan
+      // width at offset 16 and height at offset 20 left as 0
+
+      const section0 = Buffer.concat([
+        buildRecord(TAG.PARA_HEADER, 0, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 1, Buffer.from('\x0b\x00', 'binary')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape),
+        buildRecord(TAG.PARA_LINE_SEG, 1, tableParaLineSeg),
+        buildRecord(TAG.CTRL_HEADER, 1, fullCtrlHeader),
+        buildRecord(TAG.TABLE, 2, fullTableData),
+        buildRecord(TAG.LIST_HEADER, 2, zeroCellHeader),
+        buildRecord(TAG.PARA_HEADER, 3, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 3, Buffer.from('A', 'utf16le')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 3, tableParaCharShape),
+        buildRecord(TAG.PARA_LINE_SEG, 3, tableParaLineSeg),
+      ])
+
+      const filePath = await writeTempHwp(await buildHwpWithCustomSection0(section0), 'validator-h-zero-cell')
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'table_structure')).toBe('fail')
+      expect(getCheckMessage(result, 'table_structure')).toContain('zero dimensions')
+      expect(getCheckMessage(result, 'table_structure')).toContain('LIST_HEADER')
     })
   })
 })

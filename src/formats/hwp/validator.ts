@@ -644,11 +644,13 @@ function validateEmptyParagraphText(sectionStreams: StreamRef[]): CheckResult {
 }
 
 // Minimum sizes observed in well-formed Hancom-created HWP files.
-// Our broken table add produces truncated records that the Hancom Viewer rejects.
 const TABLE_CTRL_HEADER_MIN_SIZE = 44
-const TABLE_RECORD_MIN_SIZE = 34
+// TABLE record: 18 bytes fixed header (flags + rows + cols + spacing + margins),
+// followed by a variable-length rowSpanCounts array (rowCount × 2 bytes).
+// The fixed constant TABLE_RECORD_BASE_SIZE covers only the header portion;
+// the dynamic minimum is TABLE_RECORD_BASE_SIZE + rowCount * 2.
+const TABLE_RECORD_BASE_SIZE = 18
 const TABLE_CELL_LIST_HEADER_MIN_SIZE = 46
-
 function validateTableStructure(sectionStreams: StreamRef[]): CheckResult {
   const issues: string[] = []
 
@@ -682,6 +684,14 @@ function validateTableStructure(sectionStreams: StreamRef[]): CheckResult {
             issues.push(
               `${stream.name} table CTRL_HEADER at record ${i}: size ${record.data.length} < minimum ${TABLE_CTRL_HEADER_MIN_SIZE}`,
             )
+          } else if (record.data.length >= 24) {
+            const width = record.data.readUInt32LE(16)
+            const height = record.data.readUInt32LE(20)
+            if (width === 0 && height === 0) {
+              issues.push(
+                `${stream.name} table CTRL_HEADER at record ${i}: zero dimensions (width=${width}, height=${height})`,
+              )
+            }
           }
           continue
         }
@@ -717,15 +727,22 @@ function validateTableStructure(sectionStreams: StreamRef[]): CheckResult {
 
       // Validate TABLE record
       if (record.tagId === TAG.TABLE && record.level === tableCtrlLevel + 1) {
-        if (record.data.length < TABLE_RECORD_MIN_SIZE) {
+        if (record.data.length < TABLE_RECORD_BASE_SIZE) {
           issues.push(
-            `${stream.name} TABLE record at record ${i}: size ${record.data.length} < minimum ${TABLE_RECORD_MIN_SIZE}`,
+            `${stream.name} TABLE record at record ${i}: size ${record.data.length} < minimum ${TABLE_RECORD_BASE_SIZE}`,
           )
         }
         if (record.data.length >= 8) {
           const rows = record.data.readUInt16LE(4)
           const cols = record.data.readUInt16LE(6)
           expectedCellCount = rows * cols
+          // TABLE record must hold rowSpanCounts[rowCount] after the 18-byte header
+          const dynamicMinSize = TABLE_RECORD_BASE_SIZE + rows * 2
+          if (record.data.length < dynamicMinSize) {
+            issues.push(
+              `${stream.name} TABLE record at record ${i}: size ${record.data.length} < required ${dynamicMinSize} for ${rows} rows`,
+            )
+          }
         }
         continue
       }
@@ -745,6 +762,15 @@ function validateTableStructure(sectionStreams: StreamRef[]): CheckResult {
           issues.push(
             `${stream.name} cell LIST_HEADER at record ${i}: size ${record.data.length} < minimum ${TABLE_CELL_LIST_HEADER_MIN_SIZE}`,
           )
+        }
+        if (record.data.length >= 24) {
+          const cellWidth = record.data.readUInt32LE(16)
+          const cellHeight = record.data.readUInt32LE(20)
+          if (cellWidth === 0 && cellHeight === 0) {
+            issues.push(
+              `${stream.name} cell LIST_HEADER at record ${i}: zero dimensions (width=${cellWidth}, height=${cellHeight})`,
+            )
+          }
         }
       }
 
