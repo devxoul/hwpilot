@@ -1,4 +1,5 @@
-import { rename, rm, stat, writeFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import type JSZip from 'jszip'
 import type { FlushScheduler } from '@/daemon/flush'
 import { parseHeader } from '@/formats/hwpx/header-parser'
@@ -16,12 +17,14 @@ export class HwpxHolder {
   private headerCache: DocumentHeader | null = null
   private dirty = false
   private fileStats: { ino: number; mtimeMs: number; size: number } | null = null
+  private contentDigest: string | null = null
 
   constructor(filePath: string) {
     this.filePath = filePath
   }
 
   async load(): Promise<void> {
+    const rawBuffer = await readFile(this.filePath)
     this.archive = await loadHwpx(this.filePath)
     this.zip = this.archive.getZip()
     this.sectionsCache = null
@@ -29,6 +32,7 @@ export class HwpxHolder {
     this.dirty = false
     const stats = await stat(this.filePath)
     this.fileStats = { ino: stats.ino, mtimeMs: stats.mtimeMs, size: stats.size }
+    this.contentDigest = createHash('sha256').update(rawBuffer).digest('hex')
   }
 
   async getSections(): Promise<Section[]> {
@@ -103,11 +107,21 @@ export class HwpxHolder {
     if (!this.fileStats) return
     try {
       const stats = await stat(this.filePath)
-      if (
+      let changed =
         stats.ino !== this.fileStats.ino ||
         stats.mtimeMs > this.fileStats.mtimeMs ||
         stats.size !== this.fileStats.size
-      ) {
+
+      // When stats look unchanged but we have dirty state, verify content
+      // hasn't changed. Stat metadata can match after fast delete+recreate
+      // (inode reuse on tmpfs + same-ms mtime + same file size).
+      if (!changed && this.dirty && this.contentDigest) {
+        const buffer = await readFile(this.filePath)
+        const digest = createHash('sha256').update(buffer).digest('hex')
+        changed = digest !== this.contentDigest
+      }
+
+      if (changed) {
         if (this.dirty) {
           console.warn(`File replaced externally while holder had unflushed changes: ${this.filePath}`)
         }
