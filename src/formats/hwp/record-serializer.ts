@@ -35,10 +35,11 @@ export function replaceRecordData(stream: Buffer, recordOffset: number, newData:
 }
 
 export function buildTableData(rowCount: number, colCount: number): Buffer {
-  // Minimum 34 bytes to match well-formed Hancom-created TABLE records.
-  // Bytes 0-3: flags/properties, bytes 4-5: rows, bytes 6-7: cols,
-  // bytes 8+: row sizes and border info (zeroed for minimal valid record).
-  const table = Buffer.alloc(34)
+  // TABLE record: 18 bytes fixed header (flags + rows + cols + spacing + margins),
+  // followed by a variable-length rowSpanCounts array (rowCount × 2 bytes).
+  // Ensure the buffer is large enough for the dynamic portion.
+  const dynamicSize = Math.max(34, 18 + rowCount * 2)
+  const table = Buffer.alloc(dynamicSize)
   table.writeUInt16LE(rowCount, 4)
   table.writeUInt16LE(colCount, 6)
   return table
@@ -56,8 +57,8 @@ export function buildCellListHeaderData(col: number, row: number, colSpan: numbe
   buf.writeUInt16LE(row, 10)
   buf.writeUInt16LE(colSpan, 12)
   buf.writeUInt16LE(rowSpan, 14)
-  buf.writeUInt32LE(0, 16)
-  buf.writeUInt32LE(0, 20)
+  buf.writeUInt32LE(6432, 16) // default cell width (~8cm)
+  buf.writeUInt32LE(500, 20) // default cell height (auto-sized)
   return buf
 }
 
@@ -65,7 +66,10 @@ export function buildTableCtrlHeaderData(): Buffer {
   // Minimum 44 bytes to match well-formed Hancom-created table CTRL_HEADER records.
   // Bytes 0-3: control ID ('tbl ' in reversed byte order),
   // bytes 4+: control properties (zeroed for minimal valid record).
+  // Bytes 16-19: width (HWPUNIT), bytes 20-23: height (HWPUNIT).
   const buf = Buffer.alloc(44)
   controlIdBuffer('tbl ').copy(buf, 0)
+  buf.writeUInt32LE(14100, 16) // default table width (~17.6cm, full page width)
+  buf.writeUInt32LE(1000, 20) // default table height (auto-sized by Hancom)
   return buf
 }
