@@ -5,7 +5,7 @@ import CFB from 'cfb'
 import { writeCfb } from './cfb-writer'
 import { controlIdBuffer } from './control-id'
 import { iterateRecords } from './record-parser'
-import { buildRecord } from './record-serializer'
+import { buildParaLineSegBuffer, buildRecord } from './record-serializer'
 import { compressStream, decompressStream, getCompressionFlag } from './stream-util'
 import { TAG } from './tag-ids'
 
@@ -175,6 +175,7 @@ function buildSection0Stream(sectionDef: Buffer, bodyCharShapeRef: number): Buff
     buildRecord(TAG.PARA_HEADER, 0, paraHeader),
     buildRecord(TAG.PARA_TEXT, 1, paraText),
     buildRecord(TAG.PARA_CHAR_SHAPE, 1, buildParaCharShape(bodyCharShapeRef, nChars)),
+    buildRecord(TAG.PARA_LINE_SEG, 1, buildParaLineSegBuffer()),
     sectionDef,
     buildRecord(TAG.CTRL_HEADER, 1, dlocCtrlData),
   ])

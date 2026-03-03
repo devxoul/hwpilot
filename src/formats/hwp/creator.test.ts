@@ -206,7 +206,8 @@ describe('createHwp', () => {
       expect(paraText!.data.includes(Buffer.from('dloc', 'ascii'))).toBe(true)
 
       const lineSeg = sectionRecords.find(({ header }) => header.tagId === TAG.PARA_LINE_SEG && header.level === 1)
-      expect(lineSeg).toBeUndefined()
+      expect(lineSeg).toBeDefined()
+      expect(lineSeg!.data.length).toBe(36)
 
       const paraCharShape = sectionRecords.find(
         ({ header }) => header.tagId === TAG.PARA_CHAR_SHAPE && header.level === 1,
