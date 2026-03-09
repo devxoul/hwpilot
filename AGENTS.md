@@ -65,7 +65,7 @@ skills/hwpilot/                # Claude skill definition
 ### Development Build
 ```bash
 bun run typecheck    # Type-check without emitting
-bun run lint         # Lint with Biome
+bun run lint         # Lint with oxlint
 ```
 
 ### Production Build
@@ -185,7 +185,8 @@ bun src/cli.ts <name> [options]
 - **fast-xml-parser** — XML parsing and generation
 - **commander** — CLI argument parsing
 - **typescript** — Type checking
-- **@biomejs/biome** — Linting and formatting
+- **oxlint** — Linting
+- **oxfmt** — Code formatting
 
 ## Development Workflow
 
@@ -203,7 +204,7 @@ bun src/cli.ts <name> [options]
 
 ### Lint errors
 - Run `bun run lint:fix` to auto-fix common issues
-- Check `biome.json` for rule configuration
+- Check `.oxlintrc.json` for rule configuration
 
 ### Type errors
 - Run `bun run typecheck` to see all type issues
