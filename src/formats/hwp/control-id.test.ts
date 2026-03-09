@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test'
+
 import { controlIdBuffer, readControlId } from './control-id'
 
 describe('readControlId', () => {

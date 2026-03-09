@@ -1,7 +1,9 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, mock } from 'bun:test'
 import { readFile, unlink } from 'node:fs/promises'
+
 import CFB from 'cfb'
 import JSZip from 'jszip'
+
 import { convertCommand } from '@/commands/convert'
 import { createCommand } from '@/commands/create'
 import { editFormatCommand } from '@/commands/edit-format'

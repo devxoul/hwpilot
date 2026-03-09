@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test'
+
 import { compressStream, decompressStream, getCompressionFlag, setCompressionFlag } from './stream-util'
 
 describe('compressStream / decompressStream', () => {

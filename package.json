@@ -6,22 +6,26 @@
     "type": "git",
     "url": "https://github.com/devxoul/hwpilot"
   },
-  "type": "module",
-  "module": "dist/src/cli.js",
-  "main": "dist/src/cli.js",
   "bin": {
     "hwpilot": "./src/cli.ts"
   },
-  "files": ["dist/", "skills/", ".claude-plugin/"],
+  "files": [
+    "dist/",
+    "skills/",
+    ".claude-plugin/"
+  ],
+  "type": "module",
+  "main": "dist/src/cli.js",
+  "module": "dist/src/cli.js",
   "scripts": {
     "build": "tsc && tsc-alias --resolve-full-paths",
     "postbuild": "bun scripts/postbuild.ts",
     "test": "bun test src/",
     "test:e2e": "bun test e2e/",
     "typecheck": "tsc --noEmit",
-    "lint": "biome check .",
-    "lint:fix": "biome check --write --unsafe .",
-    "format": "biome format --write .",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "format": "oxfmt --write .",
     "prepublishOnly": "bun run build && bun run typecheck && bun test src/ && bun scripts/prepublish.ts",
     "postpublish": "git checkout package.json"
   },
@@ -33,10 +37,11 @@
     "pako": "^2.1.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.3.13",
     "@types/bun": "latest",
     "@types/node": "^20.10.6",
     "@types/pako": "^2.0.4",
+    "oxfmt": "latest",
+    "oxlint": "latest",
     "tsc-alias": "^1.8.16",
     "typescript": "^5.9.3"
   }

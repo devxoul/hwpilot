@@ -1,6 +1,9 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, mock } from 'bun:test'
+
 import CFB from 'cfb'
+
 import { createTestHwpx } from '@/test-helpers'
+
 import { readCommand } from './read'
 
 const TEST_FILE = '/tmp/test-read.hwpx'

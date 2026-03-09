@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+
 import CFB from 'cfb'
 import { deflateRaw, inflateRaw } from 'pako'
 

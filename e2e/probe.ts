@@ -1,4 +1,5 @@
 import { writeFile } from 'node:fs/promises'
+
 import { cleanupFiles, FIXTURES, runCli, tempCopy } from './helpers'
 
 async function probeFixture(key: string, fixturePath: string) {

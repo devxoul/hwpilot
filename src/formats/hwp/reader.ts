@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises'
+
 import CFB from 'cfb'
 import { inflateRaw } from 'pako'
+
 import { buildRef } from '@/shared/refs'
 import type {
   CharShape,
@@ -16,6 +18,7 @@ import type {
   Table,
   TextBox,
 } from '@/types'
+
 import { readControlId } from './control-id'
 import { iterateRecords } from './record-parser'
 import { TAG } from './tag-ids'

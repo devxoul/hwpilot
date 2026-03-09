@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test'
+
 import { NAMESPACES } from './namespaces'
 import { PATHS, sectionPath } from './paths'
 

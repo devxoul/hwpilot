@@ -1,5 +1,7 @@
 import { readFile } from 'node:fs/promises'
+
 import JSZip from 'jszip'
+
 import { PATHS, sectionPath } from './paths'
 
 export type HwpxArchive = {

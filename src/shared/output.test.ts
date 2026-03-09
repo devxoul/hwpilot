@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test'
+
 import { formatOutput } from './output'
 
 describe('formatOutput', () => {

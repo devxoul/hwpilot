@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test'
+
 import type { Section } from '@/types'
+
 import {
   extractAllText,
   extractPaginatedText,

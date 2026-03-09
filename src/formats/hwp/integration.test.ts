@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from 'bun:test'
 import { readFile, unlink, writeFile } from 'node:fs/promises'
+
 import CFB from 'cfb'
+
 import { buildMergedTable, createTestHwpBinary, createTestHwpCfb, type MergedTableRow } from '../../test-helpers'
 import { loadHwp } from './reader'
 import { iterateRecords } from './record-parser'

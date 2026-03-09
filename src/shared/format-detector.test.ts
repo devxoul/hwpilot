@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'bun:test'
+
 import { createTestHwpCfb, createTestHwpx } from '@/test-helpers'
+
 import { detectFormatFromBuffer } from './format-detector'
 
 describe('detectFormatFromBuffer', () => {
