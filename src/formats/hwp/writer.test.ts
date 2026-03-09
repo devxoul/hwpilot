@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, spyOn } from 'bun:test'
 import { readFile } from 'node:fs/promises'
+
 import CFB from 'cfb'
+
 import { buildCellListHeaderData, buildMergedTable, createTestHwpBinary, createTestHwpCfb } from '../../test-helpers'
 import { loadHwp } from './reader'
 import { iterateRecords } from './record-parser'

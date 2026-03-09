@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { Command } from 'commander'
+
 import { convertCommand } from '@/commands/convert'
 import { createCommand } from '@/commands/create'
 import { editFormatCommand } from '@/commands/edit-format'

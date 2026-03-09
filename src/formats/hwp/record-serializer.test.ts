@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test'
+
 import { parseRecordHeader } from './record-parser'
 import { buildRecord, encodeRecordHeader, replaceRecordData } from './record-serializer'
 

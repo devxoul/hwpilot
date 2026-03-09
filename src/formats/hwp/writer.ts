@@ -1,6 +1,9 @@
 import { readFile, writeFile } from 'node:fs/promises'
+
 import CFB from 'cfb'
+
 import type { EditOperation } from '@/shared/edit-types'
+
 import { writeCfb } from './cfb-writer'
 import { getEntryBuffer, mutateHwpCfb } from './mutator'
 import { getCompressionFlag } from './stream-util'

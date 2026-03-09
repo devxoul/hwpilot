@@ -1,5 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, mock } from 'bun:test'
+
 import { createTestHwpBinary, createTestHwpx } from '@/test-helpers'
+
 import { textCommand } from './text'
 
 const TEST_FILE = '/tmp/test-text.hwpx'

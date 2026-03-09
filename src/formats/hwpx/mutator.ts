@@ -1,7 +1,9 @@
 import { XMLBuilder, XMLParser } from 'fast-xml-parser'
 import type JSZip from 'jszip'
+
 import { type EditOperation, type FormatOptions, type XmlNode } from '@/shared/edit-types'
 import { type ParsedRef, parseRef } from '@/shared/refs'
+
 import type { HwpxArchive } from './loader'
 import { PATHS, sectionPath } from './paths'
 

@@ -1,4 +1,5 @@
 import { createConnection } from 'node:net'
+
 import type { DaemonRequest, DaemonResponse } from '@/daemon/protocol'
 import { createMessageReader, encodeMessage } from '@/daemon/protocol'
 

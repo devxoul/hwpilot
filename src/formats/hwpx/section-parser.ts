@@ -1,6 +1,8 @@
 import { XMLParser } from 'fast-xml-parser'
+
 import { buildRef } from '@/shared/refs'
 import type { Image, Paragraph, Run, Section, Table, TableCell, TableRow, TextBox } from '@/types'
+
 import type { HwpxArchive } from './loader'
 
 const parser = new XMLParser({

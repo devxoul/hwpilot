@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from 'bun:test'
+
 import CFB from 'cfb'
+
 import { buildCellListHeaderData, buildMergedTable } from '../../test-helpers'
 import { controlIdBuffer } from './control-id'
 import { extractParaText, loadHwp } from './reader'

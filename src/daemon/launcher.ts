@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { existsSync, realpathSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+
 import { deleteStateFile, getVersion, isProcessAlive, readStateFile } from '@/daemon/state-file'
 
 export async function ensureDaemon(filePath: string): Promise<{ port: number; token: string }> {

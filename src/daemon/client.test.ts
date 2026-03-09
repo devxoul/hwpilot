@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { type AddressInfo, createServer, type Server } from 'node:net'
+
 import { sendRequest } from '@/daemon/client'
 import type { DaemonRequest, DaemonResponse } from '@/daemon/protocol'
 import { createMessageReader, encodeMessage } from '@/daemon/protocol'

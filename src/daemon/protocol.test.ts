@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test'
+
 import { createMessageReader, encodeMessage } from './protocol'
 
 function collect(encoded: Buffer): unknown[] {

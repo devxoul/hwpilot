@@ -1,4 +1,5 @@
 import { describe, it } from 'bun:test'
+
 import type { DocumentHeader, HwpDocument, Image, ParaShape, Section, Style, Table, TextBox } from './types'
 
 describe('types', () => {

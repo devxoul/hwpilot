@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
+
 import { handleError } from './error-handler'
 
 let errors: string[]

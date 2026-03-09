@@ -1,7 +1,10 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, mock } from 'bun:test'
 import { readFile, unlink } from 'node:fs/promises'
+
 import JSZip from 'jszip'
+
 import { createTestHwpBinary, createTestHwpx } from '@/test-helpers'
+
 import { imageExtractCommand, imageInsertCommand, imageListCommand, imageReplaceCommand } from './image'
 
 const TEST_FILE = '/tmp/test-image.hwpx'

@@ -1,7 +1,9 @@
 import { readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+
 import CFB from 'cfb'
+
 import { writeCfb } from './cfb-writer'
 import { controlIdBuffer } from './control-id'
 import { iterateRecords } from './record-parser'

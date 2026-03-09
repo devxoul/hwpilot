@@ -1,6 +1,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test'
+
 import * as validatorModule from '@/formats/hwp/validator'
 import { createTestHwpBinary, createTestHwpx } from '@/test-helpers'
+
 import { tableAddCommand, tableEditCommand, tableListCommand, tableReadCommand } from './table'
 
 const TEST_FILE = '/tmp/test-table.hwpx'

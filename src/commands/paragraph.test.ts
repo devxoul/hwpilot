@@ -1,5 +1,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test'
+
 import { createTestHwpx } from '@/test-helpers'
+
 import { paragraphAddCommand } from './paragraph'
 
 const TEST_FILE = '/tmp/test-paragraph.hwpx'

@@ -1,4 +1,5 @@
 import { XMLParser } from 'fast-xml-parser'
+
 import type { CharShape, DocumentHeader, FontFace, ParaShape, Style } from '@/types'
 
 const parser = new XMLParser({
