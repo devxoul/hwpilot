@@ -45,5 +45,5 @@ async function runViewerCheck(filePath: string): Promise<CheckResult> {
 }
 
 function shouldRunViewerCheck(result: { format: 'hwp' | 'hwpx'; checks: CheckResult[] }): boolean {
-  return result.format === 'hwp' && !result.checks.some((check) => check.name === 'file_format' && check.status === 'fail')
+  return result.format === 'hwp' && !result.checks.some((check) => check.status === 'fail')
 }
