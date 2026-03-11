@@ -228,10 +228,15 @@ Options:
 | `--font <name>` | Set font name |
 | `--size <pt>` | Set font size in points |
 | `--color <hex>` | Set text color (e.g. `#FF0000`) |
+| `--start <n>` | Start character offset for inline formatting (requires `--end`) |
+| `--end <n>` | End character offset for inline formatting (requires `--start`) |
 
 ```bash
 hwpilot edit format report.hwpx s0.p0 --bold --size 16 --font "맑은 고딕"
 hwpilot edit format report.hwpx s0.p1 --italic --color "#0000FF"
+
+# Inline formatting: bold only characters 0–4
+hwpilot edit format report.hwpx s0.p0 --bold --start 0 --end 5
 ```
 
 ### `hwpilot table read` ... Read table structure
@@ -260,6 +265,30 @@ hwpilot table edit report.hwpx s0.t0.r1.c2 "3,500"
 ```
 
 
+### `hwpilot table add` ... Add a new table
+
+```bash
+hwpilot table add <file> <ref> <rows> <cols> [--position <pos>] [--data <json>] [--pretty]
+```
+
+Adds a new table to the document at the specified ref. The ref can be a section (`s0`) or a paragraph (`s0.p2`).
+
+| Option | Effect |
+|---|---|
+| `--position <pos>` | Insertion position: `before`, `after`, or `end` (default: `end`) |
+| `--data <json>` | Cell data as JSON array of arrays |
+
+```bash
+# Add a 3×4 empty table at end of section 0
+hwpilot table add document.hwpx s0 3 4
+
+# Add a 2×2 table with data
+hwpilot table add document.hwpx s0 2 2 --data '[["A","B"],["C","D"]]'
+
+# Insert a table after paragraph 2
+hwpilot table add document.hwpx s0.p2 3 4 --position after
+```
+
 ### `hwpilot table list` ... List all tables
 
 ```bash
@@ -270,6 +299,39 @@ Returns all tables in the document with their refs, dimensions (rows × columns)
 
 ```bash
 hwpilot table list report.hwpx
+```
+
+### `hwpilot paragraph add` ... Add a new paragraph
+
+```bash
+hwpilot paragraph add <file> <ref> <text> [options] [--pretty]
+```
+
+Adds a new paragraph to the document at the specified ref.
+
+| Option | Effect |
+|---|---|
+| `--position <pos>` | Insertion position: `before`, `after`, or `end` (default: `end`) |
+| `--heading <level>` | Set heading level (1–7) |
+| `--style <name>` | Set paragraph style by name or ID |
+| `--bold` | Bold text |
+| `--italic` | Italic text |
+| `--underline` | Underline text |
+| `--font <name>` | Font name |
+| `--size <n>` | Font size in points |
+| `--color <hex>` | Text color (hex) |
+
+Note: `--heading` and `--style` are mutually exclusive.
+
+```bash
+# Append paragraph at end of section
+hwpilot paragraph add document.hwpx s0 "New paragraph" --position end
+
+# Insert paragraph before s0.p2
+hwpilot paragraph add document.hwpx s0.p2 "Inserted text" --position before
+
+# Add a heading
+hwpilot paragraph add document.hwpx s0 "Chapter 1" --heading 1 --bold --size 18
 ```
 
 ### `hwpilot image list` ... List all images
@@ -339,6 +401,19 @@ Refuses to overwrite an existing output file unless `--force` is specified.
 
 ```bash
 hwpilot convert old-doc.hwp new-doc.hwpx
+```
+
+### `hwpilot validate` ... Validate HWP file integrity
+
+```bash
+hwpilot validate <file> [--viewer] [--pretty]
+```
+
+Validates the structural integrity of an HWP file. Optionally validates using the Hancom Office HWP Viewer app (macOS only).
+
+```bash
+hwpilot validate document.hwp
+hwpilot validate document.hwp --viewer
 ```
 
 ## Common Patterns
@@ -461,11 +536,13 @@ hwpilot edit format report.hwpx s0.p0 --bold --size 18
 | Find text | Yes | Yes |
 | Image list | Yes | Yes |
 | Image insert/replace/extract | Yes | No (convert to HWPX first) |
-| Create new | Yes | No |
+| Create new | Yes | Yes |
+| Paragraph add | Yes | Yes |
+| Table add | Yes | Yes |
 
 **HWPX** (ZIP+XML) is the modern format with full read/write support including images.
 
-**HWP 5.0** (binary CFB) supports read and write for text, table cells, and character formatting. Image operations and creating new files require HWPX — use `hwpilot convert` to convert.
+**HWP 5.0** (binary CFB) supports read and write for text, table cells, character formatting, and new document creation. Image operations require HWPX — use `hwpilot convert` to convert.
 
 ## Limitations
 
@@ -478,7 +555,7 @@ What's NOT supported:
 - **Grouped/container shapes**: Only individual text boxes are supported — grouped shapes (`SHAPE_COMPONENT_CONTAINER`) are ignored.
 - **Text box formatting**: Text inside text boxes can be edited, but character formatting (`edit format`) on text box refs is not supported.
 - **Paragraph-level formatting**: Alignment, spacing, indentation aren't editable. Only character formatting (bold, italic, underline, font, size, color) is supported.
-- **Adding new paragraphs or sections**: You can only edit existing content. Can't insert new paragraphs, rows, or sections into an existing document.
+- **Structural additions limited**: Can add paragraphs (`paragraph add`) and tables (`table add`), but cannot add new rows to existing tables or new sections.
 
 ## Error Handling
 
