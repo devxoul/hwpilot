@@ -16,7 +16,7 @@ export async function validateCommand(file: string, options: ValidateOptions): P
     const result = await validateHwp(file)
     result.file = sanitizeOutputFile(file)
 
-    if (options.viewer) {
+    if (result.format === 'hwp') {
       const viewerCheck = await runViewerCheck(file)
       result.checks.push(viewerCheck)
       result.valid = result.checks.every((c) => c.status !== 'fail')
