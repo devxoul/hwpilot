@@ -242,11 +242,16 @@ program
 // hwpilot convert <input> <output>
 program
   .command('convert <input> <output>')
-  .description('Convert HWP 5.0 file to HWPX format')
+  .description('Convert between HWP/HWPX and Markdown formats')
   .option('--pretty', 'Pretty-print JSON output')
   .option('--force', 'Overwrite existing output file')
-  .action(async (input: string, output: string, options: { pretty?: boolean; force?: boolean }) => {
-    await convertCommand(input, output, options)
+  .option('--images-dir <path>', 'Directory for extracted images (HWP→MD direction)')
+  .action(async (input: string, output: string, options: { pretty?: boolean; force?: boolean; imagesDir?: string }) => {
+    await convertCommand(input, output, {
+      pretty: options.pretty,
+      force: options.force,
+      imagesDir: options.imagesDir,
+    })
   })
 
 // hwpilot validate <file>
