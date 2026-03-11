@@ -56,7 +56,7 @@ describe('validateCommand', () => {
     const output = JSON.parse(logs[0])
     expect(output.valid).toBe(true)
     expect(output.format).toBe('hwp')
-    expect(output.file).toBe(TEST_HWP_FILE)
+    expect(output.file).toBe('test-validate.hwp')
     expect(Array.isArray(output.checks)).toBe(true)
   })
 
@@ -130,5 +130,16 @@ describe('validateCommand', () => {
     const output = JSON.parse(logs[0])
     expect(output.valid).toBe(true)
     expect(output.format).toBe('hwpx')
+    expect(output.file).toBe('test-validate.hwpx')
+  })
+
+  it('sanitizes absolute input path in output', async () => {
+    captureOutput()
+    await validateCommand(TEST_HWP_FILE, {})
+    restoreOutput()
+
+    const output = JSON.parse(logs[0])
+    expect(output.file).toBe('test-validate.hwp')
+    expect(output.file.includes('/')).toBe(false)
   })
 })

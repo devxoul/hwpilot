@@ -1,3 +1,5 @@
+import { basename } from 'node:path'
+
 import type { CheckResult } from '@/formats/hwp/validator'
 import { validateHwp } from '@/formats/hwp/validator'
 import { handleError } from '@/shared/error-handler'
@@ -12,6 +14,7 @@ type ValidateOptions = {
 export async function validateCommand(file: string, options: ValidateOptions): Promise<void> {
   try {
     const result = await validateHwp(file)
+    result.file = sanitizeOutputFile(file)
 
     if (options.viewer) {
       const viewerCheck = await runViewerCheck(file)
@@ -42,4 +45,8 @@ async function runViewerCheck(filePath: string): Promise<CheckResult> {
     }
   }
   return { name: 'viewer', status: 'pass' }
+}
+
+function sanitizeOutputFile(filePath: string): string {
+  return basename(filePath)
 }
