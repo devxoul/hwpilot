@@ -46,11 +46,10 @@ function restoreOutput() {
   process.exit = origExit
 }
 
-afterEach(restoreOutput)
-
 describe('validateCommand', () => {
   afterEach(() => {
     restoreOutput()
+    mock.restore()
   })
 
   it('outputs valid JSON for clean HWP file', async () => {
@@ -113,6 +112,7 @@ describe('validateCommand', () => {
     viewerSpy.mockRestore()
     expect(exitCalled).toBe(true)
     expect(exitCode).toBe(1)
+    expect(viewerSpy).not.toHaveBeenCalled()
   })
 
   it('returns exit 1 when viewer reports corruption', async () => {
