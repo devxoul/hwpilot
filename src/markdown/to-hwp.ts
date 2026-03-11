@@ -2,21 +2,13 @@ import type {
   Blockquote,
   Code,
   Delete,
-  Emphasis,
-  Heading,
-  Image as MdImage,
-  InlineCode,
-  Link,
   List,
   ListItem,
-  Paragraph as MdParagraph,
   PhrasingContent,
   Root,
-  Strong,
   Table as MdTable,
   TableCell as MdTableCell,
   TableRow as MdTableRow,
-  Text,
 } from 'mdast'
 import { remark } from 'remark'
 import remarkGfm from 'remark-gfm'
