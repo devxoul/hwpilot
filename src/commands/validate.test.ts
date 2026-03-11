@@ -65,7 +65,7 @@ describe('validateCommand', () => {
     const output = JSON.parse(logs[0])
     expect(output.valid).toBe(true)
     expect(output.format).toBe('hwp')
-    expect(output.file).toBe('test-validate.hwp')
+    expect(output.file).toBe(TEST_HWP_FILE)
     expect(Array.isArray(output.checks)).toBe(true)
     expect(output.checks.at(-1)).toEqual({
       name: 'viewer',
