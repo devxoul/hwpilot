@@ -1,4 +1,5 @@
 import { access, readFile, writeFile } from 'node:fs/promises'
+import { basename, dirname, extname, join } from 'node:path'
 
 import JSZip from 'jszip'
 
@@ -8,6 +9,7 @@ import { loadHwpx } from '@/formats/hwpx/loader'
 import { NAMESPACES } from '@/formats/hwpx/namespaces'
 import { PATHS, sectionPath } from '@/formats/hwpx/paths'
 import { parseSections } from '@/formats/hwpx/section-parser'
+import { extractImages } from '@/markdown/image-handler'
 import { markdownToHwpBinary } from '@/markdown/to-hwp-binary'
 import { markdownToHwp } from '@/markdown/to-hwp'
 import { hwpToMarkdown } from '@/markdown/to-markdown'
@@ -91,6 +93,19 @@ export async function convertCommand(input: string, output: string, options: Con
 
       await writeFile(output, md, 'utf-8')
 
+      // Extract images from HWPX (not supported for HWP binary)
+      const allImages = doc.sections.flatMap((s) => s.images)
+      let extractedImagesDir: string | undefined
+      if (fmt === 'hwpx' && allImages.length > 0) {
+        const imagesDir = options.imagesDir ?? join(dirname(output), basename(output, extname(output)) + '_images')
+        try {
+          await extractImages(input, allImages, imagesDir)
+          extractedImagesDir = imagesDir
+        } catch (e) {
+          console.warn(`Warning: failed to extract images: ${e instanceof Error ? e.message : String(e)}`)
+        }
+      }
+
       const paragraphs = countParagraphs(doc)
       console.log(
         formatOutput(
@@ -100,6 +115,7 @@ export async function convertCommand(input: string, output: string, options: Con
             direction: 'hwp-to-md',
             sections: doc.sections.length,
             paragraphs,
+            ...(extractedImagesDir ? { imagesDir: extractedImagesDir } : {}),
             success: true,
           },
           options.pretty,
