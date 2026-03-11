@@ -1,2 +1,6 @@
-// Markdown ↔ HWP(X) conversion — barrel file
-// Exports will be added as modules are implemented
+export { CharShapeRegistry } from './charshape-registry'
+export { createHeadingInfrastructure, getHeadingLevel } from './heading-styles'
+export { embedImage, extractImages, resolveImagePaths } from './image-handler'
+export { markdownToHwpBinary } from './to-hwp-binary'
+export { markdownToHwp } from './to-hwp'
+export { hwpToMarkdown } from './to-markdown'
