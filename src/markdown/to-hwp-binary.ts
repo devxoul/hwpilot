@@ -81,7 +81,7 @@ export async function markdownToHwpBinary(md: string): Promise<Buffer> {
       if (run.text.length > 0 && (bold || italic)) {
         formatOps.push({
           type: 'setFormat',
-          ref: `s0.p${target.paragraphIndex}`,
+          ref: `s0.p${target.paragraphIndex + 1}`,
           format: {
             bold,
             italic,
