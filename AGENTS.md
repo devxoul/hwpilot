@@ -32,32 +32,73 @@ The build pipeline:
 ```
 src/
 ├── cli.ts                 # CLI entry point
+├── types.ts               # Shared type definitions
 ├── commands/              # Command implementations
-│   ├── read.ts
-│   ├── write.ts
-│   └── ...
+│   ├── convert.ts         # HWP → HWPX conversion
+│   ├── create.ts          # New document creation
+│   ├── edit-format.ts     # Character formatting
+│   ├── edit-text.ts       # Text editing
+│   ├── find.ts            # Text search
+│   ├── image.ts           # Image operations
+│   ├── paragraph.ts       # Paragraph addition
+│   ├── read.ts            # Document reading
+│   ├── table.ts           # Table operations
+│   ├── text.ts            # Text extraction
+│   └── validate.ts        # File validation
+├── daemon/                # Persistent daemon for batch operations
+│   ├── client.ts          # Client-side daemon connection
+│   ├── dispatch.ts        # Command dispatch
+│   ├── entry.ts           # Daemon entry point
+│   ├── flush.ts           # Write-back/flush logic
+│   ├── holder-hwp.ts      # HWP file holder
+│   ├── holder-hwpx.ts     # HWPX file holder
+│   ├── launcher.ts        # Daemon process launcher
+│   ├── protocol.ts        # Client-server protocol
+│   ├── server.ts          # Daemon server
+│   └── state-file.ts      # Daemon state persistence
 ├── formats/
 │   ├── hwpx/              # HWPX format (ZIP+XML)
-│   │   ├── reader.ts
-│   │   ├── writer.ts
-│   │   └── ...
+│   │   ├── elements.ts    # XML element definitions
+│   │   ├── header-parser.ts # Document header parsing
+│   │   ├── loader.ts      # HWPX file loading
+│   │   ├── mutator.ts     # HWPX document mutation
+│   │   ├── namespaces.ts  # XML namespace handling
+│   │   ├── paths.ts       # Internal ZIP paths
+│   │   ├── section-parser.ts # Section content parsing
+│   │   └── writer.ts      # HWPX file writing
 │   └── hwp/               # HWP 5.0 format (binary CFB)
-│       ├── reader.ts
-│       ├── writer.ts
-│       └── ...
+│       ├── cfb-writer.ts  # CFB container writing
+│       ├── control-id.ts  # Control character IDs
+│       ├── creator.ts     # New HWP file creation
+│       ├── mutator.ts     # HWP record mutation
+│       ├── reader.ts      # HWP file reading
+│       ├── record-parser.ts # Binary record parsing
+│       ├── record-serializer.ts # Binary record serialization
+│       ├── stream-util.ts # Stream utilities
+│       ├── tag-ids.ts     # HWP tag ID constants
+│       ├── template.hwp   # Template for new documents
+│       ├── validator.ts   # HWP structural validation
+│       └── writer.ts      # HWP file writing
 └── shared/                # Shared utilities
-    ├── types.ts
-    ├── constants.ts
-    └── ...
+    ├── document-ops.ts    # Document read/write operations
+    ├── edit-types.ts      # Edit operation types
+    ├── error-handler.ts   # Error formatting
+    ├── format-detector.ts # Magic-byte format detection
+    ├── output.ts          # JSON output formatting
+    ├── ref-hints.ts       # Reference hint generation
+    ├── refs.ts            # Reference system (s0.p0.t1...)
+    └── viewer.ts          # Hancom Viewer integration
 
 scripts/
 ├── postbuild.ts           # Post-build shebang replacement
 └── prepublish.ts          # Pre-publish bin path rewriting
 
-skills/hwpilot/                # Claude skill definition
+skills/hwpilot/            # Agent skill definition
 └── SKILL.md
 
 .claude-plugin/            # Claude plugin metadata
+
+playground/                # Manual testing with real HWP files
 ```
 
 ## Build Pipeline
@@ -77,7 +118,7 @@ Output: `dist/src/cli.js` (executable with Node.js)
 
 ### Publishing
 ```bash
-bun run prepublishOnly   # Build + rewrite bin paths
+bun run prepublishOnly   # Build + typecheck + test + rewrite bin paths
 npm publish
 bun run postpublish      # Restore package.json
 ```
@@ -85,7 +126,8 @@ bun run postpublish      # Restore package.json
 ## Test Commands
 
 ```bash
-bun test src/        # Run all tests in src/
+bun test src/        # Run all unit tests
+bun test e2e/        # Run all E2E tests
 bun run typecheck    # Type-check
 bun run lint         # Lint
 bun run lint:fix     # Auto-fix lint issues
@@ -135,13 +177,14 @@ See `e2e/KNOWN-ISSUES.md` for interface limitations discovered during testing (t
 ### HWP 5.0 (R/W)
 - **Structure**: Compound File Binary (CFB) format
 - **Magic bytes**: `D0 CF 11 E0` (CFB)
-- **Capabilities**: Read + write (text, table cells, character formatting)
+- **Capabilities**: Read + write (text, table cells, character formatting, new document creation)
 - **Write approach**: Record-patching (modifies binary records in-place, preserves file structure)
+- **New file creation**: Uses `template.hwp` as base, patches font/size into DocInfo records
 - **Key sections**:
   - `FileHeader` — document metadata
   - `BodyText` — document content (record stream per section)
   - `DocInfo` — styles and formatting (CharShape, ParaShape, etc.)
-- **Not supported**: Image operations, creating new HWP files from scratch
+- **Not supported**: Image insert/extract/replace (convert to HWPX first)
 
 ## Reference System
 
@@ -181,8 +224,10 @@ bun src/cli.ts <name> [options]
 
 ## Key Dependencies
 
+- **cfb** — Compound File Binary parsing (HWP 5.0 format)
 - **jszip** — ZIP file handling (HWPX format)
 - **fast-xml-parser** — XML parsing and generation
+- **pako** — Zlib compression/decompression (HWP record streams)
 - **commander** — CLI argument parsing
 - **typescript** — Type checking
 - **oxlint** — Linting
