@@ -41,6 +41,9 @@ type SectionAccumulator = {
   imageCount: number
 }
 
+const PARA_SHAPE_CENTER_ID = 7
+const PARA_SHAPE_RIGHT_ID = 8
+
 export function markdownToHwp(md: string): HwpDocument {
   const tree = remark().use(remarkGfm).parse(md) as Root
   const charShapeRegistry = new CharShapeRegistry(0, 1000)
@@ -51,7 +54,12 @@ export function markdownToHwp(md: string): HwpDocument {
   ]
 
   const headingInfra = createHeadingInfrastructure(0, 0, 0)
-  const paraShapes: ParaShape[] = [{ id: 0, align: 'left' }, ...headingInfra.paraShapes]
+  const paraShapes: ParaShape[] = [
+    { id: 0, align: 'left' },
+    ...headingInfra.paraShapes,
+    { id: PARA_SHAPE_CENTER_ID, align: 'center' },
+    { id: PARA_SHAPE_RIGHT_ID, align: 'right' },
+  ]
   const styles: Style[] = [
     { id: 0, name: '본문', charShapeRef: 0, paraShapeRef: 0, type: 'PARA' },
     ...headingInfra.styles,
@@ -102,12 +110,12 @@ export function markdownToHwp(md: string): HwpDocument {
         current.paragraphCount += 1
         break
       }
-      case 'table': {
-        const table = createTableFromMdast(node, sectionIndex, current.tableCount)
-        current.section.tables.push(table)
-        current.tableCount += 1
-        break
-      }
+       case 'table': {
+         const table = createTableFromMdast(node, sectionIndex, current.tableCount, node.align ?? [])
+         current.section.tables.push(table)
+         current.tableCount += 1
+         break
+       }
       case 'list': {
         appendListParagraphs(node, sectionIndex, current, charShapeRegistry, 0)
         break
@@ -287,9 +295,14 @@ function inferImageFormat(url: string): string {
   return cleanUrl.slice(dotIndex + 1).toLowerCase()
 }
 
-function createTableFromMdast(node: MdTable, sectionIndex: number, tableIndex: number): Table {
+function createTableFromMdast(
+  node: MdTable,
+  sectionIndex: number,
+  tableIndex: number,
+  align: Array<'left' | 'center' | 'right' | null>,
+): Table {
   const rows: TableRow[] = node.children.map((row, rowIndex) =>
-    createTableRowFromMdast(row, sectionIndex, tableIndex, rowIndex),
+    createTableRowFromMdast(row, sectionIndex, tableIndex, rowIndex, align),
   )
 
   return {
@@ -303,9 +316,10 @@ function createTableRowFromMdast(
   sectionIndex: number,
   tableIndex: number,
   rowIndex: number,
+  align: Array<'left' | 'center' | 'right' | null>,
 ): TableRow {
   const cells: TableCell[] = row.children.map((cell, cellIndex) =>
-    createTableCellFromMdast(cell, sectionIndex, tableIndex, rowIndex, cellIndex),
+    createTableCellFromMdast(cell, sectionIndex, tableIndex, rowIndex, cellIndex, align[cellIndex] ?? null),
   )
 
   return { cells }
@@ -317,7 +331,14 @@ function createTableCellFromMdast(
   tableIndex: number,
   rowIndex: number,
   cellIndex: number,
+  colAlign: 'left' | 'center' | 'right' | null,
 ): TableCell {
+  const paraShapeRef =
+    colAlign === 'center'
+      ? PARA_SHAPE_CENTER_ID
+      : colAlign === 'right'
+        ? PARA_SHAPE_RIGHT_ID
+        : 0
   const text = collectText(cell)
   return {
     ref: `s${sectionIndex}.t${tableIndex}.r${rowIndex}.c${cellIndex}`,
@@ -325,7 +346,7 @@ function createTableCellFromMdast(
       {
         ref: `s${sectionIndex}.p0`,
         runs: [{ text, charShapeRef: 0 }],
-        paraShapeRef: 0,
+        paraShapeRef,
         styleRef: 0,
       },
     ],

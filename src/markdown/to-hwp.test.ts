@@ -105,6 +105,24 @@ describe('markdownToHwp', () => {
     expect(table.rows[1].cells[1].paragraphs[0].runs[0].text).toBe('Dev')
   })
 
+  it('preserves column alignment in GFM table cells', () => {
+    const md = '| Left | Center | Right |\n|:---|:---:|---:|\n| a | b | c |'
+    const doc = markdownToHwp(md)
+    const table = doc.sections[0].tables[0]
+
+    const leftParaShapeId = table.rows[0].cells[0].paragraphs[0].paraShapeRef
+    const centerParaShapeId = table.rows[0].cells[1].paragraphs[0].paraShapeRef
+    const rightParaShapeId = table.rows[0].cells[2].paragraphs[0].paraShapeRef
+
+    const leftParaShape = doc.header.paraShapes.find((ps) => ps.id === leftParaShapeId)
+    const centerParaShape = doc.header.paraShapes.find((ps) => ps.id === centerParaShapeId)
+    const rightParaShape = doc.header.paraShapes.find((ps) => ps.id === rightParaShapeId)
+
+    expect(leftParaShape?.align).toBe('left')
+    expect(centerParaShape?.align).toBe('center')
+    expect(rightParaShape?.align).toBe('right')
+  })
+
   it('converts unordered list items with bullet prefix', () => {
     const doc = markdownToHwp('- Item 1\n- Item 2')
 
