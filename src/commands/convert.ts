@@ -1,5 +1,5 @@
 import { access, readFile, writeFile } from 'node:fs/promises'
-import { basename, dirname, extname, join } from 'node:path'
+import { basename, dirname, extname, join, relative } from 'node:path'
 
 import JSZip from 'jszip'
 
@@ -9,7 +9,7 @@ import { loadHwpx } from '@/formats/hwpx/loader'
 import { NAMESPACES } from '@/formats/hwpx/namespaces'
 import { PATHS, sectionPath } from '@/formats/hwpx/paths'
 import { parseSections } from '@/formats/hwpx/section-parser'
-import { extractImages } from '@/markdown/image-handler'
+import { embedImage, extractImages, resolveImagePaths } from '@/markdown/image-handler'
 import { markdownToHwpBinary } from '@/markdown/to-hwp-binary'
 import { markdownToHwp } from '@/markdown/to-hwp'
 import { hwpToMarkdown } from '@/markdown/to-markdown'
@@ -45,7 +45,19 @@ export async function convertCommand(input: string, output: string, options: Con
     if (isMdInput && isHwpxOutput) {
       const md = await readFile(input, 'utf-8')
       const doc = markdownToHwp(md)
-      const buffer = await generateHwpx(doc)
+
+      const allImages = doc.sections.flatMap((s) => s.images)
+      const imageLocalPaths: string[] = []
+      if (allImages.length > 0) {
+        const mdDir = dirname(input)
+        const imageRefs = allImages.map((img) => ({ url: img.binDataPath, alt: '' }))
+        const resolved = resolveImagePaths(imageRefs, mdDir)
+        for (const r of resolved) {
+          imageLocalPaths.push(r.resolvedPath ?? '')
+        }
+      }
+
+      const buffer = await generateHwpx(doc, imageLocalPaths)
 
       await writeFile(output, buffer)
 
@@ -89,9 +101,7 @@ export async function convertCommand(input: string, output: string, options: Con
     if ((isHwpInput || isHwpxInput) && isMdOutput) {
       const fmt = await detectFormat(input)
       const doc = fmt === 'hwp' ? await loadHwp(input) : await loadHwpxDocument(input)
-      const md = hwpToMarkdown(doc)
-
-      await writeFile(output, md, 'utf-8')
+      let md = hwpToMarkdown(doc)
 
       // Extract images from HWPX (not supported for HWP binary)
       const allImages = doc.sections.flatMap((s) => s.images)
@@ -99,12 +109,19 @@ export async function convertCommand(input: string, output: string, options: Con
       if (fmt === 'hwpx' && allImages.length > 0) {
         const imagesDir = options.imagesDir ?? join(dirname(output), basename(output, extname(output)) + '_images')
         try {
-          await extractImages(input, allImages, imagesDir)
+          const pathMap = await extractImages(input, allImages, imagesDir)
           extractedImagesDir = imagesDir
+          const outputDir = dirname(output)
+          for (const [binDataPath, filename] of pathMap) {
+            const relativePath = relative(outputDir, join(imagesDir, filename))
+            md = md.replaceAll(`![](${binDataPath})`, `![](${relativePath})`)
+          }
         } catch (e) {
           console.warn(`Warning: failed to extract images: ${e instanceof Error ? e.message : String(e)}`)
         }
       }
+
+      await writeFile(output, md, 'utf-8')
 
       const paragraphs = countParagraphs(doc)
       console.log(
@@ -168,7 +185,7 @@ async function loadHwpxDocument(filePath: string): Promise<HwpDocument> {
   return { format: 'hwpx', sections, header }
 }
 
-export async function generateHwpx(doc: HwpDocument): Promise<Buffer> {
+export async function generateHwpx(doc: HwpDocument, imageLocalPaths: string[] = []): Promise<Buffer> {
   const zip = new JSZip()
 
   zip.file(PATHS.VERSION_XML, generateVersionXml())
@@ -178,6 +195,13 @@ export async function generateHwpx(doc: HwpDocument): Promise<Buffer> {
 
   for (let i = 0; i < doc.sections.length; i++) {
     zip.file(sectionPath(i), generateSectionXml(doc.sections[i]))
+  }
+
+  for (let i = 0; i < imageLocalPaths.length; i++) {
+    const localPath = imageLocalPaths[i]
+    if (localPath) {
+      await embedImage(zip, localPath, i)
+    }
   }
 
   return zip.generateAsync({ type: 'nodebuffer' })

@@ -106,7 +106,7 @@ function convertTable(table: Table, header: DocumentHeader): string {
 
   const headerRow = table.rows[0]
   const lines = [rowToMarkdown(headerRow, header)]
-  lines.push(separatorRow(headerRow))
+  lines.push(separatorRow(headerRow, header))
 
   for (const row of table.rows.slice(1)) {
     lines.push(rowToMarkdown(row, header))
@@ -120,8 +120,19 @@ function rowToMarkdown(row: TableRow, header: DocumentHeader): string {
   return `| ${content} |`
 }
 
-function separatorRow(headerRow: TableRow): string {
-  const separators = headerRow.cells.map(() => '---').join('|')
+function separatorRow(headerRow: TableRow, header: DocumentHeader): string {
+  const separators = headerRow.cells
+    .map((cell) => {
+      const paraShapeRef = cell.paragraphs[0]?.paraShapeRef ?? 0
+      const paraShape =
+        header.paraShapes.find((ps) => ps.id === paraShapeRef) ?? header.paraShapes[paraShapeRef]
+      const align = paraShape?.align
+      if (align === 'center') return ':---:'
+      if (align === 'right') return '---:'
+      if (align === 'left') return ':---'
+      return '---'
+    })
+    .join('|')
   return `|${separators}|`
 }
 
