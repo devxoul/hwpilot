@@ -139,4 +139,18 @@ describe('Markdown round-trip conversion', () => {
     expect(mdContent).toContain('Blockquote text')
     expect(mdContent).toContain('Link text')
   })
+
+  it('round-trips multi-section document through HWPX', async () => {
+    const mdFile = tempPath('multisec-input', 'md')
+    const hwpxFile = tempPath('multisec-middle', 'hwpx')
+    const mdFile2 = tempPath('multisec-output', 'md')
+    await writeFile(mdFile, 'Section one content\n\n---\n\nSection two content', 'utf-8')
+
+    await assertConvertSuccess(mdFile, hwpxFile)
+    await assertConvertSuccess(hwpxFile, mdFile2)
+
+    const mdContent = await readFile(mdFile2, 'utf-8')
+    expect(mdContent).toContain('Section one content')
+    expect(mdContent).toContain('Section two content')
+  })
 })

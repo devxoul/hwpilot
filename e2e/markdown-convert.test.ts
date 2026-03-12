@@ -31,6 +31,8 @@ describe('HWP → Markdown conversion', () => {
     expect(md.length).toBeGreaterThan(100)
     expect(md).not.toContain('<hp:')
     expect(md).not.toContain('<hh:')
+    expect(md).toContain('임금')
+    expect(md).toContain('원   고')
   })
 
   it('converts employment contract HWP to markdown', async () => {
@@ -42,6 +44,8 @@ describe('HWP → Markdown conversion', () => {
     const md = await readFile(mdFile, 'utf-8')
     expect(md.length).toBeGreaterThan(100)
     expect(md).not.toContain('<hp:')
+    expect(md).toContain('근로계약')
+    expect(md).toContain('근로개시일')
   })
 
   it('converts assault complaint HWP to markdown', async () => {
@@ -53,6 +57,8 @@ describe('HWP → Markdown conversion', () => {
     const md = await readFile(mdFile, 'utf-8')
     expect(md.length).toBeGreaterThan(100)
     expect(md).not.toContain('<hp:')
+    expect(md).toContain('폭행죄')
+    expect(md).toContain('고')
   })
 
   it('cross-validates: HWP→MD and HWP→HWPX→MD produce substantial content', async () => {
