@@ -72,6 +72,35 @@ describe('markdownToHwpBinary', () => {
     expect(doc.sections[0].tables).toHaveLength(1)
   })
 
+  it('converts mixed-format paragraph to valid HWP without throwing', async () => {
+    const buffer = await markdownToHwpBinary('Hello **bold** and *italic* text')
+    const path = await writeTempHwp(buffer)
+    const doc = await loadHwp(path)
+    const text = doc.sections[0].paragraphs
+      .map((paragraph) => paragraph.runs.map((run) => run.text).join(''))
+      .filter((paragraphText) => paragraphText.length > 0)
+      .join(' ')
+
+    expect(text).toContain('Hello bold and italic text')
+  })
+
+  it('applies uniform bold formatting to all-bold paragraph', async () => {
+    const buffer = await markdownToHwpBinary('**entire paragraph bold**')
+    const path = await writeTempHwp(buffer)
+    const doc = await loadHwp(path)
+    const para = doc.sections[0].paragraphs.find(
+      (paragraph) => paragraph.runs.map((run) => run.text).join('').length > 0,
+    )
+
+    expect(para).toBeDefined()
+    if (!para) {
+      throw new Error('Expected non-empty paragraph')
+    }
+
+    const charShape = doc.header.charShapes[para.runs[0].charShapeRef]
+    expect(charShape.bold).toBe(true)
+  })
+
   it('skips images and still returns valid HWP buffer', async () => {
     const warnings: string[] = []
     const originalWarn = console.warn

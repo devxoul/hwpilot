@@ -72,27 +72,16 @@ export async function markdownToHwpBinary(md: string): Promise<Buffer> {
   }
 
   for (const target of paragraphTargets) {
-    let charOffset = 0
-    for (const run of target.paragraph.runs) {
-      const charShape = doc.header.charShapes[run.charShapeRef]
-      const bold = charShape?.bold === true ? true : undefined
-      const italic = charShape?.italic === true ? true : undefined
-
-      if (run.text.length > 0 && (bold || italic)) {
-        formatOps.push({
-          type: 'setFormat',
-          ref: `s0.p${target.paragraphIndex + 1}`,
-          format: {
-            bold,
-            italic,
-          },
-          start: charOffset,
-          end: charOffset + run.text.length,
-        })
-      }
-
-      charOffset += run.text.length
+    const paragraphFormat = getUniformParagraphFormat(target.paragraph, doc)
+    if (!paragraphFormat) {
+      continue
     }
+
+    formatOps.push({
+      type: 'setFormat',
+      ref: `s0.p${target.paragraphIndex + 1}`,
+      format: paragraphFormat,
+    })
   }
 
   const tempPath = join(
@@ -123,4 +112,38 @@ function flattenSections(doc: HwpDocument): FlattenedItem[] {
   })
 
   return items
+}
+
+function getUniformParagraphFormat(
+  paragraph: Paragraph,
+  doc: HwpDocument,
+): { bold?: true; italic?: true } | null {
+  const nonEmptyRuns = paragraph.runs.filter((run) => run.text.length > 0)
+  if (nonEmptyRuns.length === 0) {
+    return null
+  }
+
+  let detected: { bold?: true; italic?: true } | null = null
+  for (const run of nonEmptyRuns) {
+    const charShape = doc.header.charShapes[run.charShapeRef]
+    const runFormat: { bold?: true; italic?: true } = {
+      bold: charShape?.bold === true ? true : undefined,
+      italic: charShape?.italic === true ? true : undefined,
+    }
+
+    if (!detected) {
+      detected = runFormat
+      continue
+    }
+
+    if (detected.bold !== runFormat.bold || detected.italic !== runFormat.italic) {
+      return null
+    }
+  }
+
+  if (!detected || (!detected.bold && !detected.italic)) {
+    return null
+  }
+
+  return detected
 }
