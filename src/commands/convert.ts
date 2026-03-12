@@ -16,7 +16,7 @@ import { hwpToMarkdown } from '@/markdown/to-markdown'
 import { handleError } from '@/shared/error-handler'
 import { detectFormat } from '@/shared/format-detector'
 import { formatOutput } from '@/shared/output'
-import type { CharShape, DocumentHeader, HwpDocument, ParaShape, Section } from '@/types'
+import type { CharShape, DocumentHeader, HwpDocument, Image, ParaShape, Section } from '@/types'
 
 type ConvertOptions = {
   pretty?: boolean
@@ -187,21 +187,34 @@ async function loadHwpxDocument(filePath: string): Promise<HwpDocument> {
 
 export async function generateHwpx(doc: HwpDocument, imageLocalPaths: string[] = []): Promise<Buffer> {
   const zip = new JSZip()
+  const embeddedImagesBySourceIndex: Array<Image | null> = []
 
   zip.file(PATHS.VERSION_XML, generateVersionXml())
   zip.file(PATHS.MANIFEST_XML, generateManifest(doc.sections.length))
   zip.file(PATHS.CONTENT_HPF, generateContentHpf(doc.sections.length))
   zip.file(PATHS.HEADER_XML, generateHeaderXml(doc.header))
 
-  for (let i = 0; i < doc.sections.length; i++) {
-    zip.file(sectionPath(i), generateSectionXml(doc.sections[i]))
-  }
-
   for (let i = 0; i < imageLocalPaths.length; i++) {
     const localPath = imageLocalPaths[i]
     if (localPath) {
-      await embedImage(zip, localPath, i)
+      embeddedImagesBySourceIndex[i] = await embedImage(zip, localPath, i)
+      continue
     }
+    embeddedImagesBySourceIndex[i] = null
+  }
+
+  let sourceImageOffset = 0
+  for (let i = 0; i < doc.sections.length; i++) {
+    const section = doc.sections[i]
+    const sectionImages =
+      imageLocalPaths.length > 0
+        ? embeddedImagesBySourceIndex
+            .slice(sourceImageOffset, sourceImageOffset + section.images.length)
+            .filter((image): image is Image => image !== null)
+        : section.images
+
+    sourceImageOffset += section.images.length
+    zip.file(sectionPath(i), generateSectionXml(section, sectionImages))
   }
 
   return zip.generateAsync({ type: 'nodebuffer' })
@@ -296,7 +309,7 @@ ${styles}
 </hh:head>`
 }
 
-function generateSectionXml(section: Section): string {
+function generateSectionXml(section: Section, images: Image[] = section.images): string {
   const paragraphXml = section.paragraphs
     .map((paragraph, paragraphIndex) => {
       const runs = paragraph.runs
@@ -350,7 +363,13 @@ ${rows}
     })
     .join('\n')
 
-  const content = [paragraphXml, tableXml].filter(Boolean).join('\n')
+  const imageXml = images
+    .map((image) => {
+      return `  <hp:pic hp:id="${escapeXml(image.ref)}" hp:binDataPath="${escapeXml(image.binDataPath)}" hp:format="${escapeXml(image.format)}" hp:width="${image.width}" hp:height="${image.height}">\n    <hp:imgRect><hc:pt0/></hp:imgRect>\n  </hp:pic>`
+    })
+    .join('\n')
+
+  const content = [paragraphXml, tableXml, imageXml].filter(Boolean).join('\n')
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <hs:sec xmlns:hs="${NAMESPACES.hs}" xmlns:hp="${NAMESPACES.hp}" xmlns:hc="${NAMESPACES.hc}" xmlns:hh="${NAMESPACES.hh}">
