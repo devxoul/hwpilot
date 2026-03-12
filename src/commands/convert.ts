@@ -1,31 +1,37 @@
-import { access, writeFile } from 'node:fs/promises'
+import { access, readFile, writeFile } from 'node:fs/promises'
+import { basename, dirname, extname, join, relative } from 'node:path'
 
 import JSZip from 'jszip'
 
 import { loadHwp } from '@/formats/hwp/reader'
+import { parseHeader } from '@/formats/hwpx/header-parser'
+import { loadHwpx } from '@/formats/hwpx/loader'
 import { NAMESPACES } from '@/formats/hwpx/namespaces'
 import { PATHS, sectionPath } from '@/formats/hwpx/paths'
+import { parseSections } from '@/formats/hwpx/section-parser'
+import { embedImage, extractImages, resolveImagePaths } from '@/markdown/image-handler'
+import { markdownToHwpBinary } from '@/markdown/to-hwp-binary'
+import { markdownToHwp } from '@/markdown/to-hwp'
+import { hwpToMarkdown } from '@/markdown/to-markdown'
 import { handleError } from '@/shared/error-handler'
 import { detectFormat } from '@/shared/format-detector'
 import { formatOutput } from '@/shared/output'
-import type { CharShape, DocumentHeader, HwpDocument, ParaShape, Section } from '@/types'
+import type { CharShape, DocumentHeader, HwpDocument, Image, ParaShape, Section } from '@/types'
 
 type ConvertOptions = {
   pretty?: boolean
   force?: boolean
+  imagesDir?: string
 }
 
 export async function convertCommand(input: string, output: string, options: ConvertOptions): Promise<void> {
   try {
-    const inputFormat = await detectFormat(input)
-
-    if (inputFormat !== 'hwp') {
-      throw new Error('Input must be a HWP 5.0 file')
-    }
-
-    if (!hasExtension(output, 'hwpx')) {
-      throw new Error('Output must be a .hwpx file')
-    }
+    const isMdInput = hasExtension(input, 'md')
+    const isHwpInput = hasExtension(input, 'hwp')
+    const isHwpxInput = hasExtension(input, 'hwpx')
+    const isMdOutput = hasExtension(output, 'md')
+    const isHwpOutput = hasExtension(output, 'hwp')
+    const isHwpxOutput = hasExtension(output, 'hwpx')
 
     if (!options.force) {
       try {
@@ -36,39 +42,184 @@ export async function convertCommand(input: string, output: string, options: Con
       }
     }
 
-    const doc = await loadHwp(input)
-    const buffer = await generateHwpx(doc)
+    if (isMdInput && isHwpxOutput) {
+      const md = await readFile(input, 'utf-8')
+      const doc = markdownToHwp(md)
 
-    await writeFile(output, buffer)
+      const allImages = doc.sections.flatMap((s) => s.images)
+      const imageLocalPaths: string[] = []
+      if (allImages.length > 0) {
+        const mdDir = dirname(input)
+        const imageRefs = allImages.map((img) => ({ url: img.binDataPath, alt: '' }))
+        const resolved = resolveImagePaths(imageRefs, mdDir)
+        for (const r of resolved) {
+          imageLocalPaths.push(r.resolvedPath ?? '')
+        }
+      }
 
-    const paragraphs = doc.sections.reduce((sum, section) => sum + section.paragraphs.length, 0)
-    console.log(
-      formatOutput(
-        {
-          input,
-          output,
-          sections: doc.sections.length,
-          paragraphs,
-          success: true,
-        },
-        options.pretty,
-      ),
-    )
+      const buffer = await generateHwpx(doc, imageLocalPaths)
+
+      await writeFile(output, buffer)
+
+      const paragraphs = countParagraphs(doc)
+      console.log(
+        formatOutput(
+          {
+            input,
+            output,
+            direction: 'md-to-hwpx',
+            sections: doc.sections.length,
+            paragraphs,
+            success: true,
+          },
+          options.pretty,
+        ),
+      )
+      return
+    }
+
+    if (isMdInput && isHwpOutput) {
+      const md = await readFile(input, 'utf-8')
+      const doc = markdownToHwp(md)
+      const buffer = await markdownToHwpBinary(md)
+
+      await writeFile(output, buffer)
+
+      const paragraphs = countParagraphs(doc)
+      console.log(
+        formatOutput(
+          {
+            input,
+            output,
+            direction: 'md-to-hwp',
+            sections: doc.sections.length,
+            paragraphs,
+            success: true,
+          },
+          options.pretty,
+        ),
+      )
+      return
+    }
+
+    if ((isHwpInput || isHwpxInput) && isMdOutput) {
+      const fmt = await detectFormat(input)
+      const doc = fmt === 'hwp' ? await loadHwp(input) : await loadHwpxDocument(input)
+      let md = hwpToMarkdown(doc)
+
+      // Extract images from HWPX (not supported for HWP binary)
+      const allImages = doc.sections.flatMap((s) => s.images)
+      let extractedImagesDir: string | undefined
+      if (fmt === 'hwpx' && allImages.length > 0) {
+        const imagesDir = options.imagesDir ?? join(dirname(output), basename(output, extname(output)) + '_images')
+        try {
+          const pathMap = await extractImages(input, allImages, imagesDir)
+          extractedImagesDir = imagesDir
+          const outputDir = dirname(output)
+          for (const [binDataPath, filename] of pathMap) {
+            const relativePath = relative(outputDir, join(imagesDir, filename))
+            md = md.replaceAll(`![](${binDataPath})`, `![](${relativePath})`)
+          }
+        } catch (e) {
+          console.warn(`Warning: failed to extract images: ${e instanceof Error ? e.message : String(e)}`)
+        }
+      }
+
+      await writeFile(output, md, 'utf-8')
+
+      const paragraphs = countParagraphs(doc)
+       console.log(
+         formatOutput(
+           {
+             input,
+             output,
+             direction: fmt === 'hwp' ? 'hwp-to-md' : 'hwpx-to-md',
+             sections: doc.sections.length,
+             paragraphs,
+             ...(extractedImagesDir ? { imagesDir: extractedImagesDir } : {}),
+             success: true,
+           },
+           options.pretty,
+         ),
+       )
+      return
+    }
+
+    if (isHwpInput && isHwpxOutput) {
+      const inputFormat = await detectFormat(input)
+      if (inputFormat !== 'hwp') {
+        throw new Error('Input must be a HWP 5.0 file')
+      }
+
+      const doc = await loadHwp(input)
+      const buffer = await generateHwpx(doc)
+
+      await writeFile(output, buffer)
+
+       const paragraphs = countParagraphs(doc)
+       console.log(
+         formatOutput(
+           {
+             input,
+             output,
+             direction: 'hwp-to-hwpx',
+             sections: doc.sections.length,
+             paragraphs,
+             success: true,
+           },
+           options.pretty,
+         ),
+       )
+       return
+     }
+
+     throw new Error(`Unsupported conversion: ${input} -> ${output}`)
   } catch (e) {
     handleError(e)
   }
 }
 
-export async function generateHwpx(doc: HwpDocument): Promise<Buffer> {
+function countParagraphs(doc: HwpDocument): number {
+  return doc.sections.reduce((sum, section) => sum + section.paragraphs.length, 0)
+}
+
+async function loadHwpxDocument(filePath: string): Promise<HwpDocument> {
+  const archive = await loadHwpx(filePath)
+  const header = parseHeader(await archive.getHeaderXml())
+  const sections = await parseSections(archive)
+  return { format: 'hwpx', sections, header }
+}
+
+export async function generateHwpx(doc: HwpDocument, imageLocalPaths: string[] = []): Promise<Buffer> {
   const zip = new JSZip()
+  const embeddedImagesBySourceIndex: Array<Image | null> = []
 
   zip.file(PATHS.VERSION_XML, generateVersionXml())
   zip.file(PATHS.MANIFEST_XML, generateManifest(doc.sections.length))
   zip.file(PATHS.CONTENT_HPF, generateContentHpf(doc.sections.length))
   zip.file(PATHS.HEADER_XML, generateHeaderXml(doc.header))
 
+  for (let i = 0; i < imageLocalPaths.length; i++) {
+    const localPath = imageLocalPaths[i]
+    if (localPath) {
+      embeddedImagesBySourceIndex[i] = await embedImage(zip, localPath, i)
+      continue
+    }
+    embeddedImagesBySourceIndex[i] = null
+  }
+
+  let sourceImageOffset = 0
   for (let i = 0; i < doc.sections.length; i++) {
-    zip.file(sectionPath(i), generateSectionXml(doc.sections[i]))
+    const section = doc.sections[i]
+    const sectionImages =
+      imageLocalPaths.length > 0
+        ? embeddedImagesBySourceIndex
+            .slice(sourceImageOffset, sourceImageOffset + section.images.length)
+            .filter((image): image is Image => image !== null)
+        : section.images
+
+    sourceImageOffset += section.images.length
+    zip.file(sectionPath(i), generateSectionXml(section, sectionImages))
   }
 
   return zip.generateAsync({ type: 'nodebuffer' })
@@ -163,7 +314,7 @@ ${styles}
 </hh:head>`
 }
 
-function generateSectionXml(section: Section): string {
+function generateSectionXml(section: Section, images: Image[] = section.images): string {
   const paragraphXml = section.paragraphs
     .map((paragraph, paragraphIndex) => {
       const runs = paragraph.runs
@@ -217,7 +368,13 @@ ${rows}
     })
     .join('\n')
 
-  const content = [paragraphXml, tableXml].filter(Boolean).join('\n')
+  const imageXml = images
+    .map((image) => {
+      return `  <hp:pic hp:id="${escapeXml(image.ref)}" hp:binDataPath="${escapeXml(image.binDataPath)}" hp:format="${escapeXml(image.format)}" hp:width="${image.width}" hp:height="${image.height}">\n    <hp:imgRect><hc:pt0/></hp:imgRect>\n  </hp:pic>`
+    })
+    .join('\n')
+
+  const content = [paragraphXml, tableXml, imageXml].filter(Boolean).join('\n')
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <hs:sec xmlns:hs="${NAMESPACES.hs}" xmlns:hp="${NAMESPACES.hp}" xmlns:hc="${NAMESPACES.hc}" xmlns:hh="${NAMESPACES.hh}">

@@ -350,7 +350,7 @@ describe('integration: error cases produce valid JSON', () => {
     restoreOutput()
 
     const output = JSON.parse(errors[0])
-    expect(output.error).toBe('Input must be a HWP 5.0 file')
+    expect(output.error).toContain('Unsupported conversion')
   })
 
   it('text command on HWP 5.0 → succeeds (read supported)', async () => {
