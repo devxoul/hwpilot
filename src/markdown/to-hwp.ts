@@ -9,7 +9,9 @@ import type {
   Table as MdTable,
   TableCell as MdTableCell,
   TableRow as MdTableRow,
+  RootContent,
 } from 'mdast'
+import type { Node } from 'unist'
 import { remark } from 'remark'
 import remarkGfm from 'remark-gfm'
 import {
@@ -46,7 +48,7 @@ const PARA_SHAPE_RIGHT_ID = 8
 
 export function markdownToHwp(md: string): HwpDocument {
   const tree = remark().use(remarkGfm).parse(md) as Root
-  const charShapeRegistry = new CharShapeRegistry(0, 1000)
+  const charShapeRegistry = new CharShapeRegistry(0, 10)
 
   const fonts: FontFace[] = [
     { id: 0, name: '맑은 고딕' },
@@ -445,16 +447,16 @@ function appendBlockquoteParagraphs(
   }
 }
 
-function collectText(node: any): string {
+function collectText(node: Node): string {
   switch (node.type) {
     case 'text':
-      return node.value ?? ''
+      return (node as { value?: string }).value ?? ''
     case 'inlineCode':
-      return node.value ?? ''
+      return (node as { value?: string }).value ?? ''
     case 'image':
-      return node.alt ?? ''
+      return (node as { alt?: string }).alt ?? ''
     default: {
-      const childContainer = node as { children?: Array<any> }
+      const childContainer = node as { children?: Node[] }
       if (!childContainer.children) {
         return ''
       }
@@ -462,11 +464,11 @@ function collectText(node: any): string {
       let text = ''
       for (const child of childContainer.children) {
         if (child.type === 'text') {
-          text += child.value ?? ''
+          text += (child as { value?: string }).value ?? ''
         } else if (child.type === 'inlineCode') {
-          text += child.value ?? ''
+          text += (child as { value?: string }).value ?? ''
         } else if (child.type === 'image') {
-          text += child.alt ?? ''
+          text += (child as { alt?: string }).alt ?? ''
         } else if ('children' in child) {
           text += collectText(child)
         }
