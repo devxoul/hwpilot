@@ -128,20 +128,20 @@ export async function convertCommand(input: string, output: string, options: Con
       await writeFile(output, md, 'utf-8')
 
       const paragraphs = countParagraphs(doc)
-      console.log(
-        formatOutput(
-          {
-            input,
-            output,
-            direction: 'hwp-to-md',
-            sections: doc.sections.length,
-            paragraphs,
-            ...(extractedImagesDir ? { imagesDir: extractedImagesDir } : {}),
-            success: true,
-          },
-          options.pretty,
-        ),
-      )
+       console.log(
+         formatOutput(
+           {
+             input,
+             output,
+             direction: fmt === 'hwp' ? 'hwp-to-md' : 'hwpx-to-md',
+             sections: doc.sections.length,
+             paragraphs,
+             ...(extractedImagesDir ? { imagesDir: extractedImagesDir } : {}),
+             success: true,
+           },
+           options.pretty,
+         ),
+       )
       return
     }
 
@@ -156,23 +156,24 @@ export async function convertCommand(input: string, output: string, options: Con
 
       await writeFile(output, buffer)
 
-      const paragraphs = countParagraphs(doc)
-      console.log(
-        formatOutput(
-          {
-            input,
-            output,
-            sections: doc.sections.length,
-            paragraphs,
-            success: true,
-          },
-          options.pretty,
-        ),
-      )
-      return
-    }
+       const paragraphs = countParagraphs(doc)
+       console.log(
+         formatOutput(
+           {
+             input,
+             output,
+             direction: 'hwp-to-hwpx',
+             sections: doc.sections.length,
+             paragraphs,
+             success: true,
+           },
+           options.pretty,
+         ),
+       )
+       return
+     }
 
-    throw new Error(`Unsupported conversion: ${input} -> ${output}`)
+     throw new Error(`Unsupported conversion: ${input} -> ${output}`)
   } catch (e) {
     handleError(e)
   }

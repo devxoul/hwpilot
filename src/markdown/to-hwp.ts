@@ -9,7 +9,6 @@ import type {
   Table as MdTable,
   TableCell as MdTableCell,
   TableRow as MdTableRow,
-  RootContent,
 } from 'mdast'
 import type { Node } from 'unist'
 import { remark } from 'remark'
