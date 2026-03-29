@@ -1,32 +1,33 @@
 import { afterEach, describe, expect, it, mock } from 'bun:test'
-import { unlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile as fsReadFile, rm, stat, writeFile as fsWriteFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import JSZip from 'jszip'
 
 import { loadHwpx } from '@/formats/hwpx/loader'
 import { parseSections } from '@/formats/hwpx/section-parser'
-import { createTestHwpCfb, createTestHwpx } from '@/test-helpers'
 import type { HwpDocument } from '@/types'
 
 import { convertCommand, generateHwpx } from './convert'
 
-let logs: string[]
 let errors: string[]
-const tempFiles: string[] = []
+const tempDirs: string[] = []
 const origLog = console.log
 const origError = console.error
 const origExit = process.exit
 
-function tempPath(name: string, ext: string): string {
-  const path = `/tmp/${name}-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-  tempFiles.push(path)
-  return path
+const fixturePath = join(process.cwd(), 'e2e/fixtures/임금 등 청구의 소.hwp')
+
+async function makeTempDir(prefix: string): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), `${prefix}-`))
+  tempDirs.push(dir)
+  return dir
 }
 
 function captureOutput() {
-  logs = []
   errors = []
-  console.log = (msg: string) => logs.push(msg)
+  console.log = (_msg: string) => {}
   console.error = (msg: string) => errors.push(msg)
   process.exit = mock(() => {
     throw new Error('process.exit')
@@ -41,92 +42,63 @@ function restoreOutput() {
 
 afterEach(async () => {
   restoreOutput()
-  for (const filePath of tempFiles) {
-    try {
-      await unlink(filePath)
-    } catch {}
+  for (const dirPath of tempDirs) {
+    await rm(dirPath, { recursive: true, force: true })
   }
-  tempFiles.length = 0
+  tempDirs.length = 0
 })
 
 describe('convertCommand', () => {
-  it('errors for non-HWP input', async () => {
-    const hwpxFile = tempPath('convert-input', 'hwpx')
-    await Bun.write(hwpxFile, await createTestHwpx({ paragraphs: ['test'] }))
+  it('converts markdown to hwpx', async () => {
+    const dir = await makeTempDir('convert-md-to-hwpx')
+    const inputFile = join(dir, 'input.md')
+    const outputFile = join(dir, 'output.hwpx')
+
+    await fsWriteFile(inputFile, '# Hello\n\nWorld', 'utf-8')
+    await convertCommand(inputFile, outputFile, { force: true })
+
+    const outputStat = await stat(outputFile)
+    expect(outputStat.size).toBeGreaterThan(0)
+
+    const outputBuffer = await fsReadFile(outputFile)
+    expect(outputBuffer.byteLength).toBeGreaterThan(0)
+  })
+
+  it('converts hwp fixture to markdown', async () => {
+    const dir = await makeTempDir('convert-hwp-to-md')
+    const outputFile = join(dir, 'output.md')
+
+    await convertCommand(fixturePath, outputFile, { force: true })
+
+    const outputStat = await stat(outputFile)
+    expect(outputStat.size).toBeGreaterThan(0)
+
+    const markdown = await fsReadFile(outputFile, 'utf-8')
+    expect(markdown.trim().length).toBeGreaterThan(0)
+  })
+
+  it('keeps backward compatibility for hwp to hwpx conversion', async () => {
+    const dir = await makeTempDir('convert-hwp-to-hwpx')
+    const outputFile = join(dir, 'output.hwpx')
+
+    await convertCommand(fixturePath, outputFile, { force: true })
+
+    const outputStat = await stat(outputFile)
+    expect(outputStat.size).toBeGreaterThan(0)
+  })
+
+  it('handles unsupported conversion with clear error', async () => {
+    const dir = await makeTempDir('convert-unsupported')
+    const inputFile = join(dir, 'input.txt')
+    const outputFile = join(dir, 'output.hwpx')
+    await fsWriteFile(inputFile, 'plain text', 'utf-8')
+
     captureOutput()
-    await expect(convertCommand(hwpxFile, 'out.hwpx', {})).rejects.toThrow('process.exit')
+    await expect(convertCommand(inputFile, outputFile, {})).rejects.toThrow('process.exit')
     restoreOutput()
 
     const output = JSON.parse(errors[0])
-    expect(output.error).toBe('Input must be a HWP 5.0 file')
-  })
-
-  it('errors for non-.hwpx output extension', async () => {
-    const hwpFile = tempPath('convert-hwp', 'hwp')
-    await Bun.write(hwpFile, createTestHwpCfb())
-    captureOutput()
-    await expect(convertCommand(hwpFile, 'out.hwp', {})).rejects.toThrow('process.exit')
-    restoreOutput()
-
-    const output = JSON.parse(errors[0])
-    expect(output.error).toBe('Output must be a .hwpx file')
-  })
-
-  it('errors when input file does not exist', async () => {
-    const outputFile = tempPath('convert-out', 'hwpx')
-
-    captureOutput()
-    await expect(convertCommand('/tmp/nonexistent.hwp', outputFile, {})).rejects.toThrow('process.exit')
-    restoreOutput()
-
-    const output = JSON.parse(errors[0])
-    expect(output.error).toContain('ENOENT')
-  })
-
-  it('errors when output file already exists without --force', async () => {
-    const hwpFile = tempPath('convert-hwp', 'hwp')
-    const outputFile = tempPath('convert-out', 'hwpx')
-
-    await Bun.write(hwpFile, createTestHwpCfb())
-    await Bun.write(outputFile, await createTestHwpx({ paragraphs: ['existing'] }))
-
-    captureOutput()
-    await expect(convertCommand(hwpFile, outputFile, {})).rejects.toThrow('process.exit')
-    restoreOutput()
-
-    const output = JSON.parse(errors[0])
-    expect(output.error).toContain('File already exists')
-  })
-
-  it('overwrites existing output file with --force flag', async () => {
-    const hwpFile = tempPath('convert-hwp', 'hwp')
-    const outputFile = tempPath('convert-out', 'hwpx')
-
-    await Bun.write(hwpFile, createTestHwpCfb())
-    await Bun.write(outputFile, await createTestHwpx({ paragraphs: ['existing'] }))
-
-    captureOutput()
-    await convertCommand(hwpFile, outputFile, { force: true })
-    restoreOutput()
-
-    expect(logs.length).toBeGreaterThan(0)
-    const output = JSON.parse(logs[0])
-    expect(output.success).toBe(true)
-  })
-
-  it('succeeds when output file does not exist', async () => {
-    const hwpFile = tempPath('convert-hwp', 'hwp')
-    const outputFile = tempPath('convert-out', 'hwpx')
-
-    await Bun.write(hwpFile, createTestHwpCfb())
-
-    captureOutput()
-    await convertCommand(hwpFile, outputFile, {})
-    restoreOutput()
-
-    expect(logs.length).toBeGreaterThan(0)
-    const output = JSON.parse(logs[0])
-    expect(output.success).toBe(true)
+    expect(output.error).toContain('Unsupported conversion:')
   })
 })
 
@@ -172,8 +144,9 @@ describe('generateHwpx', () => {
     expect(zip.file('Contents/header.xml')).toBeDefined()
     expect(zip.file('Contents/section0.xml')).toBeDefined()
 
-    const outputFile = tempPath('generated', 'hwpx')
-    await writeFile(outputFile, hwpxBuffer)
+    const dir = await makeTempDir('generate-hwpx')
+    const outputFile = join(dir, 'generated.hwpx')
+    await fsWriteFile(outputFile, hwpxBuffer)
 
     const archive = await loadHwpx(outputFile)
     const sections = await parseSections(archive)

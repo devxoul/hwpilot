@@ -9,6 +9,7 @@ const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '',
   parseAttributeValue: true,
+  trimValues: false,
   isArray: (name) => ['hp:p', 'hp:run', 'hp:tbl', 'hp:tr', 'hp:tc', 'hp:pic', 'hp:rect'].includes(name),
 })
 
@@ -196,9 +197,13 @@ function extractText(value: unknown): string {
     return value
   }
 
+  if (typeof value === 'number') {
+    return String(value)
+  }
+
   if (value && typeof value === 'object') {
     const text = (value as Record<string, unknown>)['#text']
-    return typeof text === 'string' ? text : ''
+    return typeof text === 'string' ? text : typeof text === 'number' ? String(text) : ''
   }
 
   return ''
