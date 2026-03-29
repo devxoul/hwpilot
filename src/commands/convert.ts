@@ -80,8 +80,7 @@ export async function convertCommand(input: string, output: string, options: Con
 
     if (isMdInput && isHwpOutput) {
       const md = await readFile(input, 'utf-8')
-      const doc = markdownToHwp(md)
-      const buffer = await markdownToHwpBinary(md)
+      const { buffer, doc } = await markdownToHwpBinary(md)
 
       await writeFile(output, buffer)
 
@@ -92,7 +91,7 @@ export async function convertCommand(input: string, output: string, options: Con
             input,
             output,
             direction: 'md-to-hwp',
-            sections: doc.sections.length,
+            sections: 1,
             paragraphs,
             success: true,
           },

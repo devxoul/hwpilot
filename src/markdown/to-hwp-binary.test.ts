@@ -27,19 +27,19 @@ async function writeTempHwp(buffer: Buffer): Promise<string> {
 
 describe('markdownToHwpBinary', () => {
   it('returns Buffer', async () => {
-    const buffer = await markdownToHwpBinary('Hello')
+    const { buffer } = await markdownToHwpBinary('Hello')
 
     expect(Buffer.isBuffer(buffer)).toBe(true)
   })
 
   it('returns HWP CFB magic bytes', async () => {
-    const buffer = await markdownToHwpBinary('Hello')
+    const { buffer } = await markdownToHwpBinary('Hello')
 
     expect([...buffer.subarray(0, 4)]).toEqual([0xd0, 0xcf, 0x11, 0xe0])
   })
 
   it('keeps plain text paragraph content', async () => {
-    const buffer = await markdownToHwpBinary('Hello\n\nWorld')
+    const { buffer } = await markdownToHwpBinary('Hello\n\nWorld')
     const path = await writeTempHwp(buffer)
     const doc = await loadHwp(path)
     const texts = doc.sections[0].paragraphs
@@ -50,7 +50,7 @@ describe('markdownToHwpBinary', () => {
   })
 
   it('preserves heading level on heading paragraph', async () => {
-    const buffer = await markdownToHwpBinary('# Title\n\nBody')
+    const { buffer } = await markdownToHwpBinary('# Title\n\nBody')
     const path = await writeTempHwp(buffer)
     const doc = await loadHwp(path)
     const headingPara = doc.sections[0].paragraphs.find(
@@ -65,7 +65,7 @@ describe('markdownToHwpBinary', () => {
   })
 
   it('converts markdown table into HWP table', async () => {
-    const buffer = await markdownToHwpBinary('| A | B |\n|---|---|\n| 1 | 2 |')
+    const { buffer } = await markdownToHwpBinary('| A | B |\n|---|---|\n| 1 | 2 |')
     const path = await writeTempHwp(buffer)
     const doc = await loadHwp(path)
 
@@ -73,7 +73,7 @@ describe('markdownToHwpBinary', () => {
   })
 
   it('converts mixed-format paragraph to valid HWP without throwing', async () => {
-    const buffer = await markdownToHwpBinary('Hello **bold** and *italic* text')
+    const { buffer } = await markdownToHwpBinary('Hello **bold** and *italic* text')
     const path = await writeTempHwp(buffer)
     const doc = await loadHwp(path)
     const text = doc.sections[0].paragraphs
@@ -85,7 +85,7 @@ describe('markdownToHwpBinary', () => {
   })
 
   it('applies uniform bold formatting to all-bold paragraph', async () => {
-    const buffer = await markdownToHwpBinary('**entire paragraph bold**')
+    const { buffer } = await markdownToHwpBinary('**entire paragraph bold**')
     const path = await writeTempHwp(buffer)
     const doc = await loadHwp(path)
     const para = doc.sections[0].paragraphs.find(
@@ -109,7 +109,7 @@ describe('markdownToHwpBinary', () => {
     }
 
     try {
-      const buffer = await markdownToHwpBinary('![alt](./img.png)')
+      const { buffer } = await markdownToHwpBinary('![alt](./img.png)')
       const path = await writeTempHwp(buffer)
       const doc = await loadHwp(path)
 
@@ -122,7 +122,7 @@ describe('markdownToHwpBinary', () => {
   })
 
   it('flattens multi-section markdown into single HWP section', async () => {
-    const buffer = await markdownToHwpBinary('Section 1\n\n---\n\nSection 2')
+    const { buffer } = await markdownToHwpBinary('Section 1\n\n---\n\nSection 2')
     const path = await writeTempHwp(buffer)
     const doc = await loadHwp(path)
     const texts = doc.sections[0].paragraphs.map((paragraph) => paragraph.runs.map((run) => run.text).join(''))

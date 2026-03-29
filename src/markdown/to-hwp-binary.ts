@@ -13,7 +13,12 @@ type FlattenedItem =
   | { type: 'table'; table: Table }
   | { type: 'sectionSeparator' }
 
-export async function markdownToHwpBinary(md: string): Promise<Buffer> {
+export type MarkdownToHwpBinaryResult = {
+  buffer: Buffer
+  doc: HwpDocument
+}
+
+export async function markdownToHwpBinary(md: string): Promise<MarkdownToHwpBinaryResult> {
   const doc = markdownToHwp(md)
 
   if (doc.sections.some((section) => section.images.length > 0)) {
@@ -59,6 +64,7 @@ export async function markdownToHwpBinary(md: string): Promise<Buffer> {
         data,
         position: 'end',
       })
+      paragraphIndex += 1
       continue
     }
 
@@ -93,7 +99,8 @@ export async function markdownToHwpBinary(md: string): Promise<Buffer> {
     const base = await createHwp({ font: '맑은 고딕', fontSize: 10 })
     await writeFile(tempPath, base)
     await editHwp(tempPath, [...structureOps, ...formatOps])
-    return await readFile(tempPath)
+    const buffer = await readFile(tempPath)
+    return { buffer, doc }
   } finally {
     await unlink(tempPath).catch(() => {})
   }
