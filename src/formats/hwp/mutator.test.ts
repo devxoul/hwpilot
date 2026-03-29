@@ -886,4 +886,32 @@ describe('mutateHwpCfb addParagraph heading/style', () => {
       await unlink(hwpPath)
     }
   })
+
+  it('throws when fontName is provided in setFormat for HWP', async () => {
+    const fixture = await createTestHwpBinary({ paragraphs: ['Hello World'] })
+    const cfb = CFB.read(fixture, { type: 'buffer' })
+    const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+    expect(() => {
+      mutateHwpCfb(
+        cfb,
+        [{ type: 'setFormat', ref: 's0.p0', format: { fontName: '맑은 고딕' } }],
+        compressed,
+      )
+    }).toThrow('fontName is not supported for HWP format')
+  })
+
+  it('throws when fontName is provided in addParagraph for HWP', async () => {
+    const fixture = await createTestHwpBinary({ paragraphs: ['Hello World'] })
+    const cfb = CFB.read(fixture, { type: 'buffer' })
+    const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+    expect(() => {
+      mutateHwpCfb(
+        cfb,
+        [{ type: 'addParagraph', ref: 's0', text: 'New para', position: 'end', format: { fontName: '맑은 고딕' } }],
+        compressed,
+      )
+    }).toThrow('fontName is not supported for HWP format')
+  })
 })

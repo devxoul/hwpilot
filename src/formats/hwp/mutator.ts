@@ -417,6 +417,10 @@ function appendParagraphRecords(
     charShapeRef: styleCharShapeRef,
   } = resolveStyleRefs(cfb, compressed, op.heading, op.style)
 
+  if (op.format?.fontName !== undefined) {
+    throw new Error('fontName is not supported for HWP format. Convert to HWPX first or omit fontName.')
+  }
+
   const charShapeRef =
     op.format && hasFormatOptions(op.format)
       ? addCharShapeWithFormat(cfb, compressed, styleCharShapeRef, op.format)
@@ -801,6 +805,10 @@ function applySetFormat(
   const sourceCharShape = charShapeRecords[sourceCharShapeId]
   if (!sourceCharShape) {
     throw new Error(`CHAR_SHAPE not found for reference: ${ref}`)
+  }
+
+  if (format.fontName !== undefined) {
+    throw new Error('fontName is not supported for HWP format. Convert to HWPX first or omit fontName.')
   }
 
   const clonedCharShape = Buffer.from(sourceCharShape)
