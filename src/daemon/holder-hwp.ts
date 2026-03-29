@@ -91,26 +91,12 @@ export class HwpHolder {
     const tmpPath = `${this.filePath}.tmp`
     const buffer = this.serializeCfb(cfb)
 
-    try {
-      const result = await validateHwpBuffer(buffer)
-      if (!result.valid) {
-        const failedChecks = result.checks.filter((c) => c.status === 'fail')
-        const onlyNCharsMismatch =
-          failedChecks.length > 0 &&
-          failedChecks.every(
-            (check) => check.name === 'nchars_consistency' && check.message?.includes('nChars mismatch'),
-          )
-        if (!onlyNCharsMismatch) {
-          const failedCheckText = failedChecks.map((c) => c.name + (c.message ? ': ' + c.message : '')).join('; ')
-          await this.load()
-          throw new Error('HWP validation failed: ' + failedCheckText)
-        }
-      }
-    } catch (error) {
-      if (error instanceof Error && error.message.startsWith('HWP validation failed:')) {
-        throw error
-      }
-      console.warn('HWP buffer validation error (proceeding with write):', error)
+    const result = await validateHwpBuffer(buffer)
+    if (!result.valid) {
+      const failedChecks = result.checks.filter((c) => c.status === 'fail')
+      const failedCheckText = failedChecks.map((c) => c.name + (c.message ? ': ' + c.message : '')).join('; ')
+      await this.load()
+      throw new Error('HWP validation failed: ' + failedCheckText)
     }
 
     try {

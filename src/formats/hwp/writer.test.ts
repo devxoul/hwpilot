@@ -413,7 +413,7 @@ describe('editHwp', () => {
     }
   })
 
-  it('validator internal crash allows write to proceed (fail-open)', async () => {
+  it('validator internal crash propagates as error (fail-closed)', async () => {
     const validateSpy = spyOn(validatorModule, 'validateHwpBuffer').mockRejectedValue(
       new Error('validator internal crash'),
     )
@@ -423,10 +423,9 @@ describe('editHwp', () => {
     await Bun.write(filePath, fixture)
 
     try {
-      await editHwp(filePath, [{ type: 'setText', ref: 's0.p0', text: 'changed' }])
-
-      const doc = await loadHwp(filePath)
-      expect(joinRuns(doc.sections[0].paragraphs[0].runs)).toBe('changed')
+      await expect(
+        editHwp(filePath, [{ type: 'setText', ref: 's0.p0', text: 'changed' }]),
+      ).rejects.toThrow('validator internal crash')
     } finally {
       validateSpy.mockRestore()
     }
