@@ -20,7 +20,7 @@ import type {
 } from '@/types'
 
 import { readControlId } from './control-id'
-import { parseStyleRefs } from './docinfo-parser'
+import { parseCellAddress, parseStyleRefs } from './docinfo-parser'
 import { iterateRecords } from './record-parser'
 import { TAG } from './tag-ids'
 
@@ -646,19 +646,6 @@ function readUtf16LengthPrefixed(data: Buffer, offset: number): string {
   return data.subarray(textStart, textEnd).toString('utf16le')
 }
 
-function parseCellAddress(data: Buffer): { col: number; row: number; colSpan: number; rowSpan: number } | null {
-  const commonHeaderSize = data.length === 30 ? 6 : 8
-  if (data.length < commonHeaderSize + 8) {
-    return null
-  }
-
-  return {
-    col: data.readUInt16LE(commonHeaderSize),
-    row: data.readUInt16LE(commonHeaderSize + 2),
-    colSpan: data.readUInt16LE(commonHeaderSize + 4),
-    rowSpan: data.readUInt16LE(commonHeaderSize + 6),
-  }
-}
 
 function parseShapeSize(data: Buffer): { width: number; height: number } | null {
   const widthOffset = 20

@@ -26,3 +26,19 @@ export function parseStyleRefs(data: Buffer): { charShapeRef: number; paraShapeR
   }
   return null
 }
+
+// Canonical CELL_LIST_HEADER address parser shared by reader and mutator.
+// LIST_HEADER layout has a commonHeaderSize that varies by record size:
+//   - 30-byte record: commonHeaderSize = 6
+//   - standard record: commonHeaderSize = 8
+// col, row, colSpan, rowSpan are at offsets commonHeaderSize+0/+2/+4/+6 (uint16LE each).
+export function parseCellAddress(data: Buffer): { col: number; row: number; colSpan: number; rowSpan: number } | null {
+  const commonHeaderSize = data.length === 30 ? 6 : 8
+  if (data.length < commonHeaderSize + 8) return null
+  return {
+    col: data.readUInt16LE(commonHeaderSize),
+    row: data.readUInt16LE(commonHeaderSize + 2),
+    colSpan: data.readUInt16LE(commonHeaderSize + 4),
+    rowSpan: data.readUInt16LE(commonHeaderSize + 6),
+  }
+}

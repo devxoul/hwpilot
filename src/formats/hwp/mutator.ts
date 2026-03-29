@@ -4,7 +4,7 @@ import { type EditOperation, type FormatOptions } from '@/shared/edit-types'
 import { parseRef } from '@/shared/refs'
 
 import { readControlId } from './control-id'
-import { parseStyleRefs } from './docinfo-parser'
+import { parseCellAddress, parseStyleRefs } from './docinfo-parser'
 import { iterateRecords } from './record-parser'
 import {
   buildCellListHeaderData,
@@ -582,17 +582,6 @@ function patchParagraphText(stream: Buffer, operation: SectionTextOperation): Bu
   throw new Error(`Paragraph not found for reference: ${operation.ref}`)
 }
 
-function parseCellAddress(data: Buffer): { col: number; row: number } | null {
-  const commonHeaderSize = data.length === 30 ? 6 : 8
-  if (data.length < commonHeaderSize + 4) {
-    return null
-  }
-
-  return {
-    col: data.readUInt16LE(commonHeaderSize),
-    row: data.readUInt16LE(commonHeaderSize + 2),
-  }
-}
 
 function patchTableCellText(
   stream: Buffer,

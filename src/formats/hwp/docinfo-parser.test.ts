@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
-import { parseStyleRefs } from './docinfo-parser'
+import { parseCellAddress, parseStyleRefs } from './docinfo-parser'
 
 function buildStyleBuffer(opts: {
   koreanName?: string
@@ -121,7 +121,7 @@ describe('parseStyleRefs', () => {
     })
   })
 
-  describe('cross-subsystem agreement', () => {
+  describe('cross-subsystem agreement (parseStyleRefs)', () => {
     it('short format: agrees with original reader.ts logic', () => {
       // given - buffer matching reader.ts path (remaining >= 4, < 10)
       const data = buildStyleBuffer({ charShapeRef: 42, paraShapeRef: 17 })
@@ -161,6 +161,105 @@ describe('parseStyleRefs', () => {
       const expectedParaShapeRef = data.readUInt16LE(offset + 6)
       expect(result?.charShapeRef).toBe(expectedCharShapeRef)
       expect(result?.paraShapeRef).toBe(expectedParaShapeRef)
+    })
+  })
+})
+
+describe('parseCellAddress', () => {
+  function buildCellBuffer(opts: {
+    headerSize: 6 | 8
+    col: number
+    row: number
+    colSpan: number
+    rowSpan: number
+  }): Buffer {
+    const { headerSize, col, row, colSpan, rowSpan } = opts
+    const totalSize = headerSize === 6 ? 30 : headerSize + 8
+    const buf = Buffer.alloc(totalSize)
+    buf.writeUInt16LE(col, headerSize)
+    buf.writeUInt16LE(row, headerSize + 2)
+    buf.writeUInt16LE(colSpan, headerSize + 4)
+    buf.writeUInt16LE(rowSpan, headerSize + 6)
+    return buf
+  }
+
+  describe('30-byte LIST_HEADER (commonHeaderSize=6)', () => {
+    it('reads col, row, colSpan, rowSpan from correct offsets', () => {
+      // given
+      const data = buildCellBuffer({ headerSize: 6, col: 2, row: 3, colSpan: 1, rowSpan: 2 })
+
+      // when
+      const result = parseCellAddress(data)
+
+      // then
+      expect(result).toEqual({ col: 2, row: 3, colSpan: 1, rowSpan: 2 })
+    })
+  })
+
+  describe('standard LIST_HEADER (commonHeaderSize=8)', () => {
+    it('reads col, row, colSpan, rowSpan from correct offsets', () => {
+      // given
+      const data = buildCellBuffer({ headerSize: 8, col: 0, row: 1, colSpan: 3, rowSpan: 1 })
+
+      // when
+      const result = parseCellAddress(data)
+
+      // then
+      expect(result).toEqual({ col: 0, row: 1, colSpan: 3, rowSpan: 1 })
+    })
+  })
+
+  describe('truncated data', () => {
+    it('returns null when buffer is too short for standard header', () => {
+      // given - 8 + 7 = 15 bytes, needs 8 + 8 = 16
+      const data = Buffer.alloc(15)
+
+      // when
+      const result = parseCellAddress(data)
+
+      // then
+      expect(result).toBeNull()
+    })
+
+    it('returns null when 30-byte buffer has insufficient payload', () => {
+      // given - 29 bytes: length !== 30, so commonHeaderSize=8, needs 16 bytes but 29 >= 16 — use 13 bytes instead
+      const data = Buffer.alloc(13)
+
+      // when
+      const result = parseCellAddress(data)
+
+      // then
+      expect(result).toBeNull()
+    })
+  })
+
+  describe('cross-subsystem agreement', () => {
+    it('30-byte layout: agrees with original reader.ts logic', () => {
+      // given
+      const data = buildCellBuffer({ headerSize: 6, col: 5, row: 7, colSpan: 2, rowSpan: 3 })
+      const commonHeaderSize = data.length === 30 ? 6 : 8
+
+      // when
+      const result = parseCellAddress(data)
+
+      // then - replicates reader.ts inline logic
+      expect(result?.col).toBe(data.readUInt16LE(commonHeaderSize))
+      expect(result?.row).toBe(data.readUInt16LE(commonHeaderSize + 2))
+      expect(result?.colSpan).toBe(data.readUInt16LE(commonHeaderSize + 4))
+      expect(result?.rowSpan).toBe(data.readUInt16LE(commonHeaderSize + 6))
+    })
+
+    it('standard layout: agrees with original mutator.ts logic (col and row only)', () => {
+      // given
+      const data = buildCellBuffer({ headerSize: 8, col: 1, row: 4, colSpan: 1, rowSpan: 1 })
+      const commonHeaderSize = data.length === 30 ? 6 : 8
+
+      // when
+      const result = parseCellAddress(data)
+
+      // then - replicates mutator.ts inline logic (col and row)
+      expect(result?.col).toBe(data.readUInt16LE(commonHeaderSize))
+      expect(result?.row).toBe(data.readUInt16LE(commonHeaderSize + 2))
     })
   })
 })
