@@ -220,20 +220,8 @@ describe('Employment Rules (개정 표준취업규칙)', () => {
       const editResult = await runCli(['edit', 'text', temp, 's1.p0', marker])
       expect((parseOutput(editResult) as any).success).toBe(true)
 
-      // Manual section1.xml inspection since crossValidate only checks section0.xml
-      const hwpxPath = `${temp}.${Date.now()}.tmp.hwpx`
-      tempFiles.push(hwpxPath)
-      await runCli(['convert', temp, hwpxPath])
-      try {
-        const data = await readFile(hwpxPath)
-        const zip = await JSZip.loadAsync(data)
-        const xml = zip.file('Contents/section1.xml')
-        expect(xml).not.toBeNull()
-        const content = await xml!.async('string')
-        expect(content).toContain(marker)
-      } finally {
-        await rm(hwpxPath, { force: true })
-      }
+      const found = await crossValidate(temp, marker, 1)
+      expect(found).toBe(true)
     })
 
     it('edits in s0 and s2 both appear in converted HWPX', async () => {

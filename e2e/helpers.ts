@@ -57,14 +57,14 @@ export async function cleanupFiles(paths: string[]): Promise<void> {
  * Cross-validate: edit an HWP file, convert to HWPX, inspect raw XML
  * Returns true if expectedText appears in the section0.xml of the converted HWPX
  */
-export async function crossValidate(hwpPath: string, expectedText: string): Promise<boolean> {
+export async function crossValidate(hwpPath: string, expectedText: string, sectionIndex = 0): Promise<boolean> {
   const hwpxPath = hwpPath.replace(/\.hwp$/, '.hwpx')
   const tempHwpxPath = `${hwpxPath}.${Date.now()}.tmp.hwpx`
   try {
     await runCli(['convert', hwpPath, tempHwpxPath])
     const data = await readFile(tempHwpxPath)
     const zip = await JSZip.loadAsync(data)
-    const xml = zip.file('Contents/section0.xml')
+    const xml = zip.file(`Contents/section${sectionIndex}.xml`)
     if (!xml) return false
     const content = await xml.async('string')
     return content.includes(expectedText)
