@@ -345,7 +345,7 @@ function createTableCellFromMdast(
     ref: `s${sectionIndex}.t${tableIndex}.r${rowIndex}.c${cellIndex}`,
     paragraphs: [
       {
-        ref: `s${sectionIndex}.p0`,
+        ref: `s${sectionIndex}.t${tableIndex}.r${rowIndex}.c${cellIndex}.p0`,
         runs: [{ text, charShapeRef: 0 }],
         paraShapeRef,
         styleRef: 0,

@@ -141,4 +141,5 @@ function convertCell(cell: TableCell, header: DocumentHeader): string {
     .map((paragraph) => convertParagraphText(paragraph, header))
     .filter((text) => text.length > 0)
     .join(' ')
+    .replaceAll('|', '\\|')
 }
