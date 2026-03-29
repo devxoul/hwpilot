@@ -825,6 +825,80 @@ describe('validateHwp', () => {
       expect(getCheckMessage(result, 'table_structure')).toContain('zero dimensions')
       expect(getCheckMessage(result, 'table_structure')).toContain('LIST_HEADER')
     })
+
+    it('passes on merged-cell table (rowSpanCounts sum < rows*cols)', async () => {
+      // 2x4 table where row 0 has 2 merged cells, row 1 has 4 normal cells
+      const paraHeader = Buffer.alloc(24)
+      paraHeader.writeUInt32LE((0x80000000 | 1) >>> 0, 0)
+
+      const tableParaCharShape = Buffer.alloc(8)
+      const tableParaLineSeg = Buffer.alloc(36)
+      const fullCtrlHeader = Buffer.alloc(44)
+      controlIdBuffer('tbl ').copy(fullCtrlHeader, 0)
+      fullCtrlHeader.writeUInt32LE(14100, 16)
+      fullCtrlHeader.writeUInt32LE(2000, 20)
+
+      // rows=2, cols=4, rowSpanCounts=[2, 4] — total expected = 6
+      const tableData = buildTableData(2, 4, [2, 4])
+
+      const section0 = Buffer.concat([
+        buildRecord(TAG.PARA_HEADER, 0, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 1, Buffer.from('\x0b\x00', 'binary')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 1, tableParaCharShape),
+        buildRecord(TAG.PARA_LINE_SEG, 1, tableParaLineSeg),
+        buildRecord(TAG.CTRL_HEADER, 1, fullCtrlHeader),
+        buildRecord(TAG.TABLE, 2, tableData),
+        // Row 0: 2 merged cells (each spanning 2 cols)
+        buildRecord(TAG.LIST_HEADER, 2, buildCellListHeaderData(0, 0, 2, 1)),
+        buildRecord(TAG.PARA_HEADER, 3, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 3, Buffer.from('A', 'utf16le')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 3, tableParaCharShape),
+        buildRecord(TAG.PARA_LINE_SEG, 3, tableParaLineSeg),
+        buildRecord(TAG.LIST_HEADER, 2, buildCellListHeaderData(2, 0, 2, 1)),
+        buildRecord(TAG.PARA_HEADER, 3, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 3, Buffer.from('B', 'utf16le')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 3, tableParaCharShape),
+        buildRecord(TAG.PARA_LINE_SEG, 3, tableParaLineSeg),
+        // Row 1: 4 normal cells
+        buildRecord(TAG.LIST_HEADER, 2, buildCellListHeaderData(0, 1, 1, 1)),
+        buildRecord(TAG.PARA_HEADER, 3, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 3, Buffer.from('C', 'utf16le')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 3, tableParaCharShape),
+        buildRecord(TAG.PARA_LINE_SEG, 3, tableParaLineSeg),
+        buildRecord(TAG.LIST_HEADER, 2, buildCellListHeaderData(1, 1, 1, 1)),
+        buildRecord(TAG.PARA_HEADER, 3, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 3, Buffer.from('D', 'utf16le')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 3, tableParaCharShape),
+        buildRecord(TAG.PARA_LINE_SEG, 3, tableParaLineSeg),
+        buildRecord(TAG.LIST_HEADER, 2, buildCellListHeaderData(2, 1, 1, 1)),
+        buildRecord(TAG.PARA_HEADER, 3, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 3, Buffer.from('E', 'utf16le')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 3, tableParaCharShape),
+        buildRecord(TAG.PARA_LINE_SEG, 3, tableParaLineSeg),
+        buildRecord(TAG.LIST_HEADER, 2, buildCellListHeaderData(3, 1, 1, 1)),
+        buildRecord(TAG.PARA_HEADER, 3, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 3, Buffer.from('F', 'utf16le')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 3, tableParaCharShape),
+        buildRecord(TAG.PARA_LINE_SEG, 3, tableParaLineSeg),
+      ])
+
+      const filePath = await writeTempHwp(await buildHwpWithCustomSection0(section0), 'validator-h-merged-cells')
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'table_structure')).toBe('pass')
+    })
+
+    it('passes on employmentRules fixture (has merged tables)', async () => {
+      const result = await validateHwp('e2e/fixtures/개정 표준취업규칙(2025년, 배포).hwp')
+
+      expect(getCheckStatus(result, 'table_structure')).toBe('pass')
+    })
+
+    it('passes on withholdingTax fixture (has heavily merged tables)', async () => {
+      const result = await validateHwp('e2e/fixtures/근로소득원천징수영수증(개정안 2021.11.29.).hwp')
+
+      expect(getCheckStatus(result, 'table_structure')).toBe('pass')
+    })
   })
 })
 

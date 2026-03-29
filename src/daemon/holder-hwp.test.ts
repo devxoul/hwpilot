@@ -1,4 +1,4 @@
-import { describe, expect, it, mock, spyOn } from 'bun:test'
+import { describe, expect, it, spyOn } from 'bun:test'
 import { access, mkdtemp, readFile, rm, unlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -111,7 +111,7 @@ describe('HwpHolder', () => {
     }
   })
 
-  it('validator crash warns and still writes to disk (fail-open)', async () => {
+  it('validator crash propagates as error and keeps disk unchanged (fail-closed)', async () => {
     const validateSpy = spyOn(validatorModule, 'validateHwpBuffer').mockRejectedValue(
       new Error('validator internal crash'),
     )
@@ -122,21 +122,12 @@ describe('HwpHolder', () => {
       await holder.load()
       await holder.applyOperations(getParagraphText('Changed despite crash'))
 
-      const originalWarn = console.warn
-      const warnMock = mock(() => {})
-      console.warn = warnMock as typeof console.warn
+      await expect(holder.flush()).rejects.toThrow('validator internal crash')
 
-      try {
-        await holder.flush()
-      } finally {
-        console.warn = originalWarn
-      }
-
-      expect(holder.isDirty()).toBe(false)
-      expect(warnMock).toHaveBeenCalledTimes(1)
+      expect(holder.isDirty()).toBe(true)
 
       const doc = await loadHwp(filePath)
-      expect(doc.sections[0].paragraphs[0].runs[0].text).toBe('Changed despite crash')
+      expect(doc.sections[0].paragraphs[0].runs[0].text).toBe('Original')
     } finally {
       validateSpy.mockRestore()
       await rm(dirPath, { recursive: true, force: true })

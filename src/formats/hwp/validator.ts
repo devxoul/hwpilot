@@ -4,6 +4,7 @@ import CFB from 'cfb'
 import { inflateRaw } from 'pako'
 
 import { readControlId } from '@/formats/hwp/control-id'
+import { parseStyleRefs } from '@/formats/hwp/docinfo-parser'
 import { TAG } from '@/formats/hwp/tag-ids'
 
 export type CheckStatus = 'pass' | 'fail' | 'warn' | 'skip'
@@ -489,7 +490,8 @@ function validateContentCompleteness(docInfoBuffer: Buffer, sectionStreams: Stre
   // body paragraph uses them yet.
   for (const record of docInfoRecords) {
     if (record.tagId !== TAG.STYLE) continue
-    const ref = parseStyleCharShapeRef(record.data)
+    const refs = parseStyleRefs(record.data)
+    const ref = refs?.charShapeRef ?? -1
     if (ref >= 0 && ref < declaredCharShapeCount) {
       uniqueRefs.add(ref)
     }
@@ -530,18 +532,6 @@ function validateContentCompleteness(docInfoBuffer: Buffer, sectionStreams: Stre
   return { name: 'content_completeness', status: 'pass' }
 }
 
-// Extract charShapeRef from a STYLE record's binary data.
-// Layout: [uint16 koreanNameLen][koreanName][uint16 englishNameLen][englishName][uint16 charShapeRef][uint16 paraShapeRef]
-function parseStyleCharShapeRef(data: Buffer): number {
-  if (data.length < 2) return -1
-  const nameLen = data.readUInt16LE(0)
-  let offset = 2 + nameLen * 2
-  if (offset + 2 > data.length) return -1
-  const englishNameLen = data.readUInt16LE(offset)
-  offset += 2 + englishNameLen * 2
-  if (offset + 2 > data.length) return -1
-  return data.readUInt16LE(offset)
-}
 
 function validateParagraphCompleteness(sectionStreams: StreamRef[]): CheckResult {
   const missingCharShape: Array<{ stream: string; level: number }> = []
@@ -707,6 +697,13 @@ function validateTableStructure(sectionStreams: StreamRef[]): CheckResult {
       if (record.tagId === TAG.CTRL_HEADER && record.data.length >= 4) {
         const controlType = readControlId(record.data)
         if (controlType === 'tbl ') {
+          // Skip nested tables — don't flush outer context, don't start tracking inner table.
+          // Nested table CTRL_HEADERs are at level > tableCtrlLevel; their LIST_HEADER records
+          // are at level > tableCtrlLevel+1 and are already excluded from gridCoverage counting.
+          if (tableCtrlLevel !== null && record.level > tableCtrlLevel) {
+            continue
+          }
+
           // Flush previous table context if any
           if (tableCtrlLevel !== null && expectedCellCount > 0 && gridCoverage !== expectedCellCount) {
             issues.push(
@@ -774,19 +771,21 @@ function validateTableStructure(sectionStreams: StreamRef[]): CheckResult {
         if (record.data.length >= 8) {
           const rows = record.data.readUInt16LE(4)
           const cols = record.data.readUInt16LE(6)
-          expectedCellCount = rows * cols
           // TABLE record must hold rowSpanCounts[rowCount] after the 18-byte header
           const dynamicMinSize = TABLE_RECORD_BASE_SIZE + rows * 2
           if (record.data.length < dynamicMinSize) {
             issues.push(
               `${stream.name} TABLE record at record ${i}: size ${record.data.length} < required ${dynamicMinSize} for ${rows} rows`,
             )
+            expectedCellCount = rows * cols
           } else if (rows > 0) {
-            // Validate rowSpanCounts values: must be non-zero (cells per row)
+            // Sum rowSpanCounts: each entry is the actual number of LIST_HEADER records
+            // in that row. Merged cells reduce this count below rows*cols.
             let allZero = true
             for (let r = 0; r < rows; r++) {
               const cellsInRow = record.data.readUInt16LE(TABLE_RECORD_BASE_SIZE + r * 2)
               if (cellsInRow > 0) allZero = false
+              expectedCellCount += cellsInRow
             }
             if (allZero && cols > 0) {
               issues.push(
@@ -800,15 +799,7 @@ function validateTableStructure(sectionStreams: StreamRef[]): CheckResult {
 
       // Validate cell LIST_HEADER
       if (record.tagId === TAG.LIST_HEADER && record.level === tableCtrlLevel + 1) {
-        // Compute grid coverage: use colSpan*rowSpan if available, otherwise 1
-        const CELL_SPAN_OFFSET = 12 // colSpan at offset 12, rowSpan at offset 14 in LIST_HEADER data
-        if (record.data.length >= CELL_SPAN_OFFSET + 4) {
-          const colSpan = record.data.readUInt16LE(CELL_SPAN_OFFSET)
-          const rowSpan = record.data.readUInt16LE(CELL_SPAN_OFFSET + 2)
-          gridCoverage += Math.max(1, colSpan) * Math.max(1, rowSpan)
-        } else {
-          gridCoverage += 1
-        }
+        gridCoverage += 1
         if (record.data.length < TABLE_CELL_LIST_HEADER_MIN_SIZE) {
           issues.push(
             `${stream.name} cell LIST_HEADER at record ${i}: size ${record.data.length} < minimum ${TABLE_CELL_LIST_HEADER_MIN_SIZE}`,

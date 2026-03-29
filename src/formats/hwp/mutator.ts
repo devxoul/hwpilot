@@ -4,6 +4,7 @@ import { type EditOperation, type FormatOptions } from '@/shared/edit-types'
 import { parseRef } from '@/shared/refs'
 
 import { readControlId } from './control-id'
+import { parseCellAddress, parseStyleRefs } from './docinfo-parser'
 import { iterateRecords } from './record-parser'
 import {
   buildCellListHeaderData,
@@ -365,16 +366,18 @@ function resolveStyleRefs(
     }
 
     if (targetIndex !== undefined && styleIdx === targetIndex) {
-      const paraShapeRef = parseStyleParaShapeRef(data)
-      const charShapeRef = parseStyleCharShapeRef(data)
+      const refs = parseStyleRefs(data)
+      const paraShapeRef = refs?.paraShapeRef ?? 0
+      const charShapeRef = refs?.charShapeRef ?? 0
       return { paraShapeRef, styleIndex: styleIdx, charShapeRef }
     }
 
     if (targetName !== undefined) {
       const name = parseStyleKoreanName(data)
       if (name === targetName) {
-        const paraShapeRef = parseStyleParaShapeRef(data)
-        const charShapeRef = parseStyleCharShapeRef(data)
+        const refs = parseStyleRefs(data)
+        const paraShapeRef = refs?.paraShapeRef ?? 0
+        const charShapeRef = refs?.charShapeRef ?? 0
         return { paraShapeRef, styleIndex: styleIdx, charShapeRef }
       }
     }
@@ -398,37 +401,6 @@ function parseStyleKoreanName(data: Buffer): string {
   return data.subarray(2, 2 + nameLen * 2).toString('utf16le')
 }
 
-function parseStyleParaShapeRef(data: Buffer): number {
-  const nameLen = data.readUInt16LE(0)
-  let offset = 2 + nameLen * 2
-  if (offset + 2 > data.length) return 0
-  const englishNameLen = data.readUInt16LE(offset)
-  offset += 2 + englishNameLen * 2
-  const remaining = data.length - offset
-  if (remaining >= 10) {
-    return data.readUInt16LE(offset + 6)
-  }
-  if (remaining >= 4) {
-    return data.readUInt16LE(offset + 2)
-  }
-  return 0
-}
-
-function parseStyleCharShapeRef(data: Buffer): number {
-  const nameLen = data.readUInt16LE(0)
-  let offset = 2 + nameLen * 2
-  if (offset + 2 > data.length) return 0
-  const englishNameLen = data.readUInt16LE(offset)
-  offset += 2 + englishNameLen * 2
-  const remaining = data.length - offset
-  if (remaining >= 10) {
-    return data.readUInt16LE(offset + 4)
-  }
-  if (remaining >= 2) {
-    return data.readUInt16LE(offset)
-  }
-  return 0
-}
 
 function appendParagraphRecords(
   stream: Buffer,
@@ -444,6 +416,10 @@ function appendParagraphRecords(
     styleIndex,
     charShapeRef: styleCharShapeRef,
   } = resolveStyleRefs(cfb, compressed, op.heading, op.style)
+
+  if (op.format?.fontName !== undefined) {
+    throw new Error('fontName is not supported for HWP format. Convert to HWPX first or omit fontName.')
+  }
 
   const charShapeRef =
     op.format && hasFormatOptions(op.format)
@@ -602,26 +578,14 @@ function patchParagraphText(stream: Buffer, operation: SectionTextOperation): Bu
 
     if (waitingForTargetText && header.tagId === TAG.PARA_TEXT) {
       const patchedData = buildPatchedParaText(data, operation.text)
-      let newStream = replaceRecordData(stream, offset, patchedData)
+      const newStream = replaceRecordData(stream, offset, patchedData)
       updateParaHeaderNChars(newStream, paraHeaderDataOffset, paraHeaderDataSize, patchedData.length / 2)
-      newStream = resetParagraphCharShape(newStream, operation.paragraph ?? 0)
       return newStream
     }
   }
   throw new Error(`Paragraph not found for reference: ${operation.ref}`)
 }
 
-function parseCellAddress(data: Buffer): { col: number; row: number } | null {
-  const commonHeaderSize = data.length === 30 ? 6 : 8
-  if (data.length < commonHeaderSize + 4) {
-    return null
-  }
-
-  return {
-    col: data.readUInt16LE(commonHeaderSize),
-    row: data.readUInt16LE(commonHeaderSize + 2),
-  }
-}
 
 function patchTableCellText(
   stream: Buffer,
@@ -841,6 +805,10 @@ function applySetFormat(
   const sourceCharShape = charShapeRecords[sourceCharShapeId]
   if (!sourceCharShape) {
     throw new Error(`CHAR_SHAPE not found for reference: ${ref}`)
+  }
+
+  if (format.fontName !== undefined) {
+    throw new Error('fontName is not supported for HWP format. Convert to HWPX first or omit fontName.')
   }
 
   const clonedCharShape = Buffer.from(sourceCharShape)

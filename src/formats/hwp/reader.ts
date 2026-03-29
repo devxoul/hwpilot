@@ -20,6 +20,7 @@ import type {
 } from '@/types'
 
 import { readControlId } from './control-id'
+import { parseCellAddress, parseStyleRefs } from './docinfo-parser'
 import { iterateRecords } from './record-parser'
 import { TAG } from './tag-ids'
 
@@ -237,32 +238,11 @@ function parseDocInfo(buffer: Buffer): DocInfoParseResult {
     }
 
     if (header.tagId === TAG.STYLE) {
-      if (data.length < 6) {
-        continue
-      }
-
+      const refs = parseStyleRefs(data)
+      if (!refs) continue
       const nameLen = data.readUInt16LE(0)
-      let offset = 2 + nameLen * 2
-      if (offset + 2 <= data.length) {
-        const englishNameLen = data.readUInt16LE(offset)
-        offset += 2 + englishNameLen * 2
-      }
       const name = data.subarray(2, 2 + nameLen * 2).toString('utf16le')
-      const remaining = data.length - offset
-
-      let charShapeRef: number
-      let paraShapeRef: number
-
-      if (remaining >= 10) {
-        charShapeRef = data.readUInt16LE(offset + 4)
-        paraShapeRef = data.readUInt16LE(offset + 6)
-      } else if (remaining >= 4) {
-        charShapeRef = data.readUInt16LE(offset)
-        paraShapeRef = data.readUInt16LE(offset + 2)
-      } else {
-        continue
-      }
-
+      const { charShapeRef, paraShapeRef } = refs
       styles.push({ id: styleId, name, charShapeRef, paraShapeRef })
       styleId += 1
     }
@@ -666,19 +646,6 @@ function readUtf16LengthPrefixed(data: Buffer, offset: number): string {
   return data.subarray(textStart, textEnd).toString('utf16le')
 }
 
-function parseCellAddress(data: Buffer): { col: number; row: number; colSpan: number; rowSpan: number } | null {
-  const commonHeaderSize = data.length === 30 ? 6 : 8
-  if (data.length < commonHeaderSize + 8) {
-    return null
-  }
-
-  return {
-    col: data.readUInt16LE(commonHeaderSize),
-    row: data.readUInt16LE(commonHeaderSize + 2),
-    colSpan: data.readUInt16LE(commonHeaderSize + 4),
-    rowSpan: data.readUInt16LE(commonHeaderSize + 6),
-  }
-}
 
 function parseShapeSize(data: Buffer): { width: number; height: number } | null {
   const widthOffset = 20
