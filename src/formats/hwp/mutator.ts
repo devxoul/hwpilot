@@ -602,9 +602,8 @@ function patchParagraphText(stream: Buffer, operation: SectionTextOperation): Bu
 
     if (waitingForTargetText && header.tagId === TAG.PARA_TEXT) {
       const patchedData = buildPatchedParaText(data, operation.text)
-      let newStream = replaceRecordData(stream, offset, patchedData)
+      const newStream = replaceRecordData(stream, offset, patchedData)
       updateParaHeaderNChars(newStream, paraHeaderDataOffset, paraHeaderDataSize, patchedData.length / 2)
-      newStream = resetParagraphCharShape(newStream, operation.paragraph ?? 0)
       return newStream
     }
   }

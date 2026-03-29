@@ -97,10 +97,31 @@ describe('mutateHwpCfb', () => {
     }
   })
 
-  it('resets PARA_CHAR_SHAPE to single entry after setText', async () => {
+  it('preserves PARA_CHAR_SHAPE entries after setText (does not reset to single entry)', async () => {
     const buf = await readFile(fixture)
     const cfb = CFB.read(buf, { type: 'buffer' })
     const compressed = getCompressionFlag(getEntryBuffer(cfb, '/FileHeader'))
+
+    // Read original PARA_CHAR_SHAPE entry count before edit
+    let originalCharShapeLength = 0
+    {
+      let sectionStream = getEntryBuffer(cfb, '/BodyText/Section0')
+      if (compressed) {
+        const { decompressStream } = await import('./stream-util')
+        sectionStream = decompressStream(sectionStream)
+      }
+      let paragraphIndex = -1
+      for (const { header, data } of iterateRecords(sectionStream)) {
+        if (header.tagId === TAG.PARA_HEADER && header.level === 0) {
+          paragraphIndex += 1
+          continue
+        }
+        if (paragraphIndex === 0 && header.tagId === TAG.PARA_CHAR_SHAPE) {
+          originalCharShapeLength = data.length
+          break
+        }
+      }
+    }
 
     mutateHwpCfb(cfb, [{ type: 'setText', ref: 's0.p0', text: 'REPLACED' }], compressed)
 
@@ -125,8 +146,8 @@ describe('mutateHwpCfb', () => {
     }
 
     expect(charShapeData).not.toBeNull()
-    expect(charShapeData!.length).toBe(8)
-    expect(charShapeData!.readUInt32LE(0)).toBe(0)
+    // PARA_CHAR_SHAPE must be preserved (not collapsed to 1 entry) to avoid viewer corruption
+    expect(charShapeData!.length).toBe(originalCharShapeLength)
   })
 
   it('setFormat updates all PARA_CHAR_SHAPE entries', async () => {
