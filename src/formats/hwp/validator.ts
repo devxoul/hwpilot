@@ -4,6 +4,7 @@ import CFB from 'cfb'
 import { inflateRaw } from 'pako'
 
 import { readControlId } from '@/formats/hwp/control-id'
+import { parseStyleRefs } from '@/formats/hwp/docinfo-parser'
 import { TAG } from '@/formats/hwp/tag-ids'
 
 export type CheckStatus = 'pass' | 'fail' | 'warn' | 'skip'
@@ -489,7 +490,8 @@ function validateContentCompleteness(docInfoBuffer: Buffer, sectionStreams: Stre
   // body paragraph uses them yet.
   for (const record of docInfoRecords) {
     if (record.tagId !== TAG.STYLE) continue
-    const ref = parseStyleCharShapeRef(record.data)
+    const refs = parseStyleRefs(record.data)
+    const ref = refs?.charShapeRef ?? -1
     if (ref >= 0 && ref < declaredCharShapeCount) {
       uniqueRefs.add(ref)
     }
@@ -530,18 +532,6 @@ function validateContentCompleteness(docInfoBuffer: Buffer, sectionStreams: Stre
   return { name: 'content_completeness', status: 'pass' }
 }
 
-// Extract charShapeRef from a STYLE record's binary data.
-// Layout: [uint16 koreanNameLen][koreanName][uint16 englishNameLen][englishName][uint16 charShapeRef][uint16 paraShapeRef]
-function parseStyleCharShapeRef(data: Buffer): number {
-  if (data.length < 2) return -1
-  const nameLen = data.readUInt16LE(0)
-  let offset = 2 + nameLen * 2
-  if (offset + 2 > data.length) return -1
-  const englishNameLen = data.readUInt16LE(offset)
-  offset += 2 + englishNameLen * 2
-  if (offset + 2 > data.length) return -1
-  return data.readUInt16LE(offset)
-}
 
 function validateParagraphCompleteness(sectionStreams: StreamRef[]): CheckResult {
   const missingCharShape: Array<{ stream: string; level: number }> = []

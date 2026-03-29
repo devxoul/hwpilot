@@ -6,6 +6,7 @@ import CFB from 'cfb'
 
 import { writeCfb } from './cfb-writer'
 import { controlIdBuffer } from './control-id'
+import { parseStyleRefs } from './docinfo-parser'
 import { iterateRecords } from './record-parser'
 import { buildParaLineSegBuffer, buildRecord } from './record-serializer'
 import { compressStream, decompressStream, getCompressionFlag } from './stream-util'
@@ -140,7 +141,11 @@ function patchDocInfo(
 
     if (header.tagId === TAG.STYLE) {
       if (styleIndex === 0) {
-        bodyCharShapeRef = parseStyleCharShapeRef(data)
+        const refs = parseStyleRefs(data)
+        if (refs) {
+          const fallback = refs.charShapeRef === 0 && refs.paraShapeRef !== 0 ? refs.paraShapeRef : refs.charShapeRef
+          bodyCharShapeRef = fallback
+        }
       }
       parts.push(recordBuf)
       styleIndex++
@@ -217,24 +222,6 @@ function buildParaCharShape(charShapeRef: number, nChars?: number): Buffer {
   return buf
 }
 
-function parseStyleCharShapeRef(data: Buffer): number {
-  const nameLen = data.readUInt16LE(0)
-  let offset = 2 + nameLen * 2
-  if (offset + 2 > data.length) return 0
-  const englishNameLen = data.readUInt16LE(offset)
-  offset += 2 + englishNameLen * 2
-  const remaining = data.length - offset
-  if (remaining >= 10) {
-    const primary = data.readUInt16LE(offset + 4)
-    const fallback = data.readUInt16LE(offset + 6)
-    if (primary === 0 && fallback !== 0) return fallback
-    return primary
-  }
-  if (remaining >= 2) {
-    return data.readUInt16LE(offset)
-  }
-  return 0
-}
 
 function patchFaceNameData(original: Buffer, font: string): Buffer {
   const oldNameLen = original.readUInt16LE(1)

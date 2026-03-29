@@ -4,6 +4,7 @@ import { type EditOperation, type FormatOptions } from '@/shared/edit-types'
 import { parseRef } from '@/shared/refs'
 
 import { readControlId } from './control-id'
+import { parseStyleRefs } from './docinfo-parser'
 import { iterateRecords } from './record-parser'
 import {
   buildCellListHeaderData,
@@ -365,16 +366,18 @@ function resolveStyleRefs(
     }
 
     if (targetIndex !== undefined && styleIdx === targetIndex) {
-      const paraShapeRef = parseStyleParaShapeRef(data)
-      const charShapeRef = parseStyleCharShapeRef(data)
+      const refs = parseStyleRefs(data)
+      const paraShapeRef = refs?.paraShapeRef ?? 0
+      const charShapeRef = refs?.charShapeRef ?? 0
       return { paraShapeRef, styleIndex: styleIdx, charShapeRef }
     }
 
     if (targetName !== undefined) {
       const name = parseStyleKoreanName(data)
       if (name === targetName) {
-        const paraShapeRef = parseStyleParaShapeRef(data)
-        const charShapeRef = parseStyleCharShapeRef(data)
+        const refs = parseStyleRefs(data)
+        const paraShapeRef = refs?.paraShapeRef ?? 0
+        const charShapeRef = refs?.charShapeRef ?? 0
         return { paraShapeRef, styleIndex: styleIdx, charShapeRef }
       }
     }
@@ -398,37 +401,6 @@ function parseStyleKoreanName(data: Buffer): string {
   return data.subarray(2, 2 + nameLen * 2).toString('utf16le')
 }
 
-function parseStyleParaShapeRef(data: Buffer): number {
-  const nameLen = data.readUInt16LE(0)
-  let offset = 2 + nameLen * 2
-  if (offset + 2 > data.length) return 0
-  const englishNameLen = data.readUInt16LE(offset)
-  offset += 2 + englishNameLen * 2
-  const remaining = data.length - offset
-  if (remaining >= 10) {
-    return data.readUInt16LE(offset + 6)
-  }
-  if (remaining >= 4) {
-    return data.readUInt16LE(offset + 2)
-  }
-  return 0
-}
-
-function parseStyleCharShapeRef(data: Buffer): number {
-  const nameLen = data.readUInt16LE(0)
-  let offset = 2 + nameLen * 2
-  if (offset + 2 > data.length) return 0
-  const englishNameLen = data.readUInt16LE(offset)
-  offset += 2 + englishNameLen * 2
-  const remaining = data.length - offset
-  if (remaining >= 10) {
-    return data.readUInt16LE(offset + 4)
-  }
-  if (remaining >= 2) {
-    return data.readUInt16LE(offset)
-  }
-  return 0
-}
 
 function appendParagraphRecords(
   stream: Buffer,
