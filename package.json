@@ -7,7 +7,7 @@
     "url": "https://github.com/devxoul/hwpilot"
   },
   "bin": {
-    "hwpilot": "./src/cli.ts"
+    "hwpilot": "./src/cli/main.ts"
   },
   "files": [
     "dist/",
@@ -15,8 +15,33 @@
     ".claude-plugin/"
   ],
   "type": "module",
-  "main": "dist/src/cli.js",
-  "module": "dist/src/cli.js",
+  "main": "dist/src/sdk/index.js",
+  "module": "dist/src/sdk/index.js",
+  "exports": {
+    ".": {
+      "types": "./src/sdk/index.ts",
+      "default": "./src/sdk/index.ts"
+    },
+    "./node": {
+      "types": "./src/node/index.ts",
+      "default": "./src/node/index.ts"
+    },
+    "./server": {
+      "types": "./src/server/index.ts",
+      "default": "./src/server/index.ts"
+    },
+    "./client": {
+      "types": "./src/client/index.ts",
+      "default": "./src/client/index.ts"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "node": ["./src/node/index.ts"],
+      "server": ["./src/server/index.ts"],
+      "client": ["./src/client/index.ts"]
+    }
+  },
   "scripts": {
     "build": "tsc && tsc-alias --resolve-full-paths",
     "postbuild": "bun scripts/postbuild.ts",
