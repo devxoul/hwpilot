@@ -1,4 +1,5 @@
 import { realpathSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { resolve } from 'node:path'
 
@@ -16,11 +17,11 @@ import {
   listImages,
   listTables,
   resolveRef,
-} from '@/shared/document-ops'
-import type { FormatOptions } from '@/shared/edit-types'
-import { detectFormat } from '@/shared/format-detector'
-import { buildRef, parseRef } from '@/shared/refs'
-import type { DocumentHeader, Paragraph } from '@/types'
+} from '@/sdk/document-ops'
+import type { FormatOptions } from '@/sdk/edit-types'
+import { detectFormat } from '@/sdk/format-detector'
+import { buildRef, parseRef } from '@/sdk/refs'
+import type { DocumentHeader, Paragraph } from '@/sdk/types'
 
 const DEFAULT_IDLE_MS = 15 * 60 * 1000
 const DEFAULT_FLUSH_MS = 500
@@ -29,7 +30,8 @@ type DaemonHolder = HwpxHolder | HwpHolder
 
 export async function startDaemonServer(filePath: string): Promise<void> {
   const resolvedPath = resolvePath(filePath)
-  const format = await detectFormat(resolvedPath)
+  const fileBuffer = await readFile(resolvedPath)
+  const format = detectFormat(new Uint8Array(fileBuffer))
   const holder: DaemonHolder = format === 'hwp' ? new HwpHolder(resolvedPath) : new HwpxHolder(resolvedPath)
   await holder.load()
 
