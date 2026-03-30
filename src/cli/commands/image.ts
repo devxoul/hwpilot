@@ -85,10 +85,15 @@ export async function imageInsertCommand(
     const format = detectImageFormat(imagePath)
     const archive = await loadHwpx(file)
     const zip = archive.getZip()
-    const existingCount = archive.listBinData().length
-    const newBinDataPath = `BinData/image${existingCount}.${format}`
+    const existingFiles = new Set(archive.listBinData())
+    let index = existingFiles.size
+    let newBinDataPath: string
+    do {
+      newBinDataPath = `BinData/image${index}.${format}`
+      index++
+    } while (existingFiles.has(newBinDataPath))
     zip.file(newBinDataPath, imageBuffer)
-    const buffer = await zip.generateAsync({ type: 'nodebuffer' })
+    const buffer = await zip.generateAsync({ type: 'uint8array' })
     await writeFile(file, buffer)
     console.log(formatOutput({ binDataPath: newBinDataPath, success: true }, options.pretty))
   } catch (e) {
@@ -112,7 +117,7 @@ export async function imageReplaceCommand(
     const newImageBuffer = await readFile(imagePath)
     const zip = archive.getZip()
     zip.file(image.binDataPath, newImageBuffer)
-    const buffer = await zip.generateAsync({ type: 'nodebuffer' })
+    const buffer = await zip.generateAsync({ type: 'uint8array' })
     await writeFile(file, buffer)
     console.log(formatOutput({ ref: image.ref, binDataPath: image.binDataPath, success: true }, options.pretty))
   } catch (e) {

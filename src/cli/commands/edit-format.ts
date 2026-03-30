@@ -33,16 +33,21 @@ export async function editFormatCommand(file: string, ref: string, options: Form
       throw new Error('--start must be non-negative')
     }
 
+    const formatPayload: Record<string, unknown> = {}
+    if (options.bold !== undefined) formatPayload.bold = options.bold
+    if (options.italic !== undefined) formatPayload.italic = options.italic
+    if (options.underline !== undefined) formatPayload.underline = options.underline
+    if (options.font !== undefined) formatPayload.fontName = options.font
+    if (options.size !== undefined) formatPayload.fontSize = options.size
+    if (options.color !== undefined) formatPayload.color = options.color
+
+    if (Object.keys(formatPayload).length === 0) {
+      throw new Error('At least one format option is required (--bold, --italic, --underline, --font, --size, --color)')
+    }
+
     const daemonResult = await dispatchViaDaemon(file, 'edit-format', {
       ref,
-      format: {
-        bold: options.bold,
-        italic: options.italic,
-        underline: options.underline,
-        fontName: options.font,
-        fontSize: options.size,
-        color: options.color,
-      },
+      format: formatPayload,
       start: options.start,
       end: options.end,
     })
@@ -77,7 +82,7 @@ export async function editFormatCommand(file: string, ref: string, options: Form
     if (options.color !== undefined) format.color = options.color
 
     if (Object.keys(format).length === 0) {
-      throw new Error('No format options specified')
+      throw new Error('At least one format option is required (--bold, --italic, --underline, --font, --size, --color)')
     }
 
     if (fileFormat === 'hwp') {

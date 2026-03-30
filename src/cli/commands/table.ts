@@ -142,6 +142,13 @@ export async function tableAddCommand(
       throw new Error(`Invalid position: ${position}. Must be 'before', 'after', or 'end'`)
     }
 
+    if (!Number.isInteger(rows) || rows <= 0) {
+      throw new Error(`Invalid rows: ${rows}. Must be a positive integer`)
+    }
+    if (!Number.isInteger(cols) || cols <= 0) {
+      throw new Error(`Invalid cols: ${cols}. Must be a positive integer`)
+    }
+
     if (!validateRef(ref)) {
       throw new Error(`Invalid reference: ${ref}`)
     }
@@ -157,6 +164,9 @@ export async function tableAddCommand(
     if (data) {
       if (!Array.isArray(data) || !data.every((r) => Array.isArray(r))) {
         throw new Error('--data must be a JSON array of arrays')
+      }
+      if (!data.every((r) => r.every((c) => typeof c === 'string'))) {
+        throw new Error('--data cell values must be strings')
       }
     }
 
@@ -188,7 +198,9 @@ export async function tableAddCommand(
       await editHwpx(file, [{ type: 'addTable', ref, rows, cols, data, position }])
     }
 
-    const newRef = buildRef({ section: parsedRef.section, table: tableCount })
+    const newRef = position === 'end'
+      ? buildRef({ section: parsedRef.section, table: tableCount })
+      : ref
     console.log(formatOutput({ ref: newRef, rows, cols, success: true }, options.pretty))
   } catch (e) {
     const hint = await getRefHint(file, ref).catch(() => undefined)
