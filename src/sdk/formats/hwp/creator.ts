@@ -124,7 +124,8 @@ function patchDocInfo(
     if (header.tagId === TAG.CHAR_SHAPE) {
       if (charShapeIndex === 0) {
         const patched = Buffer.from(data)
-        if (fontSize !== undefined) patched.writeUInt32LE(fontSize, 42)
+        // fontSize is in points; HWP stores in hundredths of a point
+        if (fontSize !== undefined) patched.writeUInt32LE(fontSize * 100, 42)
         parts.push(buildRecord(TAG.CHAR_SHAPE, header.level, patched))
       } else {
         parts.push(recordBuf)
@@ -137,8 +138,7 @@ function patchDocInfo(
       if (styleIndex === 0) {
         const refs = parseStyleRefs(data)
         if (refs) {
-          const fallback = refs.charShapeRef === 0 && refs.paraShapeRef !== 0 ? refs.paraShapeRef : refs.charShapeRef
-          bodyCharShapeRef = fallback
+          bodyCharShapeRef = refs.charShapeRef
         }
       }
       parts.push(recordBuf)

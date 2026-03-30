@@ -162,14 +162,16 @@ export class Document {
 
   private async _applyOp(op: EditOperation): Promise<void> {
     if (this._format === 'hwp') {
-      this._bytes = await editHwp(this._bytes, [op])
-      const doc = await loadHwp(this._bytes)
-      this._doc = doc
+      const newBytes = await editHwp(this._bytes, [op])
+      const newDoc = await loadHwp(newBytes)
+      this._bytes = newBytes
+      this._doc = newDoc
     } else {
-      this._bytes = await editHwpx(this._bytes, [op])
-      const archive = await loadHwpx(this._bytes)
+      const newBytes = await editHwpx(this._bytes, [op])
+      const archive = await loadHwpx(newBytes)
       const header = parseHeader(await archive.getHeaderXml())
       const sections = await parseSections(archive)
+      this._bytes = newBytes
       this._doc = { format: 'hwpx', sections, header }
     }
   }
