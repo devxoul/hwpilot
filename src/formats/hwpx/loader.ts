@@ -13,8 +13,11 @@ export async function loadHwpx(filePath: string): Promise<HwpxArchive> {
   }
 
   try {
-    return await sdkLoadHwpx(new Uint8Array(fileBuffer))
+    return await sdkLoadHwpx(fileBuffer)
   } catch (err) {
-    throw new Error(`Failed to parse HWPX file as ZIP: ${filePath} — ${(err as Error).message}`)
+    if (err instanceof Error && err.message.includes('not a valid zip file')) {
+      throw new Error(`Failed to parse HWPX file as ZIP: ${filePath} — ${err.message}`)
+    }
+    throw err
   }
 }
