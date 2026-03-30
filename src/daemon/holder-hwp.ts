@@ -1,16 +1,16 @@
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import { readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 
 import CFB from 'cfb'
 
 import type { FlushScheduler } from '@/daemon/flush'
-import { writeCfb } from '@/formats/hwp/cfb-writer'
-import { mutateHwpCfb } from '@/formats/hwp/mutator'
-import { loadHwp, loadHwpSectionTexts } from '@/formats/hwp/reader'
-import { getCompressionFlag } from '@/formats/hwp/stream-util'
-import { validateHwpBuffer } from '@/formats/hwp/validator'
-import type { EditOperation } from '@/shared/edit-types'
-import type { DocumentHeader, Section } from '@/types'
+import { writeCfb } from '@/sdk/formats/hwp/cfb-writer'
+import { mutateHwpCfb } from '@/sdk/formats/hwp/mutator'
+import { loadHwp, loadHwpSectionTexts } from '@/sdk/formats/hwp/reader'
+import { getCompressionFlag } from '@/sdk/formats/hwp/stream-util'
+import { validateHwpBuffer } from '@/sdk/formats/hwp/validator'
+import type { EditOperation } from '@/sdk/edit-types'
+import type { DocumentHeader, Section } from '@/sdk/types'
 
 export class HwpHolder {
   private readonly filePath: string
@@ -43,16 +43,10 @@ export class HwpHolder {
     const cfb = this.requireCfb()
 
     if (!this.sectionsCache) {
-      const tempPath = `${this.filePath}.holder-${randomUUID()}.tmp.hwp`
-
-      try {
-        await writeFile(tempPath, this.serializeCfb(cfb))
-        const doc = await loadHwp(tempPath)
-        this.sectionsCache = doc.sections
-        this.headerCache = doc.header
-      } finally {
-        await rm(tempPath, { force: true })
-      }
+      const buffer = this.serializeCfb(cfb)
+      const doc = await loadHwp(new Uint8Array(buffer))
+      this.sectionsCache = doc.sections
+      this.headerCache = doc.header
     }
 
     return this.sectionsCache
@@ -61,13 +55,8 @@ export class HwpHolder {
   async getSectionTexts(): Promise<string[]> {
     await this.checkFileChanged()
     const cfb = this.requireCfb()
-    const tempPath = `${this.filePath}.holder-${randomUUID()}.tmp.hwp`
-    try {
-      await writeFile(tempPath, this.serializeCfb(cfb))
-      return await loadHwpSectionTexts(tempPath)
-    } finally {
-      await rm(tempPath, { force: true })
-    }
+    const buffer = this.serializeCfb(cfb)
+    return loadHwpSectionTexts(new Uint8Array(buffer))
   }
 
   async applyOperations(ops: EditOperation[]): Promise<void> {

@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 
-const cliFiles = ['dist/src/cli.js']
+const cliFiles = ['dist/src/cli/main.js']
 
 for (const file of cliFiles) {
   const content = readFileSync(file, 'utf8')

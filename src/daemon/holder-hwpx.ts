@@ -4,12 +4,12 @@ import { readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import type JSZip from 'jszip'
 
 import type { FlushScheduler } from '@/daemon/flush'
-import { parseHeader } from '@/formats/hwpx/header-parser'
-import { type HwpxArchive, loadHwpx } from '@/formats/hwpx/loader'
-import { mutateHwpxZip } from '@/formats/hwpx/mutator'
-import { parseSections } from '@/formats/hwpx/section-parser'
-import type { EditOperation } from '@/shared/edit-types'
-import type { DocumentHeader, Section } from '@/types'
+import { parseHeader } from '@/sdk/formats/hwpx/header-parser'
+import { type HwpxArchive, loadHwpx } from '@/sdk/formats/hwpx/loader'
+import { mutateHwpxZip } from '@/sdk/formats/hwpx/mutator'
+import { parseSections } from '@/sdk/formats/hwpx/section-parser'
+import type { EditOperation } from '@/sdk/edit-types'
+import type { DocumentHeader, Section } from '@/sdk/types'
 
 export class HwpxHolder {
   private readonly filePath: string
@@ -27,7 +27,7 @@ export class HwpxHolder {
 
   async load(): Promise<void> {
     const rawBuffer = await readFile(this.filePath)
-    this.archive = await loadHwpx(this.filePath)
+    this.archive = await loadHwpx(new Uint8Array(rawBuffer))
     this.zip = this.archive.getZip()
     this.sectionsCache = null
     this.headerCache = null
