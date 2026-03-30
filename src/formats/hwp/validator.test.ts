@@ -77,7 +77,8 @@ describe('validateHwp', () => {
 
       expect(result.valid).toBe(true)
       expect(result.format).toBe('hwpx')
-      expect(result.checks).toHaveLength(0)
+      expect(result.checks).toHaveLength(1)
+      expect(result.checks[0].status).toBe('skip')
     })
 
     it('rejects password-protected file', async () => {

@@ -7,7 +7,7 @@ export { validateHwpBuffer }
 
 export async function validateHwp(filePath: string): Promise<ValidateResult> {
   const buffer = await readFile(filePath)
-  const result = await sdkValidateHwp(new Uint8Array(buffer))
+  const result = await sdkValidateHwp(buffer)
   result.file = filePath
   return result
 }

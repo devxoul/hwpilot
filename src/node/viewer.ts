@@ -48,7 +48,7 @@ export async function checkViewerCorruption(filePath: string): Promise<ViewerChe
   const existingPids = new Set(existingPidsResult.stdout.trim().split('\n').filter(Boolean))
 
   // Open with OS-level hiding
-  await runCommand('open', ['-g', '-j', '-a', VIEWER_APP_NAME, filePath])
+  await runCommand('open', ['-g', '-j', '-a', VIEWER_APP_NAME, '--', filePath])
 
   // Continuously force-hide the process (catches alerts that bypass -g -j)
   const keepHiddenScript = `
@@ -75,14 +75,11 @@ end repeat
   // Check for corruption keywords
   const corrupted = alertText.includes('손상') || alertText.includes('변조') || alertText.includes('복구')
 
-  // Quit viewer
-  await runCommand('osascript', ['-e', `tell application "${VIEWER_APP_NAME}" to quit`])
-
-  // Kill stray processes
+  // Kill only the viewer process we launched, not pre-existing sessions
   await sleep(2000)
-  const strayPidsResult = await runCommand('pgrep', ['-f', VIEWER_APP_NAME])
-  const strayPids = strayPidsResult.stdout.trim().split('\n').filter(Boolean)
-  for (const pid of strayPids) {
+  const postPidsResult = await runCommand('pgrep', ['-f', VIEWER_APP_NAME])
+  const postPids = postPidsResult.stdout.trim().split('\n').filter(Boolean)
+  for (const pid of postPids) {
     if (!existingPids.has(pid)) {
       await runCommand('kill', [pid])
     }

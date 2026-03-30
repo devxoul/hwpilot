@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test'
 
 import { createTestHwpx } from '@/test-helpers'
 
@@ -30,8 +30,15 @@ function restoreOutput() {
 
 afterEach(restoreOutput)
 
+const savedNoDaemon = process.env.HWPILOT_NO_DAEMON
+
 beforeAll(() => {
   process.env.HWPILOT_NO_DAEMON = '1'
+})
+
+afterAll(() => {
+  if (savedNoDaemon === undefined) delete process.env.HWPILOT_NO_DAEMON
+  else process.env.HWPILOT_NO_DAEMON = savedNoDaemon
 })
 
 describe('paragraphAddCommand', () => {

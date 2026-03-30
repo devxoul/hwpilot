@@ -27,11 +27,11 @@ export function writeCfb(cfb: CFB.CFB$Container): Buffer {
 
   const { miniStreams, regularStreams } = categorizeStreams(flatEntries)
 
-  const miniStreamData = buildMiniStreamData(miniStreams)
+  const { buffer: miniStreamData, actualSize: miniStreamActualSize } = buildMiniStreamData(miniStreams)
   const miniStreamSectors = Math.ceil(miniStreamData.length / SECTOR_SIZE)
 
   const miniFatEntries = buildMiniFat(miniStreams)
-  const miniFatSectors = Math.max(1, Math.ceil(miniFatEntries.length / (SECTOR_SIZE / 4)))
+  const miniFatSectors = miniFatEntries.length === 0 ? 0 : Math.ceil(miniFatEntries.length / (SECTOR_SIZE / 4))
 
   const dirSectors = Math.ceil((flatEntries.length * 128) / SECTOR_SIZE)
 
@@ -43,6 +43,9 @@ export function writeCfb(cfb: CFB.CFB$Container): Buffer {
   let fatSectors = Math.ceil((dataSectors + 1) / entriesPerFatSector)
   while (fatSectors + dataSectors > fatSectors * entriesPerFatSector) {
     fatSectors++
+  }
+  if (fatSectors > 109) {
+    throw new Error(`CFB file too large: requires ${fatSectors} FAT sectors (max 109 without DIFAT chain support)`)
   }
   const finalTotalSectors = fatSectors + dataSectors
 
@@ -94,7 +97,7 @@ export function writeCfb(cfb: CFB.CFB$Container): Buffer {
     fatSectors,
     fatSectorIndices,
     dirSectorStart,
-    miniFatSectorStart,
+    miniFatSectorStart: miniFatSectors > 0 ? miniFatSectorStart : END_OF_CHAIN,
     miniFatSectors,
   })
 
@@ -109,16 +112,18 @@ export function writeCfb(cfb: CFB.CFB$Container): Buffer {
   }
 
   writeDirectoryEntries(output, flatEntries, dirSectorStart, {
-    miniStreamSectorStart: miniStreamData.length > 0 ? miniStreamSectorStart : END_OF_CHAIN,
-    miniStreamSize: miniStreamData.length,
+    miniStreamSectorStart: miniStreamActualSize > 0 ? miniStreamSectorStart : END_OF_CHAIN,
+    miniStreamSize: miniStreamActualSize,
     regularSectorStarts,
     regularStreams,
     miniStreams,
   })
 
-  writeMiniFat(output, miniFatEntries, miniFatSectorStart)
+  if (miniFatSectors > 0) {
+    writeMiniFat(output, miniFatEntries, miniFatSectorStart)
+  }
 
-  if (miniStreamData.length > 0) {
+  if (miniStreamActualSize > 0) {
     miniStreamData.copy(output, (miniStreamSectorStart + 1) * SECTOR_SIZE)
   }
 
@@ -141,13 +146,14 @@ type CfbEntry = {
 
 function collectEntries(cfb: CFB.CFB$Container): CfbEntry[] {
   const result: CfbEntry[] = []
-  for (const entry of cfb.FileIndex) {
+  for (let i = 0; i < cfb.FileIndex.length; i++) {
+    const entry = cfb.FileIndex[i]
     if (entry.type === 0) continue
     if (entry.name === '\u0001Sh33tJ5') continue
 
     result.push({
       name: entry.name,
-      fullPath: (cfb.FullPaths[cfb.FileIndex.indexOf(entry)] ?? '').replace(/\/$/, ''),
+      fullPath: (cfb.FullPaths[i] ?? '').replace(/\/$/, ''),
       type: entry.type,
       content: entry.type === 2 && entry.content ? new Uint8Array(entry.content) : null,
     })
@@ -296,8 +302,8 @@ function categorizeStreams(entries: TreeNode[]): {
   return { miniStreams, regularStreams }
 }
 
-function buildMiniStreamData(miniStreams: TreeNode[]): Buffer {
-  if (miniStreams.length === 0) return Buffer.alloc(0)
+function buildMiniStreamData(miniStreams: TreeNode[]): { buffer: Buffer; actualSize: number } {
+  if (miniStreams.length === 0) return { buffer: Buffer.alloc(0), actualSize: 0 }
 
   let totalMiniSectors = 0
   for (const s of miniStreams) {
@@ -305,7 +311,8 @@ function buildMiniStreamData(miniStreams: TreeNode[]): Buffer {
     totalMiniSectors += Math.ceil(size / MINI_SECTOR_SIZE)
   }
 
-  const buf = Buffer.alloc(Math.ceil((totalMiniSectors * MINI_SECTOR_SIZE) / SECTOR_SIZE) * SECTOR_SIZE)
+  const actualSize = totalMiniSectors * MINI_SECTOR_SIZE
+  const buf = Buffer.alloc(Math.ceil(actualSize / SECTOR_SIZE) * SECTOR_SIZE)
   let offset = 0
   for (const s of miniStreams) {
     if (s.content && s.content.length > 0) {
@@ -314,7 +321,7 @@ function buildMiniStreamData(miniStreams: TreeNode[]): Buffer {
     }
   }
 
-  return buf
+  return { buffer: buf, actualSize }
 }
 
 function buildMiniFat(miniStreams: TreeNode[]): number[] {

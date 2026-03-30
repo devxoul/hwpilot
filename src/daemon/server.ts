@@ -1,5 +1,5 @@
 import { realpathSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { open } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { resolve } from 'node:path'
 
@@ -30,8 +30,8 @@ type DaemonHolder = HwpxHolder | HwpHolder
 
 export async function startDaemonServer(filePath: string): Promise<void> {
   const resolvedPath = resolvePath(filePath)
-  const fileBuffer = await readFile(resolvedPath)
-  const format = detectFormat(new Uint8Array(fileBuffer))
+  const magic = await readMagicBytes(resolvedPath)
+  const format = detectFormat(magic)
   const holder: DaemonHolder = format === 'hwp' ? new HwpHolder(resolvedPath) : new HwpxHolder(resolvedPath)
   await holder.load()
 
@@ -419,6 +419,17 @@ function enrichParagraph(
   }
 
   return enriched
+}
+
+async function readMagicBytes(filePath: string): Promise<Uint8Array> {
+  const fh = await open(filePath, 'r')
+  try {
+    const buf = Buffer.alloc(4)
+    await fh.read(buf, 0, 4, 0)
+    return new Uint8Array(buf)
+  } finally {
+    await fh.close()
+  }
 }
 
 const HEADING_STYLE_RE = /^(?:개요|Outline|Heading)\s+(\d+)$/i

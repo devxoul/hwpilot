@@ -46,7 +46,4 @@ export async function createHwpFile(filePath: string, options?: CreateHwpOptions
   await writeFile(filePath, buffer)
 }
 
-export async function createHwpxFile(filePath: string, _options?: { font?: string; fontSize?: number }): Promise<void> {
-  void _options
-  throw new Error('createHwpxFile not implemented yet')
-}
+

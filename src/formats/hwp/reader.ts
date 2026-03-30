@@ -7,7 +7,7 @@ export { extractParaText }
 
 export async function loadHwp(filePath: string): Promise<HwpDocument> {
   const buffer = await readFile(filePath)
-  return sdkLoadHwp(new Uint8Array(buffer))
+  return sdkLoadHwp(buffer)
 }
 
 export async function loadHwpSectionTexts(filePath: string): Promise<string[]> {

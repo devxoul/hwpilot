@@ -224,5 +224,7 @@ function asNumber(value: unknown, fallback: number): number {
 }
 
 function asString(value: unknown): string {
-  return typeof value === 'string' ? value : ''
+  if (typeof value === 'string') return value
+  if (typeof value === 'number') return String(value)
+  return ''
 }

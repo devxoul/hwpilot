@@ -15,6 +15,5 @@ export async function editHwpx(fileBuffer: Uint8Array, operations: EditOperation
 
   await mutateHwpxZip(zip, archive, operations)
 
-  const buffer = await zip.generateAsync({ type: 'nodebuffer' })
-  return new Uint8Array(buffer)
+  return zip.generateAsync({ type: 'uint8array' })
 }

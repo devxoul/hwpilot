@@ -104,7 +104,7 @@ describe('editFormatCommand', () => {
     restoreOutput()
 
     const output = JSON.parse(errors[0])
-    expect(output.error).toBe('No format options specified')
+    expect(output.error).toContain('At least one format option is required')
   })
 
   it('errors for invalid ref', async () => {

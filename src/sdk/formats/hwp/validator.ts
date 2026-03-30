@@ -53,7 +53,7 @@ export async function validateHwpBuffer(buffer: Buffer): Promise<ValidateResult>
       valid: true,
       format: 'hwpx',
       file: '<buffer>',
-      checks: [],
+      checks: [{ name: 'format_type', status: 'skip', message: 'HWPX (ZIP) format detected; HWP-specific validation skipped' }],
     }
   }
 
@@ -331,7 +331,7 @@ function validateCrossReferences(docInfoBuffer: Buffer, sectionStreams: StreamRe
   const docInfoRecords = parseRecords(docInfoBuffer)
   const fontCount = docInfoRecords.filter((record) => record.tagId === TAG.FACE_NAME).length
   const charShapeRecords = docInfoRecords.filter((record) => record.tagId === TAG.CHAR_SHAPE)
-  const charShapeCount = charShapeRecords.filter((record) => record.data.length >= 56).length
+  const charShapeCount = charShapeRecords.length
   const paraShapeCount = docInfoRecords.filter((record) => record.tagId === TAG.PARA_SHAPE).length
   const styleCount = docInfoRecords.filter((record) => record.tagId === TAG.STYLE).length
 

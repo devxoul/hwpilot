@@ -320,7 +320,7 @@ function appendTableRecords(stream: Buffer, op: SectionAddTableOperation): Buffe
     ...cellRecords,
   ])
 
-  return spliceTableRecords(stream, op.paragraph, op.position, tableRecords)
+  return spliceRecordsAtParagraph(stream, op.paragraph, op.position, tableRecords)
 }
 
 function buildTableParagraphHeaderData(nChars: number, isLast: boolean, controlMask = 0, charShapeCount = 1): Buffer {
@@ -470,7 +470,7 @@ function appendParagraphRecords(
     throw new Error(`addParagraph with position '${op.position}' requires a paragraph reference: ${op.ref}`)
   }
 
-  return spliceParagraphRecords(stream, op.paragraph, op.position, newRecords)
+  return spliceRecordsAtParagraph(stream, op.paragraph, op.position, newRecords)
 }
 
 function clearLastParagraphBit(stream: Buffer): Buffer {
@@ -489,42 +489,7 @@ function clearLastParagraphBit(stream: Buffer): Buffer {
   return result
 }
 
-function spliceParagraphRecords(
-  stream: Buffer,
-  paragraphIndex: number,
-  position: 'before' | 'after',
-  newRecords: Buffer,
-): Buffer {
-  let currentParagraph = -1
-  let targetStart: number | undefined
-  let targetEnd: number | undefined
-
-  for (const { header, offset } of iterateRecords(stream)) {
-    if (header.tagId === TAG.PARA_HEADER && header.level === 0) {
-      currentParagraph += 1
-      if (currentParagraph === paragraphIndex) {
-        targetStart = offset
-      } else if (currentParagraph === paragraphIndex + 1 && targetStart !== undefined) {
-        targetEnd = offset
-        break
-      }
-    }
-  }
-
-  if (targetStart === undefined) {
-    throw new Error(`Paragraph not found at index ${paragraphIndex}`)
-  }
-
-  if (targetEnd === undefined) {
-    targetEnd = stream.length
-  }
-
-  const insertAt = position === 'before' ? targetStart : targetEnd
-
-  return Buffer.concat([stream.subarray(0, insertAt), newRecords, stream.subarray(insertAt)])
-}
-
-function spliceTableRecords(
+function spliceRecordsAtParagraph(
   stream: Buffer,
   paragraphIndex: number,
   position: 'before' | 'after',

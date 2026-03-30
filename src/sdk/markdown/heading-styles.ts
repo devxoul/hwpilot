@@ -45,7 +45,7 @@ function extractHeadingLevelFromParaShape(
   paraShapes: ParaShape[]
 ): number | null {
   const paraShape = paraShapes.find((ps) => ps.id === paraShapeRef)
-  if (!paraShape || paraShape.headingLevel === undefined) {
+  if (!paraShape || paraShape.headingLevel === undefined || paraShape.headingLevel <= 0) {
     return null
   }
 

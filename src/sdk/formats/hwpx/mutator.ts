@@ -2,7 +2,7 @@ import { XMLBuilder, XMLParser } from 'fast-xml-parser'
 import type JSZip from 'jszip'
 
 import { type EditOperation, type FormatOptions, type XmlNode } from '@/sdk/edit-types'
-import { type ParsedRef, parseRef } from '@/shared/refs'
+import { type ParsedRef, parseRef } from '@/sdk/refs'
 
 import type { HwpxArchive } from './loader'
 import { PATHS, sectionPath } from './paths'
@@ -362,16 +362,17 @@ function setParagraphText(paragraphNode: XmlNode, text: string): void {
   })
 }
 
-function setRunText(runNode: XmlNode, text: string): void {
+function setRunText(runNode: XmlNode, text: string, raw?: boolean): void {
   const runChildren = getElementChildren(runNode, 'hp:run')
   const textNode = runChildren.find((child) => hasElement(child, 'hp:t'))
+  const value = raw ? text : escapeXml(text)
 
   if (!textNode) {
-    runChildren.push({ 'hp:t': [{ '#text': escapeXml(text) }] })
+    runChildren.push({ 'hp:t': [{ '#text': value }] })
     return
   }
 
-  textNode['hp:t'] = [{ '#text': escapeXml(text) }]
+  textNode['hp:t'] = [{ '#text': value }]
 }
 
 function applyInlineFormat(
@@ -415,19 +416,19 @@ function applyInlineFormat(
 
       if (overlapStart > 0) {
         const beforeRun = deepCloneRun(run)
-        setRunText(beforeRun, text.slice(0, overlapStart))
+        setRunText(beforeRun, text.slice(0, overlapStart), true)
         newRuns.push(beforeRun)
       }
 
       const middleRun = deepCloneRun(run)
-      setRunText(middleRun, text.slice(overlapStart, overlapEnd))
+      setRunText(middleRun, text.slice(overlapStart, overlapEnd), true)
       const newCharPrId = appendFormattedCharPr(headerTree, middleRun, format)
       setAttr(middleRun, 'charPrIDRef', String(newCharPrId), 'hp:charPrIDRef')
       newRuns.push(middleRun)
 
       if (overlapEnd < text.length) {
         const afterRun = deepCloneRun(run)
-        setRunText(afterRun, text.slice(overlapEnd))
+        setRunText(afterRun, text.slice(overlapEnd), true)
         newRuns.push(afterRun)
       }
     }

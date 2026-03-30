@@ -188,7 +188,9 @@ export async function tableAddCommand(
       await editHwpx(file, [{ type: 'addTable', ref, rows, cols, data, position }])
     }
 
-    const newRef = buildRef({ section: parsedRef.section, table: tableCount })
+    const newRef = position === 'end'
+      ? buildRef({ section: parsedRef.section, table: tableCount })
+      : ref
     console.log(formatOutput({ ref: newRef, rows, cols, success: true }, options.pretty))
   } catch (e) {
     const hint = await getRefHint(file, ref).catch(() => undefined)

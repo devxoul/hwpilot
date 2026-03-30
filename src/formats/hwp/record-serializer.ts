@@ -23,6 +23,7 @@ export function buildRecord(tagId: number, level: number, data: Buffer): Buffer 
 
 export function replaceRecordData(stream: Buffer, recordOffset: number, newData: Buffer): Buffer {
   const header = parseRecordHeader(stream, recordOffset)
+  if (!header) throw new Error(`Invalid record at offset ${recordOffset}`)
   const oldTotalSize = header.headerSize + header.size
   const newHeader = encodeRecordHeader(header.tagId, header.level, newData.length)
 

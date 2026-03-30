@@ -39,12 +39,14 @@ function computeHint(sections: Section[], ref: string): string | undefined {
     if (parsed.row !== undefined) {
       const row = table.rows[parsed.row]
       if (!row) {
+        if (table.rows.length === 0) return `Table s${parsed.section}.t${parsed.table} has no rows`
         return `Valid row refs: s${parsed.section}.t${parsed.table}.r0 through s${parsed.section}.t${parsed.table}.r${table.rows.length - 1}`
       }
 
       if (parsed.cell !== undefined) {
         const cell = row.cells[parsed.cell]
         if (!cell) {
+          if (row.cells.length === 0) return `Row s${parsed.section}.t${parsed.table}.r${parsed.row} has no cells`
           return `Valid cell refs: s${parsed.section}.t${parsed.table}.r${parsed.row}.c0 through s${parsed.section}.t${parsed.table}.r${parsed.row}.c${row.cells.length - 1}`
         }
       }
@@ -63,6 +65,7 @@ function computeHint(sections: Section[], ref: string): string | undefined {
     if (parsed.textBoxParagraph !== undefined) {
       const para = textBox.paragraphs[parsed.textBoxParagraph]
       if (!para) {
+        if (textBox.paragraphs.length === 0) return `Text box s${parsed.section}.tb${parsed.textBox} has no paragraphs`
         return `Valid text box paragraph refs: s${parsed.section}.tb${parsed.textBox}.p0 through s${parsed.section}.tb${parsed.textBox}.p${textBox.paragraphs.length - 1}`
       }
     }
