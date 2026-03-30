@@ -77,7 +77,7 @@ export async function editFormatCommand(file: string, ref: string, options: Form
     if (options.color !== undefined) format.color = options.color
 
     if (Object.keys(format).length === 0) {
-      throw new Error('No format options specified')
+      throw new Error('At least one format option is required (--bold, --italic, --underline, --font, --size, --color)')
     }
 
     if (fileFormat === 'hwp') {
