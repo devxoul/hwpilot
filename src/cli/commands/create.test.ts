@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, mock } from 'bun:test'
 import { unlink } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import { loadHwp } from '@/formats/hwp/reader'
 import { loadHwpx } from '@/formats/hwpx/loader'
@@ -16,13 +18,13 @@ const origExit = process.exit
 const tempFiles: string[] = []
 
 function tempPath(suffix = ''): string {
-  const path = `/tmp/test-create-${Date.now()}-${Math.random().toString(36).slice(2)}${suffix}.hwpx`
+  const path = join(tmpdir(), `test-create-${Date.now()}-${Math.random().toString(36).slice(2)}${suffix}.hwpx`)
   tempFiles.push(path)
   return path
 }
 
 function tempHwpPath(suffix = ''): string {
-  const path = `/tmp/test-create-${Date.now()}-${Math.random().toString(36).slice(2)}${suffix}.hwp`
+  const path = join(tmpdir(), `test-create-${Date.now()}-${Math.random().toString(36).slice(2)}${suffix}.hwp`)
   tempFiles.push(path)
   return path
 }

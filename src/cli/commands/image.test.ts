@@ -1,5 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, mock } from 'bun:test'
 import { readFile, unlink } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import JSZip from 'jszip'
 
@@ -7,8 +9,8 @@ import { createTestHwpBinary, createTestHwpx } from '@/test-helpers'
 
 import { imageExtractCommand, imageInsertCommand, imageListCommand, imageReplaceCommand } from './image'
 
-const TEST_FILE = '/tmp/test-image.hwpx'
-const TEST_HWP_FILE = '/tmp/test-image.hwp'
+const TEST_FILE = join(tmpdir(), 'test-image.hwpx')
+const TEST_HWP_FILE = join(tmpdir(), 'test-image.hwp')
 const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47])
 
 let logs: string[]
@@ -35,12 +37,15 @@ function restoreOutput() {
 
 afterEach(restoreOutput)
 
+const savedNoDaemon = process.env.HWPILOT_NO_DAEMON
+
 beforeAll(() => {
   process.env.HWPILOT_NO_DAEMON = '1'
 })
 
 afterAll(() => {
-  delete process.env.HWPILOT_NO_DAEMON
+  if (savedNoDaemon === undefined) delete process.env.HWPILOT_NO_DAEMON
+  else process.env.HWPILOT_NO_DAEMON = savedNoDaemon
 })
 
 describe('imageListCommand', () => {
