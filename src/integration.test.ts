@@ -382,7 +382,7 @@ describe('integration: error cases produce valid JSON', () => {
     restoreOutput()
 
     const output = JSON.parse(errors[0])
-    expect(output.error).toContain('No format options specified')
+    expect(output.error).toContain('At least one format option is required')
   })
 })
 

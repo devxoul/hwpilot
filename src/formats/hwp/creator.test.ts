@@ -70,10 +70,10 @@ describe('createHwp', () => {
     expect(doc.header.fonts[0]?.name).toBe('바탕')
   })
 
-  it('writes font size in hundredths of points', async () => {
+  it('writes font size in points', async () => {
     const filePath = createTempFilePath()
 
-    const fixture = await createHwp({ fontSize: 1200 })
+    const fixture = await createHwp({ fontSize: 12 })
     await Bun.write(filePath, fixture)
 
     const doc = await loadHwp(filePath)
