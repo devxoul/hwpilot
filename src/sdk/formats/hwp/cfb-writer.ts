@@ -119,7 +119,9 @@ export function writeCfb(cfb: CFB.CFB$Container): Buffer {
     miniStreams,
   })
 
-  writeMiniFat(output, miniFatEntries, miniFatSectorStart)
+  if (miniFatSectors > 0) {
+    writeMiniFat(output, miniFatEntries, miniFatSectorStart)
+  }
 
   if (miniStreamActualSize > 0) {
     miniStreamData.copy(output, (miniStreamSectorStart + 1) * SECTOR_SIZE)

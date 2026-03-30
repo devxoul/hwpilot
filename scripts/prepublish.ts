@@ -4,10 +4,12 @@ const pkgPath = 'package.json'
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
 
 function rewritePath(p: string): string {
+  if (p.startsWith('./dist/')) return p
   return p.replace(/^\.\/src\//, './dist/src/').replace(/\.ts$/, '.js')
 }
 
 function rewriteTypesPath(p: string): string {
+  if (p.startsWith('./dist/')) return p
   return p.replace(/^\.\/src\//, './dist/src/').replace(/\.ts$/, '.d.ts')
 }
 
