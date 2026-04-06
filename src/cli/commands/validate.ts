@@ -9,6 +9,8 @@ type ValidateOptions = {
   viewer?: boolean
 }
 
+const VIEWER_ENV_FLAG = 'HWPILOT_VIEWER'
+
 export async function validateCommand(file: string, options: ValidateOptions): Promise<void> {
   try {
     const result = await validateHwp(file)
@@ -45,5 +47,9 @@ async function runViewerCheck(filePath: string): Promise<CheckResult> {
 }
 
 function shouldRunViewerCheck(result: { format: 'hwp' | 'hwpx'; checks: CheckResult[] }): boolean {
-  return result.format === 'hwp' && !result.checks.some((check) => check.status === 'fail')
+  return isViewerCheckEnabled() && result.format === 'hwp' && !result.checks.some((check) => check.status === 'fail')
+}
+
+function isViewerCheckEnabled(): boolean {
+  return process.env[VIEWER_ENV_FLAG] === '1'
 }

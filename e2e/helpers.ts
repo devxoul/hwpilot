@@ -4,6 +4,10 @@ import { basename, join } from 'node:path'
 
 import JSZip from 'jszip'
 
+const DEFAULT_CLI_ENV: Record<string, string> = {
+  HWPILOT_VIEWER: '0',
+}
+
 /** Run the CLI as a real subprocess and capture output */
 export async function runCli(
   args: string[],
@@ -14,6 +18,7 @@ export async function runCli(
     stderr: 'pipe',
     env: {
       ...process.env,
+      ...DEFAULT_CLI_ENV,
       ...options?.env,
     },
   })

@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, mock, spyOn } from 'bun:test'
+import { rm } from 'node:fs/promises'
 
 import * as validatorModule from '@/formats/hwp/validator'
 import { createTestHwpBinary, createTestHwpx } from '@/test-helpers'
@@ -13,6 +14,7 @@ const TEST_CORRUPTED_FILE = '/tmp/test-validate-corrupted.hwp'
 let logs: string[]
 const origWrite = process.stdout.write
 const origExit = process.exit
+const origViewerEnv = process.env.HWPILOT_VIEWER
 
 beforeAll(async () => {
   const hwpBuffer = await createTestHwpBinary({ paragraphs: ['hello'] })
@@ -26,9 +28,9 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  await Bun.file(TEST_HWP_FILE).delete()
-  await Bun.file(TEST_HWPX_FILE).delete()
-  await Bun.file(TEST_CORRUPTED_FILE).delete()
+  await rm(TEST_HWP_FILE, { force: true })
+  await rm(TEST_HWPX_FILE, { force: true })
+  await rm(TEST_CORRUPTED_FILE, { force: true })
 })
 
 function captureOutput() {
@@ -47,18 +49,25 @@ function restoreOutput() {
   process.exit = origExit
 }
 
+function restoreViewerEnv() {
+  if (origViewerEnv === undefined) {
+    delete process.env.HWPILOT_VIEWER
+    return
+  }
+
+  process.env.HWPILOT_VIEWER = origViewerEnv
+}
+
 describe('validateCommand', () => {
   afterEach(() => {
     restoreOutput()
+    restoreViewerEnv()
     mock.restore()
   })
 
-  it('outputs valid JSON for clean HWP file', async () => {
+  it('outputs valid JSON for clean HWP file without viewer check by default', async () => {
     captureOutput()
-    const viewerSpy = spyOn(viewerModule, 'checkViewerCorruption').mockResolvedValue({
-      corrupted: false,
-      skipped: true,
-    })
+    const viewerSpy = spyOn(viewerModule, 'checkViewerCorruption')
     await validateCommand(TEST_HWP_FILE, {})
     viewerSpy.mockRestore()
 
@@ -67,15 +76,25 @@ describe('validateCommand', () => {
     expect(output.format).toBe('hwp')
     expect(output.file).toBe(TEST_HWP_FILE)
     expect(Array.isArray(output.checks)).toBe(true)
-    expect(output.checks.at(-1)).toEqual({
-      name: 'viewer',
-      status: 'skip',
-      message: 'Hancom Office HWP Viewer not found',
-    })
+    expect(output.checks.some((check: { name: string }) => check.name === 'viewer')).toBe(false)
+    expect(viewerSpy).not.toHaveBeenCalled()
   })
 
-  it('returns exit 0 for valid file', async () => {
+  it('returns exit 0 for valid file when viewer is disabled', async () => {
     captureOutput()
+    const viewerSpy = spyOn(viewerModule, 'checkViewerCorruption')
+    await validateCommand(TEST_HWP_FILE, {})
+    viewerSpy.mockRestore()
+
+    const output = JSON.parse(logs[0])
+    expect(output.valid).toBe(true)
+    expect(output.checks.some((check: { name: string }) => check.name === 'viewer')).toBe(false)
+    expect(viewerSpy).not.toHaveBeenCalled()
+  })
+
+  it('runs viewer check only when HWPILOT_VIEWER=1', async () => {
+    captureOutput()
+    process.env.HWPILOT_VIEWER = '1'
     const viewerSpy = spyOn(viewerModule, 'checkViewerCorruption').mockResolvedValue({
       corrupted: false,
       skipped: false,
@@ -158,6 +177,7 @@ describe('validateCommand', () => {
 
   it('returns exit 1 when viewer reports corruption', async () => {
     captureOutput()
+    process.env.HWPILOT_VIEWER = '1'
     let exitCalled = false
     let exitCode = 0
     process.exit = mock((code?: number) => {
@@ -195,16 +215,14 @@ describe('validateCommand', () => {
 
   it('supports --pretty flag', async () => {
     captureOutput()
-    const viewerSpy = spyOn(viewerModule, 'checkViewerCorruption').mockResolvedValue({
-      corrupted: false,
-      skipped: true,
-    })
+    const viewerSpy = spyOn(viewerModule, 'checkViewerCorruption')
     await validateCommand(TEST_HWP_FILE, { pretty: true })
     viewerSpy.mockRestore()
 
     expect(logs[0]).toContain('\n')
     const output = JSON.parse(logs[0])
     expect(output.valid).toBe(true)
+    expect(viewerSpy).not.toHaveBeenCalled()
   })
 
   it('handles file not found gracefully', async () => {
@@ -214,10 +232,7 @@ describe('validateCommand', () => {
       exitCalled = true
       throw new Error('process.exit')
     }) as never
-    const viewerSpy = spyOn(viewerModule, 'checkViewerCorruption').mockResolvedValue({
-      corrupted: false,
-      skipped: true,
-    })
+    const viewerSpy = spyOn(viewerModule, 'checkViewerCorruption')
 
     try {
       await validateCommand('/tmp/nonexistent-validate.hwp', {})

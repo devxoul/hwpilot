@@ -12,6 +12,7 @@ import type { ValidateResult } from '../src/formats/hwp/validator'
 import * as helpers from './helpers'
 
 const isViewerAvailable = await helpers.isHwpViewerAvailable()
+const isViewerEnabled = process.env.HWPILOT_VIEWER === '1'
 
 const tempFiles: string[] = []
 
@@ -161,10 +162,10 @@ describe('validate command', () => {
   })
 })
 
-describe.skipIf(!isViewerAvailable)('D. Viewer comparison', () => {
+describe.skipIf(!isViewerAvailable || !isViewerEnabled)('D. Viewer comparison', () => {
   it('matches viewer judgment on all 7 clean fixtures', async () => {
     for (const [name, fixturePath] of Object.entries(helpers.FIXTURES)) {
-      const validateResult = await helpers.runCli(['validate', fixturePath])
+      const validateResult = await helpers.runCli(['validate', fixturePath], { env: { HWPILOT_VIEWER: '1' } })
       const viewerResult = await helpers.checkViewerCorruption(fixturePath)
       if (!viewerResult.skipped) {
         const output = parseValidateOutput(validateResult)

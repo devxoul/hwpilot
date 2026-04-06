@@ -13,6 +13,7 @@ import {
 
 const tempFiles: string[] = []
 const isViewerAvailable = await isHwpViewerAvailable()
+const isViewerEnabled = process.env.HWPILOT_VIEWER === '1'
 
 afterEach(async () => {
   await cleanupFiles(tempFiles)
@@ -74,7 +75,7 @@ describe('viewer corruption check', () => {
     expect(typeof result).toBe('boolean')
   })
 
-  describe.skipIf(isViewerAvailable)('when viewer is NOT available', () => {
+  describe.skipIf(isViewerAvailable || isViewerEnabled)('when viewer is NOT available', () => {
     it('checkViewerCorruption returns skipped=true', async () => {
       const result = await checkViewerCorruption(FIXTURES.assaultComplaint)
       expect(result.skipped).toBe(true)
@@ -82,7 +83,7 @@ describe('viewer corruption check', () => {
     })
   })
 
-  describe.skipIf(!isViewerAvailable)('when viewer IS available', () => {
+  describe.skipIf(!isViewerAvailable || !isViewerEnabled)('when viewer IS available and explicitly enabled', () => {
     it('unmodified fixture passes corruption check', async () => {
       const temp = await tempCopy(FIXTURES.assaultComplaint)
       tempFiles.push(temp)

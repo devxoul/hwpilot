@@ -257,9 +257,9 @@ program
 // hwpilot validate <file>
 program
   .command('validate <file>')
-  .description('Validate file integrity (uses Hancom Viewer for HWP when available)')
+  .description('Validate file integrity (uses Hancom Viewer for HWP only when HWPILOT_VIEWER=1)')
   .option('--pretty', 'Pretty-print JSON output')
-  .option('--viewer', 'Deprecated: viewer validation now runs automatically when available')
+  .option('--viewer', 'Deprecated: set HWPILOT_VIEWER=1 to enable viewer validation')
   .action(async (file: string, options: { pretty?: boolean; viewer?: boolean }) => {
     await validateCommand(file, options)
   })
