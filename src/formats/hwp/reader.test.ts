@@ -553,6 +553,61 @@ describe('extractParaText', () => {
 
     expect(extractParaText(data)).toBe('ABC')
   })
+
+  it('keeps visible text around field delimiter control characters', () => {
+    const data = encodeUint16([
+      0x25a1,
+      0x001f,
+      0x0020,
+      0xc911,
+      0xc18c,
+      0xb7,
+      0xbca4,
+      0xcc98,
+      0xae30,
+      0xc5c5,
+      0x0028,
+      0xd604,
+      0xc7ac,
+      0x0020,
+      0x0041,
+      0x0049,
+      0xc81c,
+      0xd488,
+      0x0020,
+      0xbcf4,
+      0xc720,
+      0xb7,
+      0xd65c,
+      0xc6a9,
+      0x0020,
+      0xae30,
+      0xc5c5,
+      0x0029,
+      0x002c,
+      0x0020,
+      0x0020,
+      0x0020,
+      0x25a1,
+      0x001f,
+      0x0020,
+      0xae30,
+      0xd0c0,
+      0x0020,
+      0xc911,
+      0xc18c,
+      0xb7,
+      0xbca4,
+      0xcc98,
+      0xae30,
+      0xc5c5,
+      0x001f,
+      0x000d,
+      0x0000,
+    ])
+
+    expect(extractParaText(data)).toBe('□ 중소·벤처기업(현재 AI제품 보유·활용 기업),   □ 기타 중소·벤처기업')
+  })
 })
 
 function createHwpCfbBuffer(flags: number, signature: string): Buffer {

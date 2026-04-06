@@ -687,9 +687,11 @@ export function extractParaText(data: Buffer): string {
     }
 
     if (code < 32) {
-      if (code !== 9 && code !== 10 && code !== 13) {
-        i += 14
+      if (code === 31 || code === 9 || code === 10 || code === 13) {
+        continue
       }
+
+      i += 14
       continue
     }
 
