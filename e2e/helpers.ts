@@ -58,10 +58,6 @@ export async function cleanupFiles(paths: string[]): Promise<void> {
   }
 }
 
-/**
- * Cross-validate: edit an HWP file, convert to HWPX, inspect raw XML
- * Returns true if expectedText appears in the section0.xml of the converted HWPX
- */
 export async function crossValidate(hwpPath: string, expectedText: string, sectionIndex = 0): Promise<boolean> {
   const hwpxPath = hwpPath.replace(/\.hwp$/, '.hwpx')
   const tempHwpxPath = `${hwpxPath}.${Date.now()}.tmp.hwpx`
@@ -72,10 +68,24 @@ export async function crossValidate(hwpPath: string, expectedText: string, secti
     const xml = zip.file(`Contents/section${sectionIndex}.xml`)
     if (!xml) return false
     const content = await xml.async('string')
-    return content.includes(expectedText)
+    return extractSectionText(content).includes(expectedText)
   } finally {
     await rm(tempHwpxPath, { force: true })
   }
+}
+
+export function extractSectionText(sectionXml: string): string {
+  const textParts = Array.from(sectionXml.matchAll(/<hp:t(?:\s[^>]*)?>([\s\S]*?)<\/hp:t>/g), (match) => decodeXmlText(match[1]))
+  return textParts.join('')
+}
+
+function decodeXmlText(value: string): string {
+  return value
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&apos;', "'")
+    .replaceAll('&amp;', '&')
 }
 
 /** Run `validate` CLI command and assert the file is valid */

@@ -4,6 +4,7 @@ import {
   checkViewerCorruption,
   cleanupFiles,
   crossValidate,
+  extractSectionText,
   FIXTURES,
   isHwpViewerAvailable,
   parseOutput,
@@ -66,6 +67,18 @@ describe('crossValidate', () => {
     await runCli(['edit', 'text', temp, 's0.p0', 'CROSSVAL_UNIQUE_MARKER'])
     const found = await crossValidate(temp, 'CROSSVAL_UNIQUE_MARKER')
     expect(found).toBe(true)
+  })
+
+  it('finds text even when HWPX splits it across multiple hp:t runs', () => {
+    const sectionXml = `<?xml version="1.0" encoding="UTF-8"?>
+<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+  <hp:p>
+    <hp:run><hp:t>(주</hp:t></hp:run>
+    <hp:run><hp:t>)테스트코리아 &amp; Co</hp:t></hp:run>
+  </hp:p>
+</hs:sec>`
+
+    expect(extractSectionText(sectionXml)).toContain('(주)테스트코리아 & Co')
   })
 })
 
