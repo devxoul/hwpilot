@@ -44,6 +44,13 @@ export function writeCfb(cfb: CFB.CFB$Container): Buffer {
   while (fatSectors + dataSectors > fatSectors * entriesPerFatSector) {
     fatSectors++
   }
+  // The CFB header has room for 109 FAT sector pointers inline. Files needing
+  // more (≈ 7 MiB+) must spill into a DIFAT chain, which this writer does not
+  // emit. Real-world HWP documents almost never reach this limit, but reject
+  // explicitly instead of silently truncating the FAT.
+  if (fatSectors > 109) {
+    throw new Error(`CFB file too large: requires ${fatSectors} FAT sectors (max 109 without DIFAT chain support)`)
+  }
   const finalTotalSectors = fatSectors + dataSectors
 
   const fat = new Int32Array(Math.max(finalTotalSectors, fatSectors * (SECTOR_SIZE / 4)))

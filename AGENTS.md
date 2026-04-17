@@ -76,8 +76,7 @@ src/
 │       ├── record-serializer.ts # Binary record serialization
 │       ├── stream-util.ts # Stream utilities
 │       ├── tag-ids.ts     # HWP tag ID constants
-│       ├── template.hwp   # Template for new documents
-│       ├── validator.ts   # HWP structural validation
+│       ├── validator.ts    # HWP structural validation
 │       └── writer.ts      # HWP file writing
 └── shared/                # Shared utilities
     ├── document-ops.ts    # Document read/write operations
@@ -179,7 +178,7 @@ See `e2e/KNOWN-ISSUES.md` for interface limitations discovered during testing (t
 - **Magic bytes**: `D0 CF 11 E0` (CFB)
 - **Capabilities**: Read + write (text, table cells, character formatting, new document creation)
 - **Write approach**: Record-patching (modifies binary records in-place, preserves file structure)
-- **New file creation**: Uses `template.hwp` as base, patches font/size into DocInfo records
+- **New file creation**: Uses an embedded base64 template (`TEMPLATE_BASE64` in `src/sdk/formats/hwp/creator.ts`) as base, patches font/size into DocInfo records
 - **Key sections**:
   - `FileHeader` — document metadata
   - `BodyText` — document content (record stream per section)
