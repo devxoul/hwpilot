@@ -264,7 +264,7 @@ function buildDocInfoStream(): Buffer {
   idMappings.writeUInt32LE(1, 20) // other faceName
   idMappings.writeUInt32LE(1, 24) // symbol faceName
   idMappings.writeUInt32LE(1, 28) // user faceName
-  idMappings.writeUInt32LE(0, 32) // borderFill
+  idMappings.writeUInt32LE(2, 32) // borderFill
   idMappings.writeUInt32LE(1, 36) // charShape
   idMappings.writeUInt32LE(0, 40) // tabDef
   idMappings.writeUInt32LE(0, 44) // numbering
@@ -281,6 +281,7 @@ function buildDocInfoStream(): Buffer {
   charShape.writeUInt32LE(0, 52)
   const paraShape = Buffer.alloc(4)
   paraShape.writeUInt32LE(0, 0)
+  const borderFill = Buffer.alloc(2)
   const styleName = encodeLengthPrefixedUtf16('Normal')
   const style = Buffer.alloc(styleName.length + 6)
   styleName.copy(style, 0)
@@ -289,6 +290,8 @@ function buildDocInfoStream(): Buffer {
   return Buffer.concat([
     buildRecord(TAG.ID_MAPPINGS, 0, idMappings),
     ...Array.from({ length: 7 }, () => buildRecord(TAG.FACE_NAME, 1, faceName)),
+    buildRecord(TAG.BORDER_FILL, 1, borderFill),
+    buildRecord(TAG.BORDER_FILL, 1, borderFill),
     buildRecord(TAG.CHAR_SHAPE, 1, charShape),
     buildRecord(TAG.PARA_SHAPE, 1, paraShape),
     buildRecord(TAG.STYLE, 1, style),
