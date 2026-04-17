@@ -35,10 +35,16 @@ export function replaceRecordData(stream: Buffer, recordOffset: number, newData:
   ])
 }
 
+// HWPTAG_TABLE properties (offset 0, uint32):
+//   bit  2  (0x00000004): pageBreak — table allows row-level page breaks
+//   bit 26  (0x04000000): bookmark   — distinguishes table cells from list cells
+// 0x04000004 is the standard combination Hancom emits for plain tables.
+const TABLE_PROPERTIES_DEFAULT = 0x04000004
+
 export function buildTableData(rowCount: number, colCount: number, cellsPerRow?: number[]): Buffer {
   const dynamicSize = 18 + rowCount * 2 + 4
   const table = Buffer.alloc(dynamicSize)
-  table.writeUInt32LE(0x04000004, 0)
+  table.writeUInt32LE(TABLE_PROPERTIES_DEFAULT, 0)
   table.writeUInt16LE(rowCount, 4)
   table.writeUInt16LE(colCount, 6)
   // Table cell margins (HWPUNIT) — match Hancom defaults
@@ -79,10 +85,17 @@ export function buildCellListHeaderData(col: number, row: number, colSpan: numbe
   buf.writeUInt32LE(6432, 34)
   return buf
 }
-// Counter for generating unique table instance IDs within a process
+// Process-local counter for generating unique table instance IDs.
+// Not persisted across process restarts; not safe across concurrent producers
+// targeting the same document. Callers that need deterministic or
+// document-scoped IDs should pass `instanceId` explicitly.
 let tableInstanceIdCounter = 0
 
-export function buildTableCtrlHeaderData(): Buffer {
+function nextTableInstanceId(): number {
+  return ++tableInstanceIdCounter >>> 0
+}
+
+export function buildTableCtrlHeaderData(instanceId?: number): Buffer {
   // Field layout (ShapeObject common header):
   //   [0-3]   Control ID ('tbl ' reversed byte order)
   //   [4-7]   Properties: object placement/wrapping flags
@@ -110,8 +123,10 @@ export function buildTableCtrlHeaderData(): Buffer {
   buf.writeUInt16LE(140, 30) // outer margin right
   buf.writeUInt16LE(140, 32) // outer margin top
   buf.writeUInt16LE(140, 34) // outer margin bottom
-  // Instance ID: unique per table object, generated sequentially
-  buf.writeUInt32LE(++tableInstanceIdCounter >>> 0, 36)
+  // Instance ID: unique per table object. Defaults to a process-local counter
+  // when not supplied; callers building inside a daemon or batch flow should
+  // pass an explicit ID derived from the host document.
+  buf.writeUInt32LE((instanceId ?? nextTableInstanceId()) >>> 0, 36)
   return buf
 }
 
@@ -134,6 +149,11 @@ export function buildParaLineSegBuffer(segmentWidth: number = DEFAULT_PAGE_CONTE
   buf.writeUInt32LE(1020, 16) // distanceFromBaseline
   buf.writeUInt32LE(960, 20) // lineSpacing
   buf.writeUInt32LE(safeWidth, 28) // segmentWidth (page content width)
+  // PARA_LINE_SEG flags (uint16):
+  //   bit 1 (0x0002): line is the first segment of its paragraph
+  //   bit 2 (0x0004): line ends with the paragraph end mark
+  // 0x0006 = "first and last segment" — the only valid value for the single
+  // line emitted when the layout cache covers a one-line paragraph.
   buf.writeUInt16LE(0x0006, 34) // flags
   return buf
 }
