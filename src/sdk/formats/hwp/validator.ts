@@ -992,8 +992,8 @@ function getContentCoverageThreshold(options: ValidateHwpOptions): number {
     return DEFAULT_CONTENT_COVERAGE_THRESHOLD
   }
 
-  if (threshold < 0 || threshold > 1) {
-    throw new TypeError('contentCoverageThreshold must be between 0 and 1 inclusive')
+  if (Number.isNaN(threshold) || threshold < 0 || threshold > 1) {
+    throw new TypeError('contentCoverageThreshold must be a finite number between 0 and 1 inclusive')
   }
 
   return threshold
