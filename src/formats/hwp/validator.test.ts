@@ -450,7 +450,106 @@ describe('validateHwp', () => {
       const result = await validateHwp(filePath)
 
       expect(getCheckStatus(result, 'id_mappings')).toBe('fail')
-      expect(getCheckMessage(result, 'id_mappings')).toContain('charShape mismatch')
+      expect(getCheckMessage(result, 'id_mappings')).toContain('char_shape_count')
+    })
+
+    it('fails on mismatched font count', async () => {
+      const docInfo = buildDocInfoStreamWithCounts({
+        faceNameCount: 3,
+        idMappings: {
+          korean_font_count: 2,
+          english_font_count: 1,
+          chinese_font_count: 1,
+          japanese_font_count: 1,
+          other_font_count: 0,
+          symbol_font_count: 0,
+          user_font_count: 0,
+        },
+      })
+      const filePath = await writeTempHwp(await buildHwpWithCustomDocInfo(docInfo), 'validator-e-font-mismatch')
+
+      const result = await validateHwp(filePath)
+      const details = getCheckDetails(result, 'id_mappings') as { mismatches: Array<{ field: string }> }
+
+      expect(getCheckStatus(result, 'id_mappings')).toBe('fail')
+      expect(getCheckMessage(result, 'id_mappings')).toContain('font_bucket_total')
+      expect(details.mismatches.some((entry) => entry.field === 'font_bucket_total')).toBe(true)
+    })
+
+    it('fails on mismatched border_fill count', async () => {
+      const docInfo = buildDocInfoStreamWithCounts({
+        borderFillCount: 1,
+        idMappings: { border_fill_count: 2 },
+      })
+      const filePath = await writeTempHwp(await buildHwpWithCustomDocInfo(docInfo), 'validator-e-border-mismatch')
+
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'id_mappings')).toBe('fail')
+      expect(getCheckMessage(result, 'id_mappings')).toContain('border_fill_count')
+    })
+
+    it('fails on mismatched style count', async () => {
+      const docInfo = buildDocInfoStreamWithCounts({
+        styleCount: 1,
+        idMappings: { style_count: 2 },
+      })
+      const filePath = await writeTempHwp(await buildHwpWithCustomDocInfo(docInfo), 'validator-e-style-mismatch')
+
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'id_mappings')).toBe('fail')
+      expect(getCheckMessage(result, 'id_mappings')).toContain('style_count')
+    })
+
+    it('passes when all counts match', async () => {
+      const docInfo = buildDocInfoStreamWithCounts({
+        binDataCount: 1,
+        faceNameCount: 4,
+        borderFillCount: 1,
+        charShapeCount: 1,
+        tabDefCount: 1,
+        numberingCount: 1,
+        bulletCount: 1,
+        paraShapeCount: 1,
+        styleCount: 1,
+        idMappings: {
+          binary_data_count: 1,
+          korean_font_count: 1,
+          english_font_count: 1,
+          chinese_font_count: 1,
+          japanese_font_count: 1,
+          other_font_count: 0,
+          symbol_font_count: 0,
+          user_font_count: 0,
+          border_fill_count: 1,
+          char_shape_count: 1,
+          tab_def_count: 1,
+          numbering_count: 1,
+          bullet_count: 1,
+          para_shape_count: 1,
+          style_count: 1,
+        },
+      })
+      const filePath = await writeTempHwp(await buildHwpWithCustomDocInfo(docInfo), 'validator-e-all-match')
+
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'id_mappings')).toBe('pass')
+    })
+
+    it('skips fields beyond record length', async () => {
+      const docInfo = buildDocInfoStreamWithCounts({
+        idMappingsLength: 40,
+        faceNameCount: 7,
+        paraShapeCount: 2,
+        styleCount: 3,
+      })
+      const filePath = await writeTempHwp(await buildHwpWithCustomDocInfo(docInfo), 'validator-e-short-record')
+
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'id_mappings')).toBe('pass')
     })
   })
 
@@ -1027,7 +1126,179 @@ describe('validateHwp', () => {
     })
   })
 
-  describe('Section I — Layer 9: Empty Paragraph Text', () => {
+  describe('Section I — Layer 9: Unknown Tags', () => {
+    it('warns on unknown tag ID in DocInfo', async () => {
+      const docInfo = Buffer.concat([buildDocInfoStreamWithCounts(), buildRecord(0x33, 1, Buffer.alloc(0))])
+      const filePath = await writeTempHwp(await buildHwpWithCustomDocInfo(docInfo), 'validator-i-unknown-docinfo')
+
+      const result = await validateHwp(filePath)
+      const details = getCheckDetails(result, 'unknown_tags') as {
+        unknownTags: Array<{ tagId: number; count: number; streams: string[] }>
+      }
+
+      expect(getCheckStatus(result, 'unknown_tags')).toBe('warn')
+      expect(getCheckMessage(result, 'unknown_tags')).toContain('0x33')
+      expect(details.unknownTags[0]).toEqual({ tagId: 0x33, count: 1, streams: ['DocInfo'] })
+    })
+
+    it('passes when all tags known', async () => {
+      const filePath = await writeTempHwp(await createTestHwpBinary({ paragraphs: ['hello'] }), 'validator-i-known')
+
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'unknown_tags')).toBe('pass')
+    })
+
+    it('counts duplicates per tag', async () => {
+      const docInfo = Buffer.concat([
+        buildDocInfoStreamWithCounts(),
+        buildRecord(0x33, 1, Buffer.alloc(0)),
+        buildRecord(0x33, 1, Buffer.alloc(2)),
+        buildRecord(0x33, 1, Buffer.alloc(4)),
+      ])
+      const filePath = await writeTempHwp(await buildHwpWithCustomDocInfo(docInfo), 'validator-i-duplicate-unknown')
+
+      const result = await validateHwp(filePath)
+      const details = getCheckDetails(result, 'unknown_tags') as {
+        unknownTags: Array<{ tagId: number; count: number }>
+      }
+
+      expect(getCheckStatus(result, 'unknown_tags')).toBe('warn')
+      expect(details.unknownTags[0]?.count).toBe(3)
+    })
+  })
+
+  describe('Section J — Layer 10: Record Hierarchy', () => {
+    it('warns on CTRL_HEADER without preceding PARA_HEADER', async () => {
+      const section0 = Buffer.concat([
+        buildRecord(TAG.PAGE_DEF, 0, Buffer.alloc(8)),
+        buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('gso ')),
+      ])
+      const filePath = await writeTempHwp(await buildHwpWithCustomSection0(section0), 'validator-j-orphan-ctrl')
+
+      const result = await validateHwp(filePath)
+      const details = getCheckDetails(result, 'record_hierarchy') as { examples: Array<{ reason: string }> }
+
+      expect(getCheckStatus(result, 'record_hierarchy')).toBe('warn')
+      expect(details.examples[0]?.reason).toContain('without a preceding PARA_HEADER')
+    })
+
+    it('warns on CTRL_HEADER as the very first record in a section', async () => {
+      const section0 = buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('gso '))
+      const filePath = await writeTempHwp(
+        await buildHwpWithCustomSection0(section0),
+        'validator-j-orphan-ctrl-first',
+      )
+
+      const result = await validateHwp(filePath)
+      const details = getCheckDetails(result, 'record_hierarchy') as { examples: Array<{ reason: string }> }
+
+      expect(getCheckStatus(result, 'record_hierarchy')).toBe('warn')
+      expect(details.examples[0]?.reason).toContain('without a preceding PARA_HEADER')
+    })
+
+    it('warns on TABLE at wrong level', async () => {
+      const paraHeader = Buffer.alloc(24)
+      paraHeader.writeUInt32LE((0x80000000 | 1) >>> 0, 0)
+
+      const section0 = Buffer.concat([
+        buildRecord(TAG.PARA_HEADER, 0, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 1, Buffer.from([0x0b, 0x00])),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 1, Buffer.alloc(8)),
+        buildRecord(TAG.PARA_LINE_SEG, 1, Buffer.alloc(36)),
+        buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('tbl ')),
+        buildRecord(TAG.TABLE, 3, buildTableData(1, 1)),
+      ])
+      const filePath = await writeTempHwp(await buildHwpWithCustomSection0(section0), 'validator-j-table-level')
+
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'record_hierarchy')).toBe('warn')
+      expect(getCheckMessage(result, 'record_hierarchy')).toContain('violation')
+    })
+
+    it('passes on valid table hierarchy', async () => {
+      const paraHeader = Buffer.alloc(24)
+      paraHeader.writeUInt32LE((0x80000000 | 1) >>> 0, 0)
+
+      const ctrlHeader = Buffer.alloc(44)
+      controlIdBuffer('tbl ').copy(ctrlHeader, 0)
+      ctrlHeader.writeUInt32LE(14100, 16)
+      ctrlHeader.writeUInt32LE(1000, 20)
+
+      const section0 = Buffer.concat([
+        buildRecord(TAG.PARA_HEADER, 0, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 1, Buffer.from([0x0b, 0x00])),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 1, Buffer.alloc(8)),
+        buildRecord(TAG.PARA_LINE_SEG, 1, Buffer.alloc(36)),
+        buildRecord(TAG.CTRL_HEADER, 1, ctrlHeader),
+        buildRecord(TAG.TABLE, 2, buildTableData(1, 1)),
+        buildRecord(TAG.LIST_HEADER, 2, buildCellListHeaderData(0, 0, 1, 1)),
+        buildRecord(TAG.PARA_HEADER, 3, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 3, Buffer.from('A', 'utf16le')),
+        buildRecord(TAG.PARA_CHAR_SHAPE, 3, Buffer.alloc(8)),
+        buildRecord(TAG.PARA_LINE_SEG, 3, Buffer.alloc(36)),
+      ])
+      const filePath = await writeTempHwp(await buildHwpWithCustomSection0(section0), 'validator-j-valid-table')
+
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'record_hierarchy')).toBe('pass')
+    })
+  })
+
+  describe('Section K — Layer 11: Control Character Integrity', () => {
+    it('fails on PARA_TEXT with odd byte count', async () => {
+      const section0 = buildParagraphSection(Buffer.from([0x61, 0x00, 0x62]), 1)
+      const filePath = await writeTempHwp(await buildHwpWithCustomSection0(section0), 'validator-k-odd-bytes')
+
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'control_char_integrity')).toBe('fail')
+      expect(getCheckMessage(result, 'control_char_integrity')).toContain('odd byte count')
+    })
+
+    it('fails on truncated 0x0B control at end of text', async () => {
+      const textData = Buffer.alloc(10)
+      textData.writeUInt16LE(0x000b, 0)
+      textData.writeUInt16LE(0x0041, 2)
+      textData.writeUInt16LE(0x0042, 4)
+      textData.writeUInt16LE(0x0043, 6)
+      textData.writeUInt16LE(0x0044, 8)
+      const section0 = buildParagraphSection(textData, 5)
+      const filePath = await writeTempHwp(await buildHwpWithCustomSection0(section0), 'validator-k-truncated-control')
+
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'control_char_integrity')).toBe('fail')
+      expect(getCheckMessage(result, 'control_char_integrity')).toContain('0x0B')
+    })
+
+    it('passes on valid 0x0B control with 7 payload WCHARs', async () => {
+      const textData = Buffer.alloc(16)
+      textData.writeUInt16LE(0x000b, 0)
+      for (let i = 1; i < 8; i++) {
+        textData.writeUInt16LE(0x0040 + i, i * 2)
+      }
+      const section0 = buildParagraphSection(textData, 8)
+      const filePath = await writeTempHwp(await buildHwpWithCustomSection0(section0), 'validator-k-valid-control')
+
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'control_char_integrity')).toBe('pass')
+    })
+
+    it('passes on plain text with no controls', async () => {
+      const section0 = buildParagraphSection(Buffer.from('plain text', 'utf16le'), 'plain text'.length)
+      const filePath = await writeTempHwp(await buildHwpWithCustomSection0(section0), 'validator-k-plain-text')
+
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'control_char_integrity')).toBe('pass')
+    })
+  })
+
+  describe('Section L — Layer 12: Empty Paragraph Text', () => {
     it('fails when an empty paragraph contains only the paragraph-end marker', async () => {
       const paraHeader = Buffer.alloc(24)
       paraHeader.writeUInt32LE(0x80000001, 0)
@@ -1037,7 +1308,7 @@ describe('validateHwp', () => {
         buildRecord(TAG.PARA_TEXT, 1, Buffer.from([0x0d, 0x00])),
       ])
 
-      const filePath = await writeTempHwp(await buildHwpWithCustomSection0(section0), 'validator-i-empty-paragraph-text')
+      const filePath = await writeTempHwp(await buildHwpWithCustomSection0(section0), 'validator-l-empty-paragraph-text')
       const result = await validateHwp(filePath)
 
       expect(getCheckStatus(result, 'empty_paragraph_text')).toBe('fail')
@@ -1198,6 +1469,18 @@ async function buildHwpWithCustomSection0(section0: Buffer): Promise<Buffer> {
   return Buffer.from(CFB.write(cfb, { type: 'buffer' }))
 }
 
+async function buildHwpWithCustomDocInfo(docInfo: Buffer, section0?: Buffer): Promise<Buffer> {
+  const base = CFB.read(await createTestHwpBinary({ paragraphs: ['hello'] }), { type: 'buffer' })
+  const fileHeader = getEntryContent(base, '/FileHeader')
+  const nextSection0 = section0 ?? getEntryContent(base, '/BodyText/Section0')
+
+  const cfb = CFB.utils.cfb_new()
+  CFB.utils.cfb_add(cfb, 'FileHeader', fileHeader)
+  CFB.utils.cfb_add(cfb, 'DocInfo', docInfo)
+  CFB.utils.cfb_add(cfb, 'BodyText/Section0', nextSection0)
+  return Buffer.from(CFB.write(cfb, { type: 'buffer' }))
+}
+
 function getEntryContent(cfb: CFB.CFB$Container, path: string): Buffer {
   const entry = CFB.find(cfb, path)
   if (!entry?.content) {
@@ -1217,3 +1500,160 @@ function getCheckMessage(result: Awaited<ReturnType<typeof validateHwp>>, checkN
 function getCheck(result: Awaited<ReturnType<typeof validateHwp>>, checkName: string) {
   return result.checks.find((item) => item.name === checkName)
 }
+
+function getCheckDetails(result: Awaited<ReturnType<typeof validateHwp>>, checkName: string) {
+  const check = result.checks.find((item) => item.name === checkName)
+  return check?.details
+}
+
+function buildDocInfoStreamWithCounts(
+  options: {
+    idMappingsLength?: number
+    binDataCount?: number
+    faceNameCount?: number
+    borderFillCount?: number
+    charShapeCount?: number
+    tabDefCount?: number
+    numberingCount?: number
+    bulletCount?: number
+    paraShapeCount?: number
+    styleCount?: number
+    idMappings?: Partial<Record<IdMappingFieldName, number>>
+  } = {},
+): Buffer {
+  const counts = {
+    idMappingsLength: options.idMappingsLength ?? 60,
+    binDataCount: options.binDataCount ?? 0,
+    faceNameCount: options.faceNameCount ?? 7,
+    borderFillCount: options.borderFillCount ?? 0,
+    charShapeCount: options.charShapeCount ?? 1,
+    tabDefCount: options.tabDefCount ?? 0,
+    numberingCount: options.numberingCount ?? 0,
+    bulletCount: options.bulletCount ?? 0,
+    paraShapeCount: options.paraShapeCount ?? 1,
+    styleCount: options.styleCount ?? 1,
+  }
+
+  const idMappings = Buffer.alloc(counts.idMappingsLength)
+  const defaults: Record<IdMappingFieldName, number> = {
+    binary_data_count: counts.binDataCount,
+    korean_font_count: Math.min(1, counts.faceNameCount),
+    english_font_count: Math.max(0, Math.min(1, counts.faceNameCount - 1)),
+    chinese_font_count: Math.max(0, Math.min(1, counts.faceNameCount - 2)),
+    japanese_font_count: Math.max(0, Math.min(1, counts.faceNameCount - 3)),
+    other_font_count: Math.max(0, Math.min(1, counts.faceNameCount - 4)),
+    symbol_font_count: Math.max(0, Math.min(1, counts.faceNameCount - 5)),
+    user_font_count: Math.max(0, counts.faceNameCount - 6),
+    border_fill_count: counts.borderFillCount,
+    char_shape_count: counts.charShapeCount,
+    tab_def_count: counts.tabDefCount,
+    numbering_count: counts.numberingCount,
+    bullet_count: counts.bulletCount,
+    para_shape_count: counts.paraShapeCount,
+    style_count: counts.styleCount,
+  }
+
+  const fields: Array<[IdMappingFieldName, number]> = [
+    ['binary_data_count', 0],
+    ['korean_font_count', 4],
+    ['english_font_count', 8],
+    ['chinese_font_count', 12],
+    ['japanese_font_count', 16],
+    ['other_font_count', 20],
+    ['symbol_font_count', 24],
+    ['user_font_count', 28],
+    ['border_fill_count', 32],
+    ['char_shape_count', 36],
+    ['tab_def_count', 40],
+    ['numbering_count', 44],
+    ['bullet_count', 48],
+    ['para_shape_count', 52],
+    ['style_count', 56],
+  ]
+
+  for (const [field, offset] of fields) {
+    if (offset + 4 > idMappings.length) {
+      continue
+    }
+    idMappings.writeUInt32LE(options.idMappings?.[field] ?? defaults[field], offset)
+  }
+
+  return Buffer.concat([
+    buildRecord(TAG.ID_MAPPINGS, 0, idMappings),
+    ...Array.from({ length: counts.binDataCount }, () => buildRecord(TAG.BIN_DATA, 1, Buffer.alloc(0))),
+    ...Array.from({ length: counts.faceNameCount }, () => buildRecord(TAG.FACE_NAME, 1, buildFaceNameData())),
+    ...Array.from({ length: counts.borderFillCount }, () => buildRecord(TAG.BORDER_FILL, 1, Buffer.alloc(8))),
+    ...Array.from({ length: counts.charShapeCount }, () => buildRecord(TAG.CHAR_SHAPE, 1, buildCharShapeData())),
+    ...Array.from({ length: counts.tabDefCount }, () => buildRecord(TAG.TAB_DEF, 1, Buffer.alloc(8))),
+    ...Array.from({ length: counts.numberingCount }, () => buildRecord(TAG.NUMBERING, 1, Buffer.alloc(8))),
+    ...Array.from({ length: counts.bulletCount }, () => buildRecord(TAG.BULLET, 1, Buffer.alloc(8))),
+    ...Array.from({ length: counts.paraShapeCount }, () => buildRecord(TAG.PARA_SHAPE, 1, buildParaShapeData())),
+    ...Array.from({ length: counts.styleCount }, () => buildRecord(TAG.STYLE, 1, buildStyleData())),
+  ])
+}
+
+function buildParagraphSection(textData: Buffer, nChars: number): Buffer {
+  const paraHeader = Buffer.alloc(24)
+  paraHeader.writeUInt32LE((0x80000000 | nChars) >>> 0, 0)
+
+  const paraCharShape = Buffer.alloc(8)
+  const paraLineSeg = Buffer.alloc(36)
+
+  return Buffer.concat([
+    buildRecord(TAG.PARA_HEADER, 0, paraHeader),
+    buildRecord(TAG.PARA_TEXT, 1, textData),
+    buildRecord(TAG.PARA_CHAR_SHAPE, 1, paraCharShape),
+    buildRecord(TAG.PARA_LINE_SEG, 1, paraLineSeg),
+  ])
+}
+
+function buildFaceNameData(): Buffer {
+  return Buffer.concat([Buffer.from([0x00]), encodeLengthPrefixedUtf16('맑은 고딕')])
+}
+
+function buildCharShapeData(): Buffer {
+  const charShape = Buffer.alloc(74)
+  charShape.writeUInt16LE(0, 0)
+  charShape.writeUInt16LE(0, 2)
+  charShape.writeUInt32LE(1000, 42)
+  return charShape
+}
+
+function buildParaShapeData(): Buffer {
+  const paraShape = Buffer.alloc(4)
+  paraShape.writeUInt32LE(0, 0)
+  return paraShape
+}
+
+function buildStyleData(): Buffer {
+  const styleName = encodeLengthPrefixedUtf16('Normal')
+  const style = Buffer.alloc(styleName.length + 6)
+  styleName.copy(style, 0)
+  style.writeUInt16LE(0, styleName.length + 2)
+  style.writeUInt16LE(0, styleName.length + 4)
+  return style
+}
+
+function encodeLengthPrefixedUtf16(text: string): Buffer {
+  const encoded = Buffer.from(text, 'utf16le')
+  const length = Buffer.alloc(2)
+  length.writeUInt16LE(text.length, 0)
+  return Buffer.concat([length, encoded])
+}
+
+type IdMappingFieldName =
+  | 'binary_data_count'
+  | 'korean_font_count'
+  | 'english_font_count'
+  | 'chinese_font_count'
+  | 'japanese_font_count'
+  | 'other_font_count'
+  | 'symbol_font_count'
+  | 'user_font_count'
+  | 'border_fill_count'
+  | 'char_shape_count'
+  | 'tab_def_count'
+  | 'numbering_count'
+  | 'bullet_count'
+  | 'para_shape_count'
+  | 'style_count'

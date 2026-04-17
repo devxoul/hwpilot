@@ -3,7 +3,7 @@ import { inflateRaw } from 'pako'
 
 import { readControlId } from '@/sdk/formats/hwp/control-id'
 import { parseStyleRefs } from '@/sdk/formats/hwp/docinfo-parser'
-import { TAG } from '@/sdk/formats/hwp/tag-ids'
+import { KNOWN_TAG_IDS, TAG } from '@/sdk/formats/hwp/tag-ids'
 
 export type CheckStatus = 'pass' | 'fail' | 'warn' | 'skip'
 
@@ -58,6 +58,51 @@ export const HWP_PROP_KOGL = 0x00008000
 export const HWP_PROP_HAS_VIDEO = 0x00010000
 export const HWP_PROP_HAS_TOC_FIELD = 0x00020000
 
+type IdMappingMismatch = {
+  field: string
+  declared: number
+  actual: number
+}
+
+type HierarchyViolation = {
+  stream: string
+  offset: number
+  tagId: number
+  level: number
+  reason: string
+}
+
+type ControlCharViolation = {
+  stream: string
+  offset: number
+  position: number
+  code?: number
+  reason: string
+}
+
+const ID_MAPPING_FIELDS = [
+  { field: 'binary_data_count', offset: 0, tagId: TAG.BIN_DATA },
+  { field: 'korean_font_count', offset: 4, tagId: TAG.FACE_NAME },
+  { field: 'english_font_count', offset: 8, tagId: TAG.FACE_NAME },
+  { field: 'chinese_font_count', offset: 12, tagId: TAG.FACE_NAME },
+  { field: 'japanese_font_count', offset: 16, tagId: TAG.FACE_NAME },
+  { field: 'other_font_count', offset: 20, tagId: TAG.FACE_NAME },
+  { field: 'symbol_font_count', offset: 24, tagId: TAG.FACE_NAME },
+  { field: 'user_font_count', offset: 28, tagId: TAG.FACE_NAME },
+  { field: 'border_fill_count', offset: 32, tagId: TAG.BORDER_FILL },
+  { field: 'char_shape_count', offset: 36, tagId: TAG.CHAR_SHAPE },
+  { field: 'tab_def_count', offset: 40, tagId: TAG.TAB_DEF },
+  { field: 'numbering_count', offset: 44, tagId: TAG.NUMBERING },
+  { field: 'bullet_count', offset: 48, tagId: TAG.BULLET },
+  { field: 'para_shape_count', offset: 52, tagId: TAG.PARA_SHAPE },
+  { field: 'style_count', offset: 56, tagId: TAG.STYLE },
+] as const
+
+const MULTI_WCHAR_CONTROL_CODES = new Set<number>([
+  0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0b, 0x0c, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15,
+  0x16, 0x17,
+])
+
 export async function validateHwp(fileBuffer: Uint8Array): Promise<ValidateResult> {
   const result = await validateHwpBuffer(Buffer.from(fileBuffer))
   return result
@@ -72,7 +117,9 @@ export async function validateHwpBuffer(buffer: Buffer): Promise<ValidateResult>
       valid: true,
       format: 'hwpx',
       file: '<buffer>',
-      checks: [{ name: 'format_type', status: 'skip', message: 'HWPX (ZIP) format detected; HWP-specific validation skipped' }],
+      checks: [
+        { name: 'format_type', status: 'skip', message: 'HWPX (ZIP) format detected; HWP-specific validation skipped' },
+      ],
     }
   }
 
@@ -122,6 +169,9 @@ export async function validateHwpBuffer(buffer: Buffer): Promise<ValidateResult>
   checks.push(validateNCharsConsistency(sectionStreams))
   checks.push(validateCrossReferences(docInfoBuffer, sectionStreams))
   checks.push(validateIdMappings(docInfoBuffer))
+  checks.push(validateUnknownTags(docInfoBuffer, sectionStreams))
+  checks.push(validateRecordHierarchy(sectionStreams))
+  checks.push(validateControlCharIntegrity(sectionStreams))
   checks.push(validateContentCompleteness(docInfoBuffer, sectionStreams))
   checks.push(validateParagraphCompleteness(sectionStreams))
   checks.push(validateTableStructure(sectionStreams))
@@ -542,23 +592,64 @@ function validateIdMappings(docInfoBuffer: Buffer): CheckResult {
     }
   }
 
-  const actualCharShapeCount = records.filter((record) => record.tagId === TAG.CHAR_SHAPE).length
   const idMappingsData = idMappingsRecord.data
   const HWP5_CHAR_SHAPE_BYTE_OFFSET = 9 * 4
+  const actualCounts = new Map<number, number>()
+
+  for (const record of records) {
+    actualCounts.set(record.tagId, (actualCounts.get(record.tagId) ?? 0) + 1)
+  }
 
   if (idMappingsData.length >= HWP5_CHAR_SHAPE_BYTE_OFFSET + 4) {
-    const declaredCount = idMappingsData.readUInt32LE(HWP5_CHAR_SHAPE_BYTE_OFFSET)
-    if (declaredCount !== actualCharShapeCount) {
+    const mismatches: IdMappingMismatch[] = []
+    const checkedFields: string[] = []
+    const declaredFontCount = collectDeclaredFontCount(idMappingsData)
+    const actualFontCount = actualCounts.get(TAG.FACE_NAME) ?? 0
+
+    for (const { field, offset, tagId } of ID_MAPPING_FIELDS) {
+      if (offset + 4 > idMappingsData.length) {
+        continue
+      }
+
+      checkedFields.push(field)
+      if (field.endsWith('_font_count')) {
+        continue
+      }
+
+      const declared = idMappingsData.readUInt32LE(offset)
+      const actual = actualCounts.get(tagId) ?? 0
+      if (declared !== actual) {
+        mismatches.push({ field, declared, actual })
+      }
+    }
+
+    if (declaredFontCount !== null && declaredFontCount !== actualFontCount) {
+      mismatches.push({
+        field: 'font_bucket_total',
+        declared: declaredFontCount,
+        actual: actualFontCount,
+      })
+    }
+
+    if (mismatches.length > 0) {
       return {
         name: 'id_mappings',
         status: 'fail',
-        message: `ID_MAPPINGS charShape mismatch: declared ${declaredCount}, actual ${actualCharShapeCount}`,
+        message: mismatches
+          .map((mismatch) => `${mismatch.field}: declared ${mismatch.declared}, actual ${mismatch.actual}`)
+          .join('; '),
+        details: {
+          mismatchCount: mismatches.length,
+          mismatches,
+          checkedFields,
+        },
       }
     }
 
     return { name: 'id_mappings', status: 'pass' }
   }
 
+  const actualCharShapeCount = actualCounts.get(TAG.CHAR_SHAPE) ?? 0
   for (let offset = 0; offset + 4 <= idMappingsData.length; offset += 4) {
     if (idMappingsData.readUInt32LE(offset) === actualCharShapeCount) {
       return { name: 'id_mappings', status: 'pass' }
@@ -569,6 +660,251 @@ function validateIdMappings(docInfoBuffer: Buffer): CheckResult {
     name: 'id_mappings',
     status: 'warn',
     message: 'Unable to verify ID_MAPPINGS charShape count in short record',
+  }
+}
+
+function validateUnknownTags(docInfoBuffer: Buffer, sectionStreams: StreamRef[]): CheckResult {
+  const unknownTagMap = new Map<number, { count: number; streams: Set<string> }>()
+  const streams: Array<{ name: string; buffer: Buffer }> = [
+    { name: 'DocInfo', buffer: docInfoBuffer },
+    ...sectionStreams,
+  ]
+
+  for (const stream of streams) {
+    for (const record of parseRecords(stream.buffer)) {
+      if (KNOWN_TAG_IDS.has(record.tagId)) {
+        continue
+      }
+
+      const entry = unknownTagMap.get(record.tagId) ?? { count: 0, streams: new Set<string>() }
+      entry.count += 1
+      entry.streams.add(stream.name)
+      unknownTagMap.set(record.tagId, entry)
+    }
+  }
+
+  if (unknownTagMap.size === 0) {
+    return { name: 'unknown_tags', status: 'pass' }
+  }
+
+  const entries = [...unknownTagMap.entries()]
+    .map(([tagId, info]) => ({
+      tagId,
+      count: info.count,
+      streams: [...info.streams].sort(),
+    }))
+    .sort((left, right) => right.count - left.count || left.tagId - right.tagId)
+
+  return {
+    name: 'unknown_tags',
+    status: 'warn',
+    message: `Found ${entries.length} unknown tag ID(s): ${entries
+      .map((entry) => `${formatTagId(entry.tagId)} (×${entry.count})`)
+      .join(', ')}`,
+    details: {
+      unknownTagCount: entries.length,
+      unknownTags: entries.slice(0, 20),
+    },
+  }
+}
+
+function validateRecordHierarchy(sectionStreams: StreamRef[]): CheckResult {
+  const violations: HierarchyViolation[] = []
+
+  for (const stream of sectionStreams) {
+    const records = parseRecords(stream.buffer)
+    const paraLevels: number[] = []
+    const ctrlHeaders: Array<{ level: number; controlType: string | null }> = []
+
+    for (const record of records) {
+      if (record.tagId === TAG.PARA_HEADER) {
+        while (paraLevels.length > 0 && paraLevels.at(-1)! >= record.level) {
+          paraLevels.pop()
+        }
+        while (ctrlHeaders.length > 0 && ctrlHeaders.at(-1)!.level >= record.level) {
+          ctrlHeaders.pop()
+        }
+        paraLevels.push(record.level)
+        continue
+      }
+
+      if (record.tagId === TAG.CTRL_HEADER) {
+        const parentParaLevel = findNearestLowerLevel(paraLevels, record.level)
+        if (parentParaLevel === null) {
+          if (paraLevels.length === 0) {
+            violations.push({
+              stream: stream.name,
+              offset: record.offset,
+              tagId: record.tagId,
+              level: record.level,
+              reason: 'CTRL_HEADER appears without a preceding PARA_HEADER',
+            })
+          }
+        } else if (record.level !== parentParaLevel + 1) {
+          violations.push({
+            stream: stream.name,
+            offset: record.offset,
+            tagId: record.tagId,
+            level: record.level,
+            reason: `CTRL_HEADER level ${record.level} does not match parent PARA_HEADER level ${parentParaLevel} + 1`,
+          })
+        }
+
+        while (ctrlHeaders.length > 0 && ctrlHeaders.at(-1)!.level >= record.level) {
+          ctrlHeaders.pop()
+        }
+        ctrlHeaders.push({
+          level: record.level,
+          controlType: record.data.length >= 4 ? readControlId(record.data) : null,
+        })
+      } else if (record.tagId === TAG.TABLE) {
+        const parentCtrlHeader = findNearestCtrlHeader(ctrlHeaders, record.level)
+        if (
+          !parentCtrlHeader ||
+          parentCtrlHeader.controlType !== 'tbl ' ||
+          record.level !== parentCtrlHeader.level + 1
+        ) {
+          violations.push({
+            stream: stream.name,
+            offset: record.offset,
+            tagId: record.tagId,
+            level: record.level,
+            reason: parentCtrlHeader
+              ? `TABLE level ${record.level} does not match parent CTRL_HEADER level ${parentCtrlHeader.level} + 1`
+              : 'TABLE appears without a preceding table CTRL_HEADER',
+          })
+        }
+      } else if (record.tagId === TAG.SHAPE_COMPONENT || record.tagId === TAG.LIST_HEADER) {
+        const parentCtrlHeader = findNearestCtrlHeader(ctrlHeaders, record.level)
+        if (!parentCtrlHeader || record.level < parentCtrlHeader.level + 1) {
+          violations.push({
+            stream: stream.name,
+            offset: record.offset,
+            tagId: record.tagId,
+            level: record.level,
+            reason: parentCtrlHeader
+              ? `${getTagName(record.tagId)} level ${record.level} is below parent CTRL_HEADER level ${parentCtrlHeader.level} + 1`
+              : `${getTagName(record.tagId)} appears without a preceding CTRL_HEADER`,
+          })
+        }
+      } else if (
+        record.tagId === TAG.PARA_CHAR_SHAPE ||
+        record.tagId === TAG.PARA_TEXT ||
+        record.tagId === TAG.PARA_LINE_SEG ||
+        record.tagId === TAG.PARA_RANGE_TAG
+      ) {
+        const parentParaLevel = findNearestParagraphLevel(paraLevels, record.level)
+        if (parentParaLevel === null) {
+          if (record.level === 0) {
+            violations.push({
+              stream: stream.name,
+              offset: record.offset,
+              tagId: record.tagId,
+              level: record.level,
+              reason: `${getTagName(record.tagId)} appears without a preceding PARA_HEADER`,
+            })
+          }
+        }
+      }
+
+      if (violations.length >= 10) {
+        break
+      }
+    }
+
+    if (violations.length >= 10) {
+      break
+    }
+  }
+
+  if (violations.length === 0) {
+    return { name: 'record_hierarchy', status: 'pass' }
+  }
+
+  return {
+    name: 'record_hierarchy',
+    status: 'warn',
+    message: `Found ${violations.length} record hierarchy violation(s)`,
+    details: {
+      violationCount: violations.length,
+      examples: violations.slice(0, 10),
+    },
+  }
+}
+
+function validateControlCharIntegrity(sectionStreams: StreamRef[]): CheckResult {
+  const violations: ControlCharViolation[] = []
+
+  for (const stream of sectionStreams) {
+    const records = parseRecords(stream.buffer)
+    for (let recordIndex = 0; recordIndex < records.length; recordIndex++) {
+      const record = records[recordIndex]
+      if (record.tagId !== TAG.PARA_TEXT) {
+        continue
+      }
+
+      if (record.data.length % 2 !== 0) {
+        violations.push({
+          stream: stream.name,
+          offset: record.offset,
+          position: Math.floor(record.data.length / 2),
+          reason: `PARA_TEXT has odd byte count (${record.data.length})`,
+        })
+        continue
+      }
+
+      const wcharCount = record.data.length / 2
+      let position = 0
+      while (position < wcharCount) {
+        const code = record.data.readUInt16LE(position * 2)
+        if (code < 0x20 && MULTI_WCHAR_CONTROL_CODES.has(code)) {
+          if (position + 8 > wcharCount) {
+            // Some real-world files and existing project fixtures encode the table placeholder
+            // as a lone 0x0B in PARA_TEXT and carry the actual control metadata in a following
+            // CTRL_HEADER record. Treat that legacy shorthand as acceptable to avoid noisy
+            // false positives; for everything else, keep the spec-grounded truncation check.
+            if (isCompatTrailingControl(records, recordIndex, position, code)) {
+              break
+            }
+
+            violations.push({
+              stream: stream.name,
+              offset: record.offset,
+              position,
+              code,
+              reason: `Truncated control ${formatControlCode(code)} at WCHAR ${position}, needed 8 WCHARs`,
+            })
+            break
+          }
+          position += 8
+          continue
+        }
+
+        position += 1
+      }
+
+      if (violations.length >= 10) {
+        break
+      }
+    }
+
+    if (violations.length >= 10) {
+      break
+    }
+  }
+
+  if (violations.length === 0) {
+    return { name: 'control_char_integrity', status: 'pass' }
+  }
+
+  return {
+    name: 'control_char_integrity',
+    status: 'fail',
+    message: violations[0].reason,
+    details: {
+      violationCount: violations.length,
+      examples: violations.slice(0, 10),
+    },
   }
 }
 
@@ -624,7 +960,6 @@ function validateContentCompleteness(docInfoBuffer: Buffer, sectionStreams: Stre
 
   return { name: 'content_completeness', status: 'pass' }
 }
-
 
 function validateParagraphCompleteness(sectionStreams: StreamRef[]): CheckResult {
   const missingCharShape: Array<{ stream: string; level: number }> = []
@@ -1066,6 +1401,85 @@ function countCrossReferenceFailures(
   }
 
   return failureCount
+}
+
+function collectDeclaredFontCount(idMappingsData: Buffer): number | null {
+  const fontOffsets = [4, 8, 12, 16, 20, 24, 28]
+  if (fontOffsets.some((offset) => offset + 4 > idMappingsData.length)) {
+    return null
+  }
+
+  return fontOffsets.reduce((sum, offset) => sum + idMappingsData.readUInt32LE(offset), 0)
+}
+
+function formatTagId(tagId: number): string {
+  return `0x${tagId.toString(16).toUpperCase().padStart(2, '0')}`
+}
+
+function formatControlCode(code: number): string {
+  return `0x${code.toString(16).toUpperCase().padStart(2, '0')}`
+}
+
+function getTagName(tagId: number): string {
+  return Object.entries(TAG).find(([, value]) => value === tagId)?.[0] ?? formatTagId(tagId)
+}
+
+function findNearestLowerLevel(levels: number[], currentLevel: number): number | null {
+  for (let index = levels.length - 1; index >= 0; index--) {
+    if (levels[index] < currentLevel) {
+      return levels[index]
+    }
+  }
+
+  return null
+}
+
+function findNearestParagraphLevel(levels: number[], currentLevel: number): number | null {
+  for (let index = levels.length - 1; index >= 0; index--) {
+    if (levels[index] <= currentLevel) {
+      return levels[index]
+    }
+  }
+
+  return null
+}
+
+function findNearestCtrlHeader(
+  ctrlHeaders: Array<{ level: number; controlType: string | null }>,
+  currentLevel: number,
+): { level: number; controlType: string | null } | null {
+  for (let index = ctrlHeaders.length - 1; index >= 0; index--) {
+    if (ctrlHeaders[index].level < currentLevel) {
+      return ctrlHeaders[index]
+    }
+  }
+
+  return null
+}
+
+function isCompatTrailingControl(
+  records: ParsedRecord[],
+  recordIndex: number,
+  position: number,
+  code: number,
+): boolean {
+  if (code !== 0x0b || position !== 0 || records[recordIndex]?.data.length !== 2) {
+    return false
+  }
+
+  const level = records[recordIndex].level
+  for (let i = recordIndex + 1; i < records.length; i++) {
+    const record = records[i]
+    if (record.tagId === TAG.PARA_HEADER && record.level <= level) {
+      return false
+    }
+
+    if (record.tagId === TAG.CTRL_HEADER && record.level === level) {
+      return true
+    }
+  }
+
+  return false
 }
 
 function findEntry(cfb: CFB.CFB$Container, ...names: string[]): { content?: Uint8Array } | undefined {
