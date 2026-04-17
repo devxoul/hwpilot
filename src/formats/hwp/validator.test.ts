@@ -564,6 +564,14 @@ describe('validateHwp', () => {
         validateHwpBuffer(await createTestHwpBinary({ paragraphs: ['hello'] }), { contentCoverageThreshold: Number.NaN }),
       ).rejects.toThrow(TypeError)
     })
+
+    it('throws TypeError when threshold is Infinity', async () => {
+      await expect(
+        validateHwpBuffer(await createTestHwpBinary({ paragraphs: ['hello'] }), {
+          contentCoverageThreshold: Number.POSITIVE_INFINITY,
+        }),
+      ).rejects.toThrow(TypeError)
+    })
   })
 
   describe('Section G — Layer 7: Paragraph Completeness', () => {
