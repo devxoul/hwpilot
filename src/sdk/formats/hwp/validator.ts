@@ -616,9 +616,7 @@ function validateRecordHierarchy(sectionStreams: StreamRef[]): CheckResult {
     const paraLevels: number[] = []
     const ctrlHeaders: Array<{ level: number; controlType: string | null }> = []
 
-    for (let index = 0; index < records.length; index++) {
-      const record = records[index]
-
+    for (const record of records) {
       if (record.tagId === TAG.PARA_HEADER) {
         while (paraLevels.length > 0 && paraLevels.at(-1)! >= record.level) {
           paraLevels.pop()
@@ -633,7 +631,7 @@ function validateRecordHierarchy(sectionStreams: StreamRef[]): CheckResult {
       if (record.tagId === TAG.CTRL_HEADER) {
         const parentParaLevel = findNearestLowerLevel(paraLevels, record.level)
         if (parentParaLevel === null) {
-          if (index > 0 && paraLevels.length === 0) {
+          if (paraLevels.length === 0) {
             violations.push({
               stream: stream.name,
               offset: record.offset,

@@ -1058,6 +1058,20 @@ describe('validateHwp', () => {
       expect(details.examples[0]?.reason).toContain('without a preceding PARA_HEADER')
     })
 
+    it('warns on CTRL_HEADER as the very first record in a section', async () => {
+      const section0 = buildRecord(TAG.CTRL_HEADER, 1, controlIdBuffer('gso '))
+      const filePath = await writeTempHwp(
+        await buildHwpWithCustomSection0(section0),
+        'validator-j-orphan-ctrl-first',
+      )
+
+      const result = await validateHwp(filePath)
+      const details = getCheckDetails(result, 'record_hierarchy') as { examples: Array<{ reason: string }> }
+
+      expect(getCheckStatus(result, 'record_hierarchy')).toBe('warn')
+      expect(details.examples[0]?.reason).toContain('without a preceding PARA_HEADER')
+    })
+
     it('warns on TABLE at wrong level', async () => {
       const paraHeader = Buffer.alloc(24)
       paraHeader.writeUInt32LE((0x80000000 | 1) >>> 0, 0)
