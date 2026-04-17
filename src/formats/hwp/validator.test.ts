@@ -96,6 +96,131 @@ describe('validateHwp', () => {
       expect(getCheckMessage(result, 'cfb_structure')).toContain('Password-protected')
     })
 
+    it('fails on distribution document (properties1 bit 2)', async () => {
+      const filePath = await writeTempHwp(await createTestHwpBinary({ paragraphs: ['hello'] }), 'validator-a-distribution')
+
+      await patchFileHeader(filePath, (header) => {
+        const flags = header.readUInt32LE(36)
+        header.writeUInt32LE(flags | 0x4, 36)
+      })
+
+      const result = await validateHwp(filePath)
+
+      expect(result.valid).toBe(false)
+      expect(getCheckStatus(result, 'cfb_structure')).toBe('fail')
+      expect(getCheckMessage(result, 'cfb_structure')).toContain('Distribution documents')
+    })
+
+    it('fails on DRM document (properties1 bit 4)', async () => {
+      const filePath = await writeTempHwp(await createTestHwpBinary({ paragraphs: ['hello'] }), 'validator-a-drm')
+
+      await patchFileHeader(filePath, (header) => {
+        const flags = header.readUInt32LE(36)
+        header.writeUInt32LE(flags | 0x10, 36)
+      })
+
+      const result = await validateHwp(filePath)
+
+      expect(result.valid).toBe(false)
+      expect(getCheckStatus(result, 'cfb_structure')).toBe('fail')
+      expect(getCheckMessage(result, 'cfb_structure')).toContain('DRM-protected files')
+    })
+
+    it('fails on cert-DRM document (properties1 bit 10)', async () => {
+      const filePath = await writeTempHwp(await createTestHwpBinary({ paragraphs: ['hello'] }), 'validator-a-cert-drm')
+
+      await patchFileHeader(filePath, (header) => {
+        const flags = header.readUInt32LE(36)
+        header.writeUInt32LE(flags | 0x400, 36)
+      })
+
+      const result = await validateHwp(filePath)
+
+      expect(result.valid).toBe(false)
+      expect(getCheckStatus(result, 'cfb_structure')).toBe('fail')
+      expect(getCheckMessage(result, 'cfb_structure')).toContain('DRM-protected files')
+    })
+
+    it('warns on track-change document (properties1 bit 14)', async () => {
+      const filePath = await writeTempHwp(await createTestHwpBinary({ paragraphs: ['hello'] }), 'validator-a-track-changes')
+
+      await patchFileHeader(filePath, (header) => {
+        const flags = header.readUInt32LE(36)
+        header.writeUInt32LE(flags | 0x4000, 36)
+      })
+
+      const result = await validateHwp(filePath)
+
+      expect(result.valid).toBe(true)
+      expect(getCheckStatus(result, 'cfb_structure')).toBe('pass')
+      expect(getCheckStatus(result, 'document_properties')).toBe('warn')
+      expect(getCheckMessage(result, 'document_properties')).toContain('track changes enabled')
+    })
+
+    it('surfaces property flags in details', async () => {
+      const filePath = await writeTempHwp(
+        await createTestHwpBinary({ paragraphs: ['hello'], compressed: true }),
+        'validator-a-flag-details',
+      )
+
+      await patchFileHeader(filePath, (header) => {
+        const flags = header.readUInt32LE(36)
+        header.writeUInt32LE(flags | 0x8 | 0x40 | 0x80 | 0x800 | 0x8000 | 0x10000 | 0x20000, 36)
+        header.writeUInt32LE(0x12345678, 40)
+      })
+
+      const result = await validateHwp(filePath)
+      const cfbStructure = getCheck(result, 'cfb_structure')
+
+      expect(cfbStructure?.details).toMatchObject({
+        properties2: 0x12345678,
+        compressed: true,
+        hasScripts: true,
+        hasDocHistory: true,
+        hasSignature: true,
+        ccl: true,
+        kogl: true,
+        hasVideo: true,
+        hasTocField: true,
+      })
+    })
+
+    it('parses version 5.0.3.5', async () => {
+      const filePath = await writeTempHwp(await createTestHwpBinary({ paragraphs: ['hello'] }), 'validator-a-version-5035')
+
+      await patchFileHeader(filePath, (header) => {
+        header.writeUInt32LE(0x05000305, 32)
+      })
+
+      const result = await validateHwp(filePath)
+      const cfbStructure = getCheck(result, 'cfb_structure')
+
+      expect(getCheckStatus(result, 'schema_version')).toBe('pass')
+      expect(cfbStructure?.details).toMatchObject({
+        version: {
+          major: 5,
+          minor: 0,
+          micro: 3,
+          build: 5,
+          raw: 0x05000305,
+        },
+      })
+    })
+
+    it('fails on non-5.x document', async () => {
+      const filePath = await writeTempHwp(await createTestHwpBinary({ paragraphs: ['hello'] }), 'validator-a-version-6x')
+
+      await patchFileHeader(filePath, (header) => {
+        header.writeUInt32LE(0x06000305, 32)
+      })
+
+      const result = await validateHwp(filePath)
+
+      expect(result.valid).toBe(false)
+      expect(getCheckStatus(result, 'schema_version')).toBe('fail')
+      expect(getCheckMessage(result, 'schema_version')).toContain('Unsupported HWP schema version 6.0.3.5')
+    })
+
     it('rejects file with missing DocInfo', async () => {
       const fileHeader = getEntryContent(CFB.read(createTestHwpCfb(), { type: 'buffer' }), '/FileHeader')
       const section0 = await getSection0FromValidFixture()
@@ -1043,6 +1168,25 @@ describe('validateHwp', () => {
       expect(getCheckStatus(result, 'picture_references')).toBe('pass')
     })
   })
+
+  describe('Section K — Layer 11: Empty Paragraph Text', () => {
+    it('fails when an empty paragraph contains only the paragraph-end marker', async () => {
+      const paraHeader = Buffer.alloc(24)
+      paraHeader.writeUInt32LE(0x80000001, 0)
+
+      const section0 = Buffer.concat([
+        buildRecord(TAG.PARA_HEADER, 0, paraHeader),
+        buildRecord(TAG.PARA_TEXT, 1, Buffer.from([0x0d, 0x00])),
+      ])
+
+      const filePath = await writeTempHwp(await buildHwpWithCustomSection0(section0), 'validator-k-empty-paragraph-text')
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'empty_paragraph_text')).toBe('fail')
+      expect(getCheckMessage(result, 'empty_paragraph_text')).toContain('paragraph-end marker (0x000D)')
+      expect(getCheckMessage(result, 'empty_paragraph_text')).toContain('non-minimal encoding')
+    })
+  })
 })
 
 function tmpPath(name: string): string {
@@ -1326,11 +1470,13 @@ function getEntryContent(cfb: CFB.CFB$Container, path: string): Buffer {
 }
 
 function getCheckStatus(result: Awaited<ReturnType<typeof validateHwp>>, checkName: string) {
-  const check = result.checks.find((item) => item.name === checkName)
-  return check?.status
+  return getCheck(result, checkName)?.status
 }
 
 function getCheckMessage(result: Awaited<ReturnType<typeof validateHwp>>, checkName: string) {
-  const check = result.checks.find((item) => item.name === checkName)
-  return check?.message ?? ''
+  return getCheck(result, checkName)?.message ?? ''
+}
+
+function getCheck(result: Awaited<ReturnType<typeof validateHwp>>, checkName: string) {
+  return result.checks.find((item) => item.name === checkName)
 }

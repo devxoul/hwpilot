@@ -43,6 +43,25 @@ type CfbRoot = {
   FileIndex?: Array<{ name: string; content?: Uint8Array }>
 }
 
+export const HWP_PROP_COMPRESSED = 0x00000001
+export const HWP_PROP_ENCRYPTED = 0x00000002
+export const HWP_PROP_DISTRIBUTION = 0x00000004
+export const HWP_PROP_HAS_SCRIPTS = 0x00000008
+export const HWP_PROP_DRM = 0x00000010
+export const HWP_PROP_HAS_XMLTEMPLATE = 0x00000020
+export const HWP_PROP_HAS_DOCHISTORY = 0x00000040
+export const HWP_PROP_HAS_SIGNATURE = 0x00000080
+export const HWP_PROP_CERT_ENCRYPTED = 0x00000100
+export const HWP_PROP_SIGN_PREVIEW = 0x00000200
+export const HWP_PROP_CERT_DRM = 0x00000400
+export const HWP_PROP_CCL = 0x00000800
+export const HWP_PROP_MOBILE = 0x00001000
+export const HWP_PROP_PRIVACY = 0x00002000
+export const HWP_PROP_TRACK_CHANGES = 0x00004000
+export const HWP_PROP_KOGL = 0x00008000
+export const HWP_PROP_HAS_VIDEO = 0x00010000
+export const HWP_PROP_HAS_TOC_FIELD = 0x00020000
+
 const DEFAULT_CONTENT_COVERAGE_THRESHOLD = 0.5
 const PICTURE_BIN_DATA_ID_OFFSET = 4 * 17 + 3
 const CELL_LIST_HEADER_BORDER_FILL_REF_OFFSET = 32
@@ -81,8 +100,8 @@ export async function validateHwpBuffer(buffer: Buffer, options: ValidateHwpOpti
   }
 
   const cfbLayer = validateCfbStructure(cfb)
-  checks.push(cfbLayer.check)
-  if (cfbLayer.check.status === 'fail') {
+  checks.push(...cfbLayer.checks)
+  if (cfbLayer.checks.some((check) => check.status === 'fail')) {
     return {
       valid: false,
       format: 'hwp',
@@ -129,19 +148,19 @@ export async function validateHwpBuffer(buffer: Buffer, options: ValidateHwpOpti
   }
 }
 
-function validateCfbStructure(cfb: CFB.CFB$Container): { check: CheckResult; isCompressed: boolean } {
+function validateCfbStructure(cfb: CFB.CFB$Container): { checks: CheckResult[]; isCompressed: boolean } {
   const fileHeaderEntry = findEntry(cfb, '/FileHeader', 'FileHeader')
   if (!fileHeaderEntry?.content) {
     return {
-      check: { name: 'cfb_structure', status: 'fail', message: 'Missing FileHeader stream' },
+      checks: [{ name: 'cfb_structure', status: 'fail', message: 'Missing FileHeader stream' }],
       isCompressed: false,
     }
   }
 
   const headerContent = Buffer.from(fileHeaderEntry.content)
-  if (headerContent.length < 40) {
+  if (headerContent.length < 44) {
     return {
-      check: { name: 'cfb_structure', status: 'fail', message: 'Invalid FileHeader length' },
+      checks: [{ name: 'cfb_structure', status: 'fail', message: 'Invalid FileHeader length' }],
       isCompressed: false,
     }
   }
@@ -149,23 +168,104 @@ function validateCfbStructure(cfb: CFB.CFB$Container): { check: CheckResult; isC
   const signature = headerContent.subarray(0, 17).toString('ascii')
   if (!signature.startsWith('HWP Document File')) {
     return {
-      check: { name: 'cfb_structure', status: 'fail', message: 'Invalid HWP signature' },
+      checks: [{ name: 'cfb_structure', status: 'fail', message: 'Invalid HWP signature' }],
       isCompressed: false,
     }
   }
 
-  const flags = headerContent.readUInt32LE(36)
-  if (flags & 0x2) {
+  const versionRaw = headerContent.readUInt32LE(32)
+  const version = {
+    major: (versionRaw >>> 24) & 0xff,
+    minor: (versionRaw >>> 16) & 0xff,
+    micro: (versionRaw >>> 8) & 0xff,
+    build: versionRaw & 0xff,
+    raw: versionRaw,
+  }
+  const flags1 = headerContent.readUInt32LE(36)
+  const flags2 = headerContent.readUInt32LE(40)
+  const propertyDetails = {
+    properties1: flags1,
+    properties2: flags2,
+    compressed: Boolean(flags1 & HWP_PROP_COMPRESSED),
+    hasScripts: Boolean(flags1 & HWP_PROP_HAS_SCRIPTS),
+    hasDocHistory: Boolean(flags1 & HWP_PROP_HAS_DOCHISTORY),
+    hasSignature: Boolean(flags1 & HWP_PROP_HAS_SIGNATURE),
+    ccl: Boolean(flags1 & HWP_PROP_CCL),
+    kogl: Boolean(flags1 & HWP_PROP_KOGL),
+    mobileOptimized: Boolean(flags1 & HWP_PROP_MOBILE),
+    privacySecured: Boolean(flags1 & HWP_PROP_PRIVACY),
+    trackChanges: Boolean(flags1 & HWP_PROP_TRACK_CHANGES),
+    hasVideo: Boolean(flags1 & HWP_PROP_HAS_VIDEO),
+    hasTocField: Boolean(flags1 & HWP_PROP_HAS_TOC_FIELD),
+  }
+  const cfbStructureCheck: CheckResult = {
+    name: 'cfb_structure',
+    status: 'pass',
+    details: {
+      ...propertyDetails,
+      version,
+    },
+  }
+
+  if (flags1 & HWP_PROP_ENCRYPTED) {
     return {
-      check: { name: 'cfb_structure', status: 'fail', message: 'Password-protected files are not supported' },
+      checks: [{ ...cfbStructureCheck, status: 'fail', message: 'Password-protected files are not supported' }],
       isCompressed: false,
     }
+  }
+
+  if (flags1 & HWP_PROP_DISTRIBUTION) {
+    return {
+      checks: [
+        {
+          ...cfbStructureCheck,
+          status: 'fail',
+          message: 'Distribution documents are not supported (BodyText is stored in ViewText)',
+        },
+      ],
+      isCompressed: false,
+    }
+  }
+
+  if (flags1 & (HWP_PROP_DRM | HWP_PROP_CERT_DRM | HWP_PROP_CERT_ENCRYPTED)) {
+    return {
+      checks: [{ ...cfbStructureCheck, status: 'fail', message: 'DRM-protected files are not supported' }],
+      isCompressed: false,
+    }
+  }
+
+  const checks: CheckResult[] = [cfbStructureCheck]
+  if (version.raw === 0) {
+    checks.push({
+      name: 'schema_version',
+      status: 'warn',
+      message: 'FileHeader FILEVERSION is zero; cannot determine HWP schema version',
+      details: { version },
+    })
+  } else if (version.major !== 5) {
+    checks.push({
+      name: 'schema_version',
+      status: 'fail',
+      message: `Unsupported HWP schema version ${version.major}.${version.minor}.${version.micro}.${version.build}`,
+      details: { version },
+    })
+  } else {
+    checks.push({ name: 'schema_version', status: 'pass', details: { version } })
+  }
+
+  if (propertyDetails.trackChanges) {
+    checks.push({
+      name: 'document_properties',
+      status: 'warn',
+      message: 'Document has track changes enabled; editing may lose revision history',
+      details: propertyDetails,
+    })
   }
 
   const docInfoEntry = findEntry(cfb, '/DocInfo', 'DocInfo')
   if (!docInfoEntry?.content) {
     return {
-      check: { name: 'cfb_structure', status: 'fail', message: 'Missing DocInfo stream' },
+      checks: [{ ...cfbStructureCheck, status: 'fail', message: 'Missing DocInfo stream' }, ...checks.slice(1)],
       isCompressed: false,
     }
   }
@@ -173,14 +273,14 @@ function validateCfbStructure(cfb: CFB.CFB$Container): { check: CheckResult; isC
   const section0Entry = findEntry(cfb, '/BodyText/Section0', 'BodyText/Section0')
   if (!section0Entry?.content) {
     return {
-      check: { name: 'cfb_structure', status: 'fail', message: 'Missing BodyText/Section0 stream' },
+      checks: [{ ...cfbStructureCheck, status: 'fail', message: 'Missing BodyText/Section0 stream' }, ...checks.slice(1)],
       isCompressed: false,
     }
   }
 
   return {
-    check: { name: 'cfb_structure', status: 'pass' },
-    isCompressed: Boolean(flags & 0x1),
+    checks,
+    isCompressed: propertyDetails.compressed,
   }
 }
 
@@ -735,7 +835,7 @@ function validateEmptyParagraphText(sectionStreams: StreamRef[]): CheckResult {
     return {
       name: 'empty_paragraph_text',
       status: 'fail',
-      message: `${issues.length} empty paragraph(s) have PARA_TEXT records (should be omitted for nChars ≤ 1)`,
+      message: `${issues.length} empty paragraph(s) contain PARA_TEXT with only the paragraph-end marker (0x000D); non-minimal encoding, not necessarily corruption`,
       details: {
         issueCount: issues.length,
         examples: issues.slice(0, 5),
