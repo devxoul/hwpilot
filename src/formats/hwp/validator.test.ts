@@ -396,6 +396,43 @@ describe('validateHwp', () => {
       // Should pass because style-referenced charShapes (headings 1-7) count toward coverage
       expect(getCheckStatus(result, 'content_completeness')).toBe('pass')
     })
+
+    it('uses default 0.5 threshold when no option passed', async () => {
+      const result = await validateHwp('e2e/fixtures/README-corrupted.hwp')
+
+      expect(getCheckStatus(result, 'content_completeness')).toBe('fail')
+    })
+
+    it('respects custom threshold of 0.1', async () => {
+      const result = await validateHwp('e2e/fixtures/README-corrupted.hwp', { contentCoverageThreshold: 0.1 })
+
+      expect(getCheckStatus(result, 'content_completeness')).toBe('pass')
+    })
+
+    it('respects custom threshold of 0.9', async () => {
+      const filePath = await writeTempHwp(
+        await buildCoverageFixture(10, [0, 1, 2, 3, 4, 5]),
+        'validator-f-high-threshold',
+      )
+
+      const defaultResult = await validateHwp(filePath)
+      const strictResult = await validateHwp(filePath, { contentCoverageThreshold: 0.9 })
+
+      expect(getCheckStatus(defaultResult, 'content_completeness')).toBe('pass')
+      expect(getCheckStatus(strictResult, 'content_completeness')).toBe('fail')
+    })
+
+    it('throws TypeError when threshold > 1', async () => {
+      await expect(
+        validateHwpBuffer(await createTestHwpBinary({ paragraphs: ['hello'] }), { contentCoverageThreshold: 1.1 }),
+      ).rejects.toThrow(TypeError)
+    })
+
+    it('throws TypeError when threshold < 0', async () => {
+      await expect(
+        validateHwpBuffer(await createTestHwpBinary({ paragraphs: ['hello'] }), { contentCoverageThreshold: -0.1 }),
+      ).rejects.toThrow(TypeError)
+    })
   })
 
   describe('Section G — Layer 7: Paragraph Completeness', () => {
@@ -901,6 +938,105 @@ describe('validateHwp', () => {
       expect(getCheckStatus(result, 'table_structure')).toBe('pass')
     })
   })
+
+  describe('Section I — Layer 9: Border Fill References', () => {
+    it('fails when cells reference unknown borderFillRef', async () => {
+      const filePath = await writeTempHwp(
+        await buildHwpWithDocInfoAndSection0({
+          docInfoMutate: (docInfo) => Buffer.concat([docInfo, buildRecord(TAG.BORDER_FILL, 0, Buffer.alloc(0))]),
+          section0: buildSectionWithTableCell({ borderFillRef: 5 }),
+        }),
+        'validator-i-border-fill-oob',
+      )
+
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'border_fill_default')).toBe('fail')
+      expect(getCheckMessage(result, 'border_fill_default')).toContain('borderFillRef 5 out of bounds')
+    })
+
+    it('passes when all borderFillRefs are in bounds', async () => {
+      const filePath = await writeTempHwp(
+        await buildHwpWithDocInfoAndSection0({
+          docInfoMutate: (docInfo) => Buffer.concat([docInfo, buildRecord(TAG.BORDER_FILL, 0, Buffer.alloc(0))]),
+          section0: buildSectionWithTableCell({ borderFillRef: 1 }),
+        }),
+        'validator-i-border-fill-pass',
+      )
+
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'border_fill_default')).toBe('pass')
+    })
+
+    it('passes when no cells reference borderFillRef', async () => {
+      const filePath = await writeTempHwp(
+        await createTestHwpBinary({ paragraphs: ['hello'] }),
+        'validator-i-border-fill-none',
+      )
+
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'border_fill_default')).toBe('pass')
+    })
+
+    it('fails when cells exist but no BORDER_FILL records declared', async () => {
+      const filePath = await writeTempHwp(
+        await buildHwpWithDocInfoAndSection0({
+          docInfoMutate: removeBorderFillRecords,
+          section0: buildSectionWithTableCell({ borderFillRef: 1 }),
+        }),
+        'validator-i-border-fill-missing-docinfo',
+      )
+
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'border_fill_default')).toBe('fail')
+      expect(getCheckMessage(result, 'border_fill_default')).toContain('DocInfo has no BORDER_FILL records')
+    })
+  })
+
+  describe('Section J — Layer 10: Picture References', () => {
+    it('fails on picture with out-of-bounds binDataId', async () => {
+      const filePath = await writeTempHwp(
+        await buildHwpWithDocInfoAndSection0({
+          docInfoMutate: (docInfo) => Buffer.concat([docInfo, buildBinDataRecord(1), buildBinDataRecord(2)]),
+          section0: buildSectionWithPicture(10),
+        }),
+        'validator-j-picture-oob',
+      )
+
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'picture_references')).toBe('fail')
+      expect(getCheckMessage(result, 'picture_references')).toContain('binDataId 10')
+    })
+
+    it('passes on picture with valid binDataId', async () => {
+      const filePath = await writeTempHwp(
+        await buildHwpWithDocInfoAndSection0({
+          docInfoMutate: (docInfo) => Buffer.concat([docInfo, buildBinDataRecord(1), buildBinDataRecord(2)]),
+          section0: buildSectionWithPicture(2),
+        }),
+        'validator-j-picture-pass',
+      )
+
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'picture_references')).toBe('pass')
+    })
+
+    it('passes when no pictures present', async () => {
+      const filePath = await writeTempHwp(
+        await createTestHwpBinary({ paragraphs: ['hello'] }),
+        'validator-j-picture-none',
+      )
+
+      const result = await validateHwp(filePath)
+
+      expect(getCheckStatus(result, 'picture_references')).toBe('pass')
+    })
+  })
 })
 
 function tmpPath(name: string): string {
@@ -1052,6 +1188,127 @@ async function buildHwpWithCustomSection0(section0: Buffer): Promise<Buffer> {
   CFB.utils.cfb_add(cfb, 'DocInfo', docInfo)
   CFB.utils.cfb_add(cfb, 'BodyText/Section0', section0)
   return Buffer.from(CFB.write(cfb, { type: 'buffer' }))
+}
+
+async function buildHwpWithDocInfoAndSection0(options: {
+  docInfoMutate?: (docInfo: Buffer) => Buffer
+  section0: Buffer
+}): Promise<Buffer> {
+  const base = CFB.read(await createTestHwpBinary({ paragraphs: ['hello'] }), { type: 'buffer' })
+  const fileHeader = getEntryContent(base, '/FileHeader')
+  const docInfo = getEntryContent(base, '/DocInfo')
+  const nextDocInfo = options.docInfoMutate ? options.docInfoMutate(docInfo) : docInfo
+
+  const cfb = CFB.utils.cfb_new()
+  CFB.utils.cfb_add(cfb, 'FileHeader', fileHeader)
+  CFB.utils.cfb_add(cfb, 'DocInfo', nextDocInfo)
+  CFB.utils.cfb_add(cfb, 'BodyText/Section0', options.section0)
+  return Buffer.from(CFB.write(cfb, { type: 'buffer' }))
+}
+
+function buildSectionWithTableCell(options: { borderFillRef: number }): Buffer {
+  const paraHeader = Buffer.alloc(24)
+  paraHeader.writeUInt32LE((0x80000000 | 1) >>> 0, 0)
+
+  const tableCtrlHeader = Buffer.alloc(44)
+  controlIdBuffer('tbl ').copy(tableCtrlHeader, 0)
+  tableCtrlHeader.writeUInt32LE(14100, 16)
+  tableCtrlHeader.writeUInt32LE(1000, 20)
+
+  const cellHeader = buildCellListHeaderData(0, 0, 1, 1)
+  cellHeader.writeUInt16LE(options.borderFillRef, 32)
+
+  return Buffer.concat([
+    buildRecord(TAG.PARA_HEADER, 0, paraHeader),
+    buildRecord(TAG.PARA_TEXT, 1, Buffer.from('\x0b\x00', 'binary')),
+    buildRecord(TAG.PARA_CHAR_SHAPE, 1, Buffer.alloc(8)),
+    buildRecord(TAG.PARA_LINE_SEG, 1, Buffer.alloc(36)),
+    buildRecord(TAG.CTRL_HEADER, 1, tableCtrlHeader),
+    buildRecord(TAG.TABLE, 2, buildTableData(1, 1)),
+    buildRecord(TAG.LIST_HEADER, 2, cellHeader),
+    buildRecord(TAG.PARA_HEADER, 3, paraHeader),
+    buildRecord(TAG.PARA_TEXT, 3, Buffer.from('A', 'utf16le')),
+    buildRecord(TAG.PARA_CHAR_SHAPE, 3, Buffer.alloc(8)),
+    buildRecord(TAG.PARA_LINE_SEG, 3, Buffer.alloc(36)),
+  ])
+}
+
+function buildSectionWithPicture(binDataId: number): Buffer {
+  const paraHeader = Buffer.alloc(24)
+  paraHeader.writeUInt32LE((0x80000000 | 1) >>> 0, 0)
+
+  const pictureData = Buffer.alloc(73)
+  pictureData.writeUInt16LE(binDataId, 71)
+
+  return Buffer.concat([
+    buildRecord(TAG.PARA_HEADER, 0, paraHeader),
+    buildRecord(TAG.PARA_TEXT, 1, Buffer.from('A', 'utf16le')),
+    buildRecord(TAG.PARA_CHAR_SHAPE, 1, Buffer.alloc(8)),
+    buildRecord(TAG.PARA_LINE_SEG, 1, Buffer.alloc(36)),
+    buildRecord(TAG.SHAPE_COMPONENT_PICTURE, 1, pictureData),
+  ])
+}
+
+function buildBinDataRecord(id: number): Buffer {
+  const data = Buffer.alloc(4)
+  data.writeUInt16LE(1, 0)
+  data.writeUInt16LE(id, 2)
+  return buildRecord(TAG.BIN_DATA, 0, data)
+}
+
+function removeBorderFillRecords(docInfo: Buffer): Buffer {
+  const records: Buffer[] = []
+
+  for (const { header, data } of iterateRecords(docInfo)) {
+    if (header.tagId === TAG.BORDER_FILL) {
+      continue
+    }
+
+    if (header.tagId === TAG.ID_MAPPINGS) {
+      const nextData = Buffer.from(data)
+      nextData.writeUInt32LE(0, 32)
+      records.push(buildRecord(header.tagId, header.level, nextData))
+      continue
+    }
+
+    records.push(buildRecord(header.tagId, header.level, Buffer.from(data)))
+  }
+
+  return Buffer.concat(records)
+}
+
+async function buildCoverageFixture(
+  declaredCharShapeCount: number,
+  referencedCharShapeRefs: number[],
+): Promise<Buffer> {
+  const additionalCharShapeCount = declaredCharShapeCount - 1
+  if (additionalCharShapeCount < 0) {
+    throw new Error('declaredCharShapeCount must be at least 1')
+  }
+
+  const paraHeader = Buffer.alloc(24)
+  paraHeader.writeUInt32LE((0x80000000 | 6) >>> 0, 0)
+
+  const paraCharShape = Buffer.alloc(referencedCharShapeRefs.length * 8)
+  referencedCharShapeRefs.forEach((ref, index) => {
+    paraCharShape.writeUInt32LE(index, index * 8)
+    paraCharShape.writeUInt32LE(ref, index * 8 + 4)
+  })
+
+  return buildHwpWithDocInfoAndSection0({
+    docInfoMutate: (docInfo) => {
+      const extraCharShapes = Array.from({ length: additionalCharShapeCount }, () =>
+        buildRecord(TAG.CHAR_SHAPE, 0, Buffer.alloc(56)),
+      )
+      return Buffer.concat([docInfo, ...extraCharShapes])
+    },
+    section0: Buffer.concat([
+      buildRecord(TAG.PARA_HEADER, 0, paraHeader),
+      buildRecord(TAG.PARA_TEXT, 1, Buffer.from('abcdef', 'utf16le')),
+      buildRecord(TAG.PARA_CHAR_SHAPE, 1, paraCharShape),
+      buildRecord(TAG.PARA_LINE_SEG, 1, Buffer.alloc(36)),
+    ]),
+  })
 }
 
 function getEntryContent(cfb: CFB.CFB$Container, path: string): Buffer {

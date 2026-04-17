@@ -21,6 +21,10 @@ export type ValidateResult = {
   checks: CheckResult[]
 }
 
+export type ValidateHwpOptions = {
+  contentCoverageThreshold?: number
+}
+
 type ParsedRecord = {
   tagId: number
   level: number
@@ -39,13 +43,18 @@ type CfbRoot = {
   FileIndex?: Array<{ name: string; content?: Uint8Array }>
 }
 
-export async function validateHwp(fileBuffer: Uint8Array): Promise<ValidateResult> {
-  const result = await validateHwpBuffer(Buffer.from(fileBuffer))
+const DEFAULT_CONTENT_COVERAGE_THRESHOLD = 0.5
+const PICTURE_BIN_DATA_ID_OFFSET = 4 * 17 + 3
+const CELL_LIST_HEADER_BORDER_FILL_REF_OFFSET = 32
+
+export async function validateHwp(fileBuffer: Uint8Array, options: ValidateHwpOptions = {}): Promise<ValidateResult> {
+  const result = await validateHwpBuffer(Buffer.from(fileBuffer), options)
   return result
 }
 
-export async function validateHwpBuffer(buffer: Buffer): Promise<ValidateResult> {
+export async function validateHwpBuffer(buffer: Buffer, options: ValidateHwpOptions = {}): Promise<ValidateResult> {
   const checks: CheckResult[] = []
+  const contentCoverageThreshold = getContentCoverageThreshold(options)
 
   const magic = buffer.subarray(0, 4)
   if (magic[0] === 0x50 && magic[1] === 0x4b && magic[2] === 0x03 && magic[3] === 0x04) {
@@ -53,7 +62,9 @@ export async function validateHwpBuffer(buffer: Buffer): Promise<ValidateResult>
       valid: true,
       format: 'hwpx',
       file: '<buffer>',
-      checks: [{ name: 'format_type', status: 'skip', message: 'HWPX (ZIP) format detected; HWP-specific validation skipped' }],
+      checks: [
+        { name: 'format_type', status: 'skip', message: 'HWPX (ZIP) format detected; HWP-specific validation skipped' },
+      ],
     }
   }
 
@@ -103,10 +114,12 @@ export async function validateHwpBuffer(buffer: Buffer): Promise<ValidateResult>
   checks.push(validateNCharsConsistency(sectionStreams))
   checks.push(validateCrossReferences(docInfoBuffer, sectionStreams))
   checks.push(validateIdMappings(docInfoBuffer))
-  checks.push(validateContentCompleteness(docInfoBuffer, sectionStreams))
+  checks.push(validateContentCompleteness(docInfoBuffer, sectionStreams, contentCoverageThreshold))
   checks.push(validateParagraphCompleteness(sectionStreams))
   checks.push(validateTableStructure(sectionStreams))
   checks.push(validateEmptyParagraphText(sectionStreams))
+  checks.push(validateBorderFillDefault(docInfoBuffer, sectionStreams))
+  checks.push(validatePictureReferences(docInfoBuffer, sectionStreams))
 
   return {
     valid: checks.every((check) => check.status !== 'fail'),
@@ -472,7 +485,11 @@ function validateIdMappings(docInfoBuffer: Buffer): CheckResult {
   }
 }
 
-function validateContentCompleteness(docInfoBuffer: Buffer, sectionStreams: StreamRef[]): CheckResult {
+function validateContentCompleteness(
+  docInfoBuffer: Buffer,
+  sectionStreams: StreamRef[],
+  coverageThreshold: number,
+): CheckResult {
   const docInfoRecords = parseRecords(docInfoBuffer)
   const declaredCharShapeCount = docInfoRecords.filter((record) => record.tagId === TAG.CHAR_SHAPE).length
   if (declaredCharShapeCount < 10) {
@@ -509,7 +526,7 @@ function validateContentCompleteness(docInfoBuffer: Buffer, sectionStreams: Stre
   }
 
   const coverageRatio = uniqueRefs.size / declaredCharShapeCount
-  if (coverageRatio < 0.5) {
+  if (coverageRatio < coverageThreshold) {
     return {
       name: 'content_completeness',
       status: 'fail',
@@ -518,6 +535,7 @@ function validateContentCompleteness(docInfoBuffer: Buffer, sectionStreams: Stre
         declaredCharShapes: declaredCharShapeCount,
         referencedCharShapes: uniqueRefs.size,
         coveragePercent: Math.round(coverageRatio * 100),
+        coverageThreshold,
       },
     }
   }
@@ -525,6 +543,80 @@ function validateContentCompleteness(docInfoBuffer: Buffer, sectionStreams: Stre
   return { name: 'content_completeness', status: 'pass' }
 }
 
+function validateBorderFillDefault(docInfoBuffer: Buffer, sectionStreams: StreamRef[]): CheckResult {
+  const docInfoRecords = parseRecords(docInfoBuffer)
+  const borderFillCount = docInfoRecords.filter((record) => record.tagId === TAG.BORDER_FILL).length
+  let highestReferencedBorderFillRef: number | null = null
+
+  for (const stream of sectionStreams) {
+    const refs = collectCellBorderFillRefs(stream.buffer)
+    for (const ref of refs) {
+      if (highestReferencedBorderFillRef === null || ref > highestReferencedBorderFillRef) {
+        highestReferencedBorderFillRef = ref
+      }
+    }
+  }
+
+  if (highestReferencedBorderFillRef === null) {
+    return { name: 'border_fill_default', status: 'pass' }
+  }
+
+  if (borderFillCount === 0 && highestReferencedBorderFillRef > 0) {
+    return {
+      name: 'border_fill_default',
+      status: 'fail',
+      message: `Section references borderFillRef ${highestReferencedBorderFillRef} but DocInfo has no BORDER_FILL records`,
+    }
+  }
+
+  if (highestReferencedBorderFillRef > borderFillCount) {
+    return {
+      name: 'border_fill_default',
+      status: 'fail',
+      message: `borderFillRef ${highestReferencedBorderFillRef} out of bounds (only ${borderFillCount} BORDER_FILL records declared)`,
+    }
+  }
+
+  return { name: 'border_fill_default', status: 'pass' }
+}
+
+function validatePictureReferences(docInfoBuffer: Buffer, sectionStreams: StreamRef[]): CheckResult {
+  const docInfoRecords = parseRecords(docInfoBuffer)
+  const binDataCount = docInfoRecords.filter((record) => record.tagId === TAG.BIN_DATA).length
+  let highestReferencedBinDataId: number | null = null
+
+  for (const stream of sectionStreams) {
+    const records = parseRecords(stream.buffer)
+    for (const record of records) {
+      if (record.tagId !== TAG.SHAPE_COMPONENT_PICTURE || record.data.length < PICTURE_BIN_DATA_ID_OFFSET + 2) {
+        continue
+      }
+
+      const binDataId = record.data.readUInt16LE(PICTURE_BIN_DATA_ID_OFFSET)
+      if (binDataId === 0) {
+        continue
+      }
+
+      if (highestReferencedBinDataId === null || binDataId > highestReferencedBinDataId) {
+        highestReferencedBinDataId = binDataId
+      }
+    }
+  }
+
+  if (highestReferencedBinDataId === null) {
+    return { name: 'picture_references', status: 'pass' }
+  }
+
+  if (highestReferencedBinDataId > binDataCount) {
+    return {
+      name: 'picture_references',
+      status: 'fail',
+      message: `Picture references binDataId ${highestReferencedBinDataId} but DocInfo has only ${binDataCount} BIN_DATA records`,
+    }
+  }
+
+  return { name: 'picture_references', status: 'pass' }
+}
 
 function validateParagraphCompleteness(sectionStreams: StreamRef[]): CheckResult {
   const missingCharShape: Array<{ stream: string; level: number }> = []
@@ -846,6 +938,42 @@ function materializeSectionStreams(sectionEntries: StreamRef[], compressed: bool
   return streams
 }
 
+function collectCellBorderFillRefs(buffer: Buffer): number[] {
+  const refs: number[] = []
+  const records = parseRecords(buffer)
+  let tableCtrlLevel: number | null = null
+
+  for (const record of records) {
+    if (record.tagId === TAG.CTRL_HEADER && record.data.length >= 4) {
+      const controlType = readControlId(record.data)
+      if (controlType === 'tbl ') {
+        tableCtrlLevel = record.level
+        continue
+      }
+
+      if (tableCtrlLevel !== null && record.level <= tableCtrlLevel) {
+        tableCtrlLevel = null
+      }
+    }
+
+    if (tableCtrlLevel !== null && record.tagId === TAG.PARA_HEADER && record.level === 0) {
+      tableCtrlLevel = null
+    }
+
+    if (tableCtrlLevel === null || record.tagId !== TAG.LIST_HEADER || record.level !== tableCtrlLevel + 1) {
+      continue
+    }
+
+    if (record.data.length < CELL_LIST_HEADER_BORDER_FILL_REF_OFFSET + 2) {
+      continue
+    }
+
+    refs.push(record.data.readUInt16LE(CELL_LIST_HEADER_BORDER_FILL_REF_OFFSET))
+  }
+
+  return refs
+}
+
 function getStreamBuffer(raw: Buffer, compressed: boolean): Buffer | null {
   if (!compressed) {
     return raw
@@ -856,6 +984,19 @@ function getStreamBuffer(raw: Buffer, compressed: boolean): Buffer | null {
   } catch {
     return null
   }
+}
+
+function getContentCoverageThreshold(options: ValidateHwpOptions): number {
+  const threshold = options.contentCoverageThreshold
+  if (threshold === undefined) {
+    return DEFAULT_CONTENT_COVERAGE_THRESHOLD
+  }
+
+  if (threshold < 0 || threshold > 1) {
+    throw new TypeError('contentCoverageThreshold must be between 0 and 1 inclusive')
+  }
+
+  return threshold
 }
 
 function parseRecords(buffer: Buffer): ParsedRecord[] {
