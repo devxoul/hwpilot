@@ -137,6 +137,123 @@ describe('parseSection', () => {
     expect(section.images).toHaveLength(0)
   })
 
+  it('parses tables nested inside paragraph runs (real-world Hancom shape)', () => {
+    const xml = `<?xml version="1.0"?>
+<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"
+        xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+  <hp:p hp:id="0" hp:paraPrIDRef="0" hp:styleIDRef="0">
+    <hp:run hp:charPrIDRef="0">
+      <hp:tbl>
+        <hp:tr>
+          <hp:tc>
+            <hp:cellSpan hp:colSpan="1" hp:rowSpan="1"/>
+            <hp:subList>
+              <hp:p hp:id="0" hp:paraPrIDRef="0" hp:styleIDRef="0">
+                <hp:run hp:charPrIDRef="0"><hp:t>Nested cell</hp:t></hp:run>
+              </hp:p>
+            </hp:subList>
+          </hp:tc>
+        </hp:tr>
+      </hp:tbl>
+    </hp:run>
+  </hp:p>
+</hs:sec>`
+
+    const section = parseSection(xml, 0)
+    expect(section.paragraphs).toHaveLength(1)
+    expect(section.tables).toHaveLength(1)
+    expect(section.tables[0].ref).toBe('s0.t0')
+    expect(section.tables[0].rows[0].cells[0].paragraphs[0].runs[0].text).toBe('Nested cell')
+  })
+
+  it('parses images nested inside paragraph runs', () => {
+    const xml = `<?xml version="1.0"?>
+<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"
+        xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+  <hp:p hp:id="0" hp:paraPrIDRef="0" hp:styleIDRef="0">
+    <hp:run hp:charPrIDRef="0">
+      <hp:pic hp:binDataIDRef="image1.png" hp:format="png" hp:width="100" hp:height="50"/>
+    </hp:run>
+  </hp:p>
+</hs:sec>`
+
+    const section = parseSection(xml, 0)
+    expect(section.images).toHaveLength(1)
+    expect(section.images[0].ref).toBe('s0.img0')
+    expect(section.images[0].binDataPath).toBe('BinData/image1.png')
+  })
+
+  it('preserves document order: section-direct then nested for the same tag', () => {
+    const xml = `<?xml version="1.0"?>
+<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"
+        xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+  <hp:tbl>
+    <hp:tr>
+      <hp:tc>
+        <hp:cellSpan hp:colSpan="1" hp:rowSpan="1"/>
+        <hp:p hp:id="0" hp:paraPrIDRef="0" hp:styleIDRef="0">
+          <hp:run hp:charPrIDRef="0"><hp:t>direct</hp:t></hp:run>
+        </hp:p>
+      </hp:tc>
+    </hp:tr>
+  </hp:tbl>
+  <hp:p hp:id="1" hp:paraPrIDRef="0" hp:styleIDRef="0">
+    <hp:run hp:charPrIDRef="0">
+      <hp:tbl>
+        <hp:tr>
+          <hp:tc>
+            <hp:cellSpan hp:colSpan="1" hp:rowSpan="1"/>
+            <hp:subList>
+              <hp:p hp:id="0" hp:paraPrIDRef="0" hp:styleIDRef="0">
+                <hp:run hp:charPrIDRef="0"><hp:t>nested</hp:t></hp:run>
+              </hp:p>
+            </hp:subList>
+          </hp:tc>
+        </hp:tr>
+      </hp:tbl>
+    </hp:run>
+  </hp:p>
+</hs:sec>`
+
+    const section = parseSection(xml, 0)
+    expect(section.tables).toHaveLength(2)
+    expect(section.tables[0].rows[0].cells[0].paragraphs[0].runs[0].text).toBe('direct')
+    expect(section.tables[1].rows[0].cells[0].paragraphs[0].runs[0].text).toBe('nested')
+  })
+
+  it('does not surface tables nested inside table cells as top-level tables', () => {
+    const xml = `<?xml version="1.0"?>
+<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"
+        xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+  <hp:tbl>
+    <hp:tr>
+      <hp:tc>
+        <hp:cellSpan hp:colSpan="1" hp:rowSpan="1"/>
+        <hp:subList>
+          <hp:p hp:id="0" hp:paraPrIDRef="0" hp:styleIDRef="0">
+            <hp:run hp:charPrIDRef="0">
+              <hp:tbl>
+                <hp:tr>
+                  <hp:tc>
+                    <hp:cellSpan hp:colSpan="1" hp:rowSpan="1"/>
+                    <hp:p hp:id="0" hp:paraPrIDRef="0" hp:styleIDRef="0">
+                      <hp:run hp:charPrIDRef="0"><hp:t>inner</hp:t></hp:run>
+                    </hp:p>
+                  </hp:tc>
+                </hp:tr>
+              </hp:tbl>
+            </hp:run>
+          </hp:p>
+        </hp:subList>
+      </hp:tc>
+    </hp:tr>
+  </hp:tbl>
+</hs:sec>`
+
+    const section = parseSection(xml, 0)
+    expect(section.tables).toHaveLength(1)
+  })
+
   it('parses text boxes from rect inside paragraph', () => {
     const xml = `<?xml version="1.0"?>
 <hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"

@@ -20,11 +20,9 @@ export function parseSection(xml: string, sectionIndex: number): Section {
   const sec = (parsed['hs:sec'] ?? {}) as XmlNode
 
   const rawParagraphs = asArray<XmlNode>(sec['hp:p'])
-  const rawTables = asArray<XmlNode>(sec['hp:tbl'])
-  const rawPics = asArray<XmlNode>(sec['hp:pic'])
-  const sectionRects = asArray<XmlNode>(sec['hp:rect'])
-  const inlineRects = rawParagraphs.flatMap((paragraph) => asArray<XmlNode>(paragraph['hp:rect']))
-  const rawRects = [...sectionRects, ...inlineRects]
+  const rawTables = collectFlowChildren(sec, rawParagraphs, 'hp:tbl')
+  const rawPics = collectFlowChildren(sec, rawParagraphs, 'hp:pic')
+  const rawRects = collectFlowChildren(sec, rawParagraphs, 'hp:rect')
 
   const paragraphs = rawParagraphs.map((paragraph, paragraphIndex) =>
     parseParagraph(paragraph, {
@@ -45,6 +43,28 @@ export function parseSection(xml: string, sectionIndex: number): Section {
     images,
     textBoxes,
   }
+}
+
+/**
+ * Collect element instances of `tag` that appear directly in the section flow,
+ * in document order. The flow is: section-level direct children, plus any
+ * children nested inside `hp:p` (paragraph-direct) or `hp:p > hp:run`
+ * (run-direct) wrappers. Real-world HWPX produced by Hancom typically wraps
+ * tables/images inside paragraph runs even when conceptually they are
+ * top-level objects, so a section-only collector misses them entirely.
+ *
+ * Traversal is intentionally narrow: we do not recurse into `hp:tc` (table
+ * cells), `hp:drawText` (text box bodies), or other subtrees, otherwise nested
+ * tables-in-cells would surface as top-level tables and break ref semantics.
+ */
+function collectFlowChildren(sec: XmlNode, paragraphs: XmlNode[], tag: string): XmlNode[] {
+  const sectionDirect = asArray<XmlNode>(sec[tag])
+  const fromParagraphs = paragraphs.flatMap((paragraph) => {
+    const paragraphDirect = asArray<XmlNode>(paragraph[tag])
+    const runDirect = asArray<XmlNode>(paragraph['hp:run']).flatMap((run) => asArray<XmlNode>(run[tag]))
+    return [...paragraphDirect, ...runDirect]
+  })
+  return [...sectionDirect, ...fromParagraphs]
 }
 
 export async function parseSections(archive: HwpxArchive): Promise<Section[]> {
@@ -141,7 +161,7 @@ function parseTableCell(
   cellIndex: number,
 ): TableCell {
   const span = (cell['hp:cellSpan'] ?? {}) as XmlNode
-  const rawParagraphs = asArray<XmlNode>(cell['hp:p'])
+  const rawParagraphs = getCellParagraphs(cell)
 
   const paragraphs = rawParagraphs.map((paragraph, paragraphIndex) =>
     parseParagraph(paragraph, {
@@ -159,6 +179,23 @@ function parseTableCell(
     colSpan: asNumber(span['hp:colSpan'], 1),
     rowSpan: asNumber(span['hp:rowSpan'], 1),
   }
+}
+
+/**
+ * Real-world HWPX wraps cell paragraphs in `<hp:subList>` (matching the spec
+ * for table-cell text containers), but minimal/synthetic HWPX often nests
+ * paragraphs directly under `<hp:tc>`. Accept both shapes.
+ */
+function getCellParagraphs(cell: XmlNode): XmlNode[] {
+  const direct = asArray<XmlNode>(cell['hp:p'])
+  if (direct.length > 0) {
+    return direct
+  }
+  const subList = cell['hp:subList']
+  if (subList && typeof subList === 'object') {
+    return asArray<XmlNode>((subList as XmlNode)['hp:p'])
+  }
+  return []
 }
 
 function parseImage(pic: XmlNode, sectionIndex: number, imageIndex: number): Image {
