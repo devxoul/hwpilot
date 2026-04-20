@@ -826,4 +826,50 @@ describe('mutateHwpxZip', () => {
     const decodedText = normalParsed[0]?.['hp:t']?.[0]?.['#text']
     expect(decodedText).toBe(userText)
   })
+
+  it('edits a cell in a real-Hancom-shaped table (run-nested + subList cell wrapper)', async () => {
+    const sectionXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"
+        xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+  <hp:p hp:id="0" hp:paraPrIDRef="0" hp:styleIDRef="0">
+    <hp:run hp:charPrIDRef="0">
+      <hp:tbl>
+        <hp:tr>
+          <hp:tc>
+            <hp:cellSpan hp:colSpan="1" hp:rowSpan="1"/>
+            <hp:subList>
+              <hp:p hp:id="0" hp:paraPrIDRef="0" hp:styleIDRef="0">
+                <hp:run hp:charPrIDRef="0"><hp:t>OriginalCell</hp:t></hp:run>
+              </hp:p>
+            </hp:subList>
+          </hp:tc>
+        </hp:tr>
+      </hp:tbl>
+    </hp:run>
+  </hp:p>
+</hs:sec>`
+
+    const filePath = tmpPath('mutator-realhancom')
+    const fixture = await createTestHwpx({ paragraphs: ['placeholder'] })
+    await Bun.write(filePath, fixture)
+
+    try {
+      const archive = await loadHwpx(filePath)
+      const zip = archive.getZip()
+      zip.file('Contents/section0.xml', sectionXml)
+
+      await mutateHwpxZip(zip, archive, [{ type: 'setTableCell', ref: 's0.t0.r0.c0', text: 'EditedCell' }])
+
+      const after = await zip.file('Contents/section0.xml')!.async('string')
+      expect(after).toContain('EditedCell')
+      expect(after).not.toContain('OriginalCell')
+      expect(after).toContain('hp:subList')
+
+      const sections = await parseSections(archive)
+      expect(sections[0].tables).toHaveLength(1)
+      expect(sections[0].tables[0].rows[0].cells[0].paragraphs[0].runs[0].text).toBe('EditedCell')
+    } finally {
+      await unlink(filePath)
+    }
+  })
 })
