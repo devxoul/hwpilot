@@ -597,9 +597,7 @@ function getSectionParagraphNode(sectionTree: XmlNode[], paragraphIndex: number)
 }
 
 function getTableCellNode(sectionTree: XmlNode[], tableIndex: number, rowIndex: number, cellIndex: number): XmlNode {
-  const sectionRoot = getSectionRootNode(sectionTree)
-  const sectionChildren = getElementChildren(sectionRoot, getElementName(sectionRoot))
-  const tables = getChildElements(sectionChildren, 'hp:tbl')
+  const tables = collectFlowChildElements(sectionTree, 'hp:tbl')
   const table = tables[tableIndex]
 
   if (!table) {
@@ -648,19 +646,42 @@ function getTextBoxParagraphNode(sectionTree: XmlNode[], textBoxIndex: number, p
 }
 
 function getTextBoxRectNodes(sectionTree: XmlNode[]): XmlNode[] {
+  return collectFlowChildElements(sectionTree, 'hp:rect')
+}
+
+/**
+ * Mutator-side mirror of `collectFlowChildren` in `section-parser.ts`. Returns
+ * `tag` element nodes from section flow in the same order the parser exposes
+ * them, so refs like `s0.tN` resolve to the same node on read and on write.
+ *
+ * Operates on the `preserveOrder: true` tree shape used by the mutator.
+ */
+function collectFlowChildElements(sectionTree: XmlNode[], tag: string): XmlNode[] {
   const sectionRoot = getSectionRootNode(sectionTree)
   const sectionChildren = getElementChildren(sectionRoot, getElementName(sectionRoot))
-  const sectionRects = getChildElements(sectionChildren, 'hp:rect')
+  const sectionDirect = getChildElements(sectionChildren, tag)
   const sectionParagraphs = getChildElements(sectionChildren, 'hp:p')
-  const inlineRects = sectionParagraphs.flatMap((paragraph) =>
-    getChildElements(getElementChildren(paragraph, 'hp:p'), 'hp:rect'),
-  )
-
-  return [...sectionRects, ...inlineRects]
+  const fromParagraphs = sectionParagraphs.flatMap((paragraph) => {
+    const paragraphChildren = getElementChildren(paragraph, 'hp:p')
+    const paragraphDirect = getChildElements(paragraphChildren, tag)
+    const runs = getChildElements(paragraphChildren, 'hp:run')
+    const runDirect = runs.flatMap((run) => getChildElements(getElementChildren(run, 'hp:run'), tag))
+    return [...paragraphDirect, ...runDirect]
+  })
+  return [...sectionDirect, ...fromParagraphs]
 }
 
 function getCellParagraphNodes(cellNode: XmlNode): XmlNode[] {
-  return getChildElements(getElementChildren(cellNode, 'hp:tc'), 'hp:p')
+  const cellChildren = getElementChildren(cellNode, 'hp:tc')
+  const direct = getChildElements(cellChildren, 'hp:p')
+  if (direct.length > 0) {
+    return direct
+  }
+  const subList = getChildElements(cellChildren, 'hp:subList')[0]
+  if (subList) {
+    return getChildElements(getElementChildren(subList, 'hp:subList'), 'hp:p')
+  }
+  return []
 }
 
 function getRunNodesFromParagraph(paragraphNode: XmlNode): XmlNode[] {
