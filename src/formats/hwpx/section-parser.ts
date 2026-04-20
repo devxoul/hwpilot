@@ -56,6 +56,13 @@ export function parseSection(xml: string, sectionIndex: number): Section {
  * Traversal is intentionally narrow: we do not recurse into `hp:tc` (table
  * cells), `hp:drawText` (text box bodies), or other subtrees, otherwise nested
  * tables-in-cells would surface as top-level tables and break ref semantics.
+ *
+ * Ordering limitation: within a single paragraph, paragraph-direct nodes are
+ * emitted before run-direct nodes. True interleaved document order between
+ * these two would require `preserveOrder: true` on the upstream XML parser,
+ * which groups siblings by tag in the current mode. Not observed in
+ * real-world HWPX (paragraphs contain either paragraph-direct or run-direct
+ * instances of a given tag, not both); revisit if a fixture emerges.
  */
 function collectFlowChildren(sec: XmlNode, paragraphs: XmlNode[], tag: string): XmlNode[] {
   const sectionDirect = asArray<XmlNode>(sec[tag])
